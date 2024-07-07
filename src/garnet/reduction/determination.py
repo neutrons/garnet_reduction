@@ -199,6 +199,15 @@ class Determination(SubPlan):
 
             ub.determine_UB_with_niggli_cell(min_d, max_d, tol)
 
+    def list_possible_conventional_cells(self, max_error, permutations):
+
+        if self.has_peaks() and self.has_UB():
+
+            ub = self.get_UB()
+
+            cells = ub.possible_conventional_cells(max_error, permutations)
+            print(cells)
+
     def find_conventional_UB(self, a, b, c, alpha, beta, gamma, tol):
 
         if self.has_peaks():
@@ -224,7 +233,7 @@ class Determination(SubPlan):
                             max_order,
                             cross_terms):
 
-        if self.has_Q and self.has_UB():
+        if self.has_Q() and self.has_UB():
 
             self.peaks.predict_peaks(self.Q,
                                     'peaks',

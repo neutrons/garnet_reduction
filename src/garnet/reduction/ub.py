@@ -18,6 +18,8 @@ from mantid.simpleapi import (SelectCellWithForm,
 from mantid.geometry import PointGroupFactory
 from mantid.utils.logging  import capture_logs
 
+import json
+
 import numpy as np
 
 import scipy.spatial
@@ -224,7 +226,7 @@ class UBModel:
                            Apply=True,
                            Tolerance=tol)
 
-    def possible_convetional_cells(self, max_error=0.2, permutations=True):
+    def possible_conventional_cells(self, max_error=0.2, permutations=True):
         """
         List possible conventional cells.
 
@@ -238,21 +240,18 @@ class UBModel:
         Returns
         -------
         vals : list
-            List of form numbers.
+            List of form results.
 
         """
 
-        with capture_logs(level='notice') as logs:
+        result = ShowPossibleCells(PeaksWorkspace=self.peaks,
+                                   MaxScalarError=max_error,
+                                   AllowPermutations=permutations,
+                                   BestOnly=False)
 
-            ShowPossibleCells(PeaksWorkspace=self.peaks,
-                              MaxScalarError=max_error,
-                              AllowPermuations=permutations,
-                              BestOnly=False)
+        vals = [json.loads(cell) for cell in result.Cells]
 
-            vals = logs.getvalue()
-            vals = [val for val in vals.split('\n') if val.startswith('Form')]
-
-            return vals
+        return vals
 
     def transform_lattice(self, transform, tol=0.1):
         """

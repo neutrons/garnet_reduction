@@ -53,6 +53,8 @@ def test_topaz():
 
         assert det.has_UB()
 
+        # vals = det.list_possible_conventional_cells(0.2, True)
+
         det.predict_peaks('C', 
                           0.5,
                           0.5,

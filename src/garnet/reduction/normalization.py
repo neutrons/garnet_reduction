@@ -68,7 +68,7 @@ class Normalization(SubPlan):
 
         if data.laue:
 
-            grouping_file = self.plan['GroupingFile']
+            # grouping_file = self.plan['GroupingFile']
 
             self.run = 0
             self.runs = len(runs)
@@ -94,7 +94,7 @@ class Normalization(SubPlan):
 
                 data.load_background(self.plan.get('BackgroundFile'), 'data')
 
-                data.group_pixels(grouping_file, 'data')
+                # data.group_pixels(grouping_file, 'data')
 
                 data.load_clear_UB(self.plan['UBFile'], 'data')
 
@@ -403,7 +403,7 @@ class Normalization(SubPlan):
             norm[i] = 1
 
             plot_name = 'slice_{}'.format(titles[i].replace(' ', ''))
-            pdf = Pages(self.get_plot_file(plot_name, '.pdf'))
+            pdf = Pages(self.get_plot_file(plot_name.replace('.',''), '.pdf'))
 
             plot = SlicePlot(UB, W)
             plot.calculate_transforms(axes, titles, norm)

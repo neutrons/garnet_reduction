@@ -144,7 +144,7 @@ class PeaksModel:
                          UseCentroid=True,
                          MaxIterations=3,
                          ReplaceIntensity=True,
-                         IntegrateIfOnEdge=True,
+                         IntegrateIfOnEdge=False,
                          AdaptiveQBackground=False,
                          MaskEdgeTubes=False,
                          OutputWorkspace=peaks)
@@ -595,8 +595,9 @@ class PeaksModel:
             merge_run = mtd[merge].run()
             peaks_run = mtd[peaks].run()
 
-            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-                    'bkg', 'bkg_err', 'data', 'data_err', 'norm', 'norm_err']
+            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 'bkg', 'bkg_err', 
+                    'data', 'data_err', 'norm', 'norm_err', 'vol',
+                    'A1d', 'A2d', 'A3d', 'sn1d', 'sn2d', 'sn3d']
 
             for key in keys:
                 log = 'peaks_{}'.format(key)
@@ -767,6 +768,26 @@ class PeakModel:
 
         return peak.getWavelength()
 
+    def get_sample_Q(self, no):
+        """
+        Scattering vector in Q sample coordinates.
+
+        Parameters
+        ----------
+        no : int
+            Peak index number.
+
+        Returns
+        -------
+        Q : list
+            Scattering Q-vector.
+
+        """
+
+        peak = mtd[self.peaks].getPeak(no)
+
+        return peak.getQSampleFrame()
+
     def get_angles(self, no):
         """
         Scattering and azimuthal angle of the peak.
@@ -780,7 +801,7 @@ class PeakModel:
         -------
         two_theta : float
             Scattering (polar) angle in degrees.
-        az_phi : TYPE
+        az_phi : float
             Azimuthal angle in degrees.
 
         """
@@ -851,15 +872,16 @@ class PeakModel:
 
         peak = mtd[self.peaks].getPeak(no)
 
-        run = peak.getRunNumber()
+        run = int(peak.getRunNumber())
         h, k, l = [int(val) for val in peak.getIntHKL()]
         m, n, p = [int(val) for val in peak.getIntMNP()]
 
         run_info = mtd[self.peaks].run()
         run_info_keys = run_info.keys()
 
-        keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-                'bkg', 'bkg_err', 'data', 'data_err', 'norm', 'norm_err']
+        keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 'bkg', 'bkg_err', 
+                'data', 'data_err', 'norm', 'norm_err', 'vol',
+                'A1d', 'A2d', 'A3d', 'sn1d', 'sn2d', 'sn3d']
 
         vals = [run, h, k, l, m, n, p]+values
 
@@ -870,7 +892,7 @@ class PeakModel:
             else:
                 items = np.array(run_info.getLogData(log).value).tolist()
                 items.append(val)
-                run_info[log] = items
+                run_info[log] = np.array(items).tolist()
 
     def get_peak_name(self, no):
         """

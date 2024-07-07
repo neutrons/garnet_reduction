@@ -1,7 +1,6 @@
 import os
 
 import numpy as np
-import scipy.spatial
 
 from mantid.simpleapi import (Load,
                               LoadNexus,
@@ -9,12 +8,15 @@ from mantid.simpleapi import (Load,
                               LoadParameterFile,
                               LoadIsawDetCal,
                               ApplyCalibration,
+                              Rebin,
+                              Divide,
+                              FilterBadPulses,
                               PreprocessDetectorsToMD,
                               ExtractMonitors,
                               LoadMask,
                               MaskDetectors,
+                              ExtractMask,
                               RemoveMaskedSpectra,
-                              CopyInstrumentParameters,
                               SetGoniometer,
                               LoadWANDSCD,
                               HB3AAdjustSampleNorm,
@@ -105,6 +107,8 @@ class BaseDataModel:
 
         self.ref_inst = self.instrument_config['InstrumentName']
 
+        self.dt = np.deg2rad(instrument_config['DeltaTheta'])
+
         # if not mtd.doesExist(self.instrument):
 
         #     LoadEmptyInstrument(InstrumentName=self.ref_inst,
@@ -161,7 +165,7 @@ class BaseDataModel:
         else:
             LoadEmptyInstrument(InstrumentName=self.ref_inst,
                                 OutputWorkspace=self.instrument)
-        
+
         # files = self.get_file_name_list(plan['IPTS'], plan['Runs'])
         # for file in files:
         #     assert os.path.exists(file)
@@ -389,7 +393,7 @@ class BaseDataModel:
         xs = np.meshgrid(*xs, indexing='ij')
 
         return signal, error, *xs
-    
+
     def extract_axis_info(self, ws):
         """
         Obtain the axis information from a histogram.
@@ -656,6 +660,62 @@ class BaseDataModel:
                                  Extents='{},{},{}'.format(*extents),
                                  Bins='{},{},{}'.format(*bins))
 
+    def get_resolution_in_Q(self, lamda, two_theta):
+        """
+        Obtain the wavelength and detector-dependent Q-resolution
+
+        Parameters
+        ----------
+        lamda : float
+            Incident wavelength.
+        two_theta : float
+            Detector scattering angle in degrees.
+
+        Returns
+        -------
+        dQ : float
+            Q-resolution.
+
+        """
+
+        dQ = 4*np.pi/lamda*np.cos(np.deg2rad(two_theta)*0.5)*self.dt
+
+        return dQ
+
+    def normalize_to_Q_sample(self, md, extents, bins, projections):
+        """
+        Histogram data into normalized Q-sample.
+
+        Parameters
+        ----------
+        md : str
+            3D Q-sample data.
+        extents : list
+            Min/max pairs for each dimension.
+        bins : list
+            Number of bins for each dimension.
+        projections : list
+            Direction of projection for each dimension.
+
+        """
+
+        if mtd.doesExist(md):
+
+            extents = np.array(extents).flatten().tolist()
+
+            u0, u1, u2 = projections
+
+            BinMD(InputWorkspace=md,
+                  AxisAligned=False,
+                  BasisVector0='Q_sample_x,Angstrom^-1,{},{},{}'.format(*u0),
+                  BasisVector1='Q_sample_y,Angstrom^-1,{},{},{}'.format(*u1),
+                  BasisVector2='Q_sample_z,Angstrom^-1,{},{},{}'.format(*u2),
+                  OutputExtents=extents,
+                  OutputBins=bins,
+                  OutputWorkspace=md+'_data')
+
+            return self.extract_bin_info(md+'_data')
+
 class MonochromaticData(BaseDataModel):
 
     def __init__(self, instrument_config):
@@ -799,8 +859,6 @@ class MonochromaticData(BaseDataModel):
                             Grouping=self.grouping,
                             OutputWorkspace='van')
 
-            self.efficiency = mtd['van'].getSignalArray().flatten()
-
             if histo_name is not None:
 
                 if mtd.doesExist(histo_name):
@@ -811,19 +869,12 @@ class MonochromaticData(BaseDataModel):
                                 DataWorkspace='van',
                                 OutputWorkspace=ws_name)
 
-                    self.set_goniometer(ws_name)
-
                     signal = mtd[ws_name].getSignalArray().copy()
                     mtd[ws_name].setSignalArray(signal*self.scale)
 
-                    Q_min_vals, Q_max_vals = self.get_min_max_values()
-
-                    ConvertHFIRSCDtoMDE(InputWorkspace=ws_name,
-                                        Wavelength=self.wavelength,
-                                        LorentzCorrection=False,
-                                        MinValues=Q_min_vals,
-                                        MaxValues=Q_max_vals,
-                                        OutputWorkspace='norm')
+                    DivideMD(LHSWorkspace=histo_name,
+                              RHSWorkspace=ws_name,
+                              OutputWorkspace=histo_name)
 
     def load_background(self, filename, histo_name=None):
         """
@@ -873,51 +924,55 @@ class MonochromaticData(BaseDataModel):
                         signal = mtd[ws_name].getSignalArray().copy()
                         mtd[ws_name].setSignalArray(signal*self.scale/scale)
 
-    def normalize_to_Q_sample(self, md, extents, bins):
-        """
-        Histogram data into normalized Q-sample.
+    # def normalize_to_Q_sample(self, md, extents, bins, projections):
+    #     """
+    #     Histogram data into normalized Q-sample.
 
-        Parameters
-        ----------
-        md : str
-            3D Q-sample data.
-        extents : list
-            Min/max pairs for each dimension.
-        bins : list
-            Number of bins for each dimension.
+    #     Parameters
+    #     ----------
+    #     md : str
+    #         3D Q-sample data.
+    #     extents : list
+    #         Min/max pairs for each dimension.
+    #     bins : list
+    #         Number of bins for each dimension.
+    #     projections : list
+    #         Direction of projection for each dimension.
 
-        """
+    #     """
 
-        if mtd.doesExist(md) and mtd.doesExist('norm'):
+    #     if mtd.doesExist(md) and mtd.doesExist('norm'):
 
-            extents = np.array(extents).flatten().tolist()
+    #         extents = np.array(extents).flatten().tolist()
 
-            BinMD(InputWorkspace=md,
-                  AxisAligned=False,
-                  BasisVector0='Q_sample_x,Angstrom^-1,1.0,0.0,0.0',
-                  BasisVector1='Q_sample_y,Angstrom^-1,0.0,1.0,0.0',
-                  BasisVector2='Q_sample_z,Angstrom^-1,0.0,0.0,1.0',
-                  OutputExtents=extents,
-                  OutputBins=bins,
-                  OutputWorkspace=md+'_data')
+    #         u0, u1, u2 = projections
 
-            BinMD(InputWorkspace='norm',
-                  AxisAligned=False,
-                  BasisVector0='Q_sample_x,Angstrom^-1,1.0,0.0,0.0',
-                  BasisVector1='Q_sample_y,Angstrom^-1,0.0,1.0,0.0',
-                  BasisVector2='Q_sample_z,Angstrom^-1,0.0,0.0,1.0',
-                  OutputExtents=extents,
-                  OutputBins=bins,
-                  OutputWorkspace=md+'_norm')
+    #         BinMD(InputWorkspace=md,
+    #               AxisAligned=False,
+    #               BasisVector0='Q_sample_x,Angstrom^-1,{},{},{}'.format(*u0),
+    #               BasisVector1='Q_sample_y,Angstrom^-1,{},{},{}'.format(*u1),
+    #               BasisVector2='Q_sample_z,Angstrom^-1,{},{},{}'.format(*u2),
+    #               OutputExtents=extents,
+    #               OutputBins=bins,
+    #               OutputWorkspace=md+'_data')
 
-            DivideMD(LHSWorkspace=md+'_data',
-                     RHSWorkspace=md+'_norm',
-                     OutputWorkspace=md+'_result')
+    #         BinMD(InputWorkspace='norm',
+    #               AxisAligned=False,
+    #               BasisVector0='Q_sample_x,Angstrom^-1,{},{},{}'.format(*u0),
+    #               BasisVector1='Q_sample_y,Angstrom^-1,{},{},{}'.format(*u1),
+    #               BasisVector2='Q_sample_z,Angstrom^-1,{},{},{}'.format(*u2),
+    #               OutputExtents=extents,
+    #               OutputBins=bins,
+    #               OutputWorkspace=md+'_norm')
 
-            data, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_data')
-            norm, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_norm')
+    #         DivideMD(LHSWorkspace=md+'_data',
+    #                  RHSWorkspace=md+'_norm',
+    #                  OutputWorkspace=md+'_result')
 
-            return data, norm, Q0, Q1, Q2
+    #         data, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_data')
+    #         norm, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_norm')
+
+    #         return data, norm, Q0, Q1, Q2
 
     def normalize_to_hkl(self, ws, projections, extents, bins, symmetry=None):
         """
@@ -1020,7 +1075,10 @@ class LaueData(BaseDataModel):
 
         Load(Filename=filenames,
              OutputWorkspace=event_name,
-             FilterByTimeStop=time_cut)            
+             FilterByTimeStop=time_cut)
+
+        FilterBadPulses(InputWorkspace=event_name,
+                        OutputWorkspace=event_name)
 
         if self.elastic == True and self.time_offset is not None:
             CopyInstrumentParameters(InputWorkspace=self.ref_inst,
@@ -1079,10 +1137,6 @@ class LaueData(BaseDataModel):
                 LoadIsawDetCal(InputWorkspace=event_name,
                                Filename=detector_calibration)
 
-        self.preprocess_detectors()
-
-        self.calculate_maximum_Q()
-
     def preprocess_detectors(self, ws=None):
         """
         Generate detector coordinates.
@@ -1106,19 +1160,24 @@ class LaueData(BaseDataModel):
                                     OutputWorkspace='detectors')
 
             two_theta = mtd['detectors'].column('TwoTheta')
+            # self.two_thetas = two_theta
             self.theta_max = 0.5*np.max(two_theta)
 
-            self.det_ids = np.array(mtd['detectors'].column('DetectorID'))
-            self.two_thetas = np.array(mtd['detectors'].column('TwoTheta'))
-            self.azimuthals  = np.array(mtd['detectors'].column('Azimuthal'))
+            # self.det_ids = np.array(mtd['detectors'].column('DetectorID'))
+            # self.azimuthals = np.array(mtd['detectors'].column('Azimuthal'))
 
-            points = np.column_stack((self.two_thetas, self.azimuthals))
-            self.tree = scipy.spatial.KDTree(points)
+            # points = np.column_stack((self.two_thetas, self.azimuthals))
+            # self.tree = scipy.spatial.KDTree(points)
 
-            if mtd.doesExist('flux'):
-                i = self.det_ids.tolist()
-                flux_inds = list(mtd['flux'].getIndicesFromDetectorIDs(i))
-                self.flux_inds = np.array(flux_inds)
+            # if mtd.doesExist('flux'):
+            #     i = self.det_ids.tolist()
+            #     flux_inds = list(mtd['flux'].getIndicesFromDetectorIDs(i))
+            #     assert len(i) == len(flux_inds)
+            #     self.flux_inds = np.array(flux_inds)
+            # if mtd.doesExist('sa'):
+            #     sa_inds = np.array(mtd['sa'].getIndicesFromDetectorIDs(i))
+            #     self.efficiency = mtd['sa'].extractY().flatten()[sa_inds]
+            #     assert len(self.efficiency) == len(i)
 
             self.calculate_maximum_Q()
 
@@ -1142,19 +1201,19 @@ class LaueData(BaseDataModel):
                      RefWorkspace=event_name,
                      OutputWorkspace='mask')
 
-        if mtd.doesExist('mask'):
+        if mtd.doesExist('sa_mask'):
 
             MaskDetectors(Workspace=event_name,
-                          MaskedWorkspace='mask')
-
-        if mtd.doesExist('sa'):
-            
-            CopyInstrumentParameters(InputWorkspace=event_name,
-                                     OutputWorkspace='sa')
+                          MaskedWorkspace='sa_mask')
 
             RemoveMaskedSpectra(InputWorkspace=event_name,
                                 MaskedWorkspace=event_name,
                                 OutputWorkspace=event_name)
+
+        if mtd.doesExist('mask'):
+
+            MaskDetectors(Workspace=event_name,
+                          MaskedWorkspace='mask')
 
     def create_grouping(self, filename, grouping):
         """
@@ -1169,7 +1228,7 @@ class LaueData(BaseDataModel):
 
         """
 
-        grouping = '1x1' if grouping is None else grouping      
+        grouping = '1x1' if grouping is None else grouping
 
         c, r = [int(val) for val in grouping.split('x')]
 
@@ -1189,7 +1248,7 @@ class LaueData(BaseDataModel):
                         grouped_ids[key] = [detector_id]
 
         header = '<?xml version="1.0" encoding="UTF-8" ?>\n'+\
-                 '<detector-grouping instrument="{}">\n'.format(self.ref_inst)        
+                 '<detector-grouping instrument="{}">\n'.format(self.ref_inst)
 
         with open(filename, 'wt+') as f:
             f.write(header)
@@ -1281,24 +1340,25 @@ class LaueData(BaseDataModel):
 
         return 0.5*lamda**4/np.sin(theta)**2, 2*np.pi/lamda, 2*theta, phi
 
-    def get_norm(self, Q0, Q1, Q2):
+    def get_data_norm(self, Q0, Q1, Q2):
 
-        L, k, two_theta, az_phi = self.lorentz(Q0, Q1, Q2)    
+        L, k, two_theta, az_phi = self.lorentz(Q0, Q1, Q2)
 
         i = np.argmin(np.abs(self.k_bin-k.ravel()[:,np.newaxis]), axis=1)
 
         mapping = np.column_stack([two_theta.ravel(), az_phi.ravel()])
 
         distances, indices = self.tree.query(mapping)
-        ids = self.det_ids[indices]
-        inds = self.flux_inds[ids]
-        N = self.spectra[inds][np.arange(len(inds)),i]*self.efficiency[ids]
+        inds = self.flux_inds[indices]
+        N = self.spectra[inds][np.arange(len(inds)),i]*self.efficiency[indices]
+        #D = self.data[indices][np.arange(len(i)),i]
 
+        #d = D.reshape(*L.shape)
         n = N.reshape(*L.shape)*L
 
         return n
 
-    def load_generate_normalization(self, vanadium_file, spectrum_file):
+    def load_generate_normalization(self, vanadium_file, flux_file):
         """
         Load a vanadium file and generate normalization data.
 
@@ -1306,7 +1366,7 @@ class LaueData(BaseDataModel):
         ----------
         vanadium_file : str
             Solid angle file.
-        spectrum_file : str
+        flux_file : str
             Flux file.
 
         """
@@ -1316,19 +1376,17 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=vanadium_file,
                       OutputWorkspace='sa')
 
-            if self.grouping is not None:
+            ExtractMask(InputWorkspace='sa', OutputWorkspace='sa_mask')
 
-                self.group_pixels(self.grouping, 'sa')
+            RemoveMaskedSpectra(InputWorkspace='sa', OutputWorkspace='sa')
 
-            RemoveMaskedSpectra(InputWorkspace='sa',
-                                MaskedWorkspace='sa',
-                                OutputWorkspace='sa')
+            #if self.grouping is not None:
 
-            self.efficiency = mtd['sa'].extractY().flatten()
+            #    self.group_pixels(self.grouping, 'sa')
 
         if not mtd.doesExist('flux'):
 
-            LoadNexus(Filename=spectrum_file,
+            LoadNexus(Filename=flux_file,
                       OutputWorkspace='flux')
 
             self.k_min = mtd['flux'].getXDimension().getMinimum()
@@ -1339,13 +1397,32 @@ class LaueData(BaseDataModel):
 
             self.wavelength_band = [lamda_min, lamda_max]
 
-            k_bin = mtd['flux'].extractX()[0,:]
-            self.k_bin = 0.5*(k_bin[1:]+k_bin[:-1])
-            wl_bin = 2*np.pi/self.k_bin 
-            spectra = np.diff(mtd['flux'].extractY(), axis=1)\
-                    / np.diff(mtd['flux'].extractX(), axis=1)/wl_bin**2
+    def load_spectra_file(self, spectra_file):
+        """
+        Load a spectra file.
 
-            self.spectra = np.vstack([spectra, np.zeros_like(spectra[0])])
+        Parameters
+        ----------
+        spectra_file : str
+            Spectra file.
+
+        """
+
+        if not mtd.doesExist('spectra'):
+
+            LoadNexus(Filename=spectra_file,
+                      OutputWorkspace='spectra')
+
+            self.lamda_min = mtd['spectra'].getXDimension().getMinimum()
+            self.lamda_max = mtd['spectra'].getXDimension().getMaximum()
+
+            bins = mtd['spectra'].getXDimension().getNBins()
+            self.lamda_bin = (self.lamda_max-self.lamda_min)/bins
+
+            lamda_min = self.lamda_min
+            lamda_max = self.lamda_max
+
+            self.wavelength_band = [lamda_min, lamda_max]
 
     def crop_for_normalization(self, event_name):
         """
@@ -1366,6 +1443,31 @@ class LaueData(BaseDataModel):
                                    XMin=self.k_min,
                                    XMax=self.k_max,
                                    OutputWorkspace=event_name)
+
+            if mtd.doesExist('spectra'):
+
+                NormaliseByCurrent(InputWorkspace=event_name,
+                                   OutputWorkspace=event_name)
+
+                ConvertUnits(InputWorkspace=event_name,
+                             OutputWorkspace=event_name,
+                             Target='Wavelength')                
+
+                params = [self.lamda_min, self.lamda_bin, self.lamda_max]
+
+                Rebin(InputWorkspace=event_name,
+                      OutputWorkspace=event_name,
+                      Params=params)
+
+                Divide(LHSWorkspace=event_name,
+                       RHSWorkspace='sa',
+                       OutputWorkspace=event_name,
+                       AllowDifferentNumberSpectra=True)
+
+                Divide(LHSWorkspace=event_name,
+                       RHSWorkspace='spectra',
+                       OutputWorkspace=event_name,
+                       AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """
@@ -1424,51 +1526,63 @@ class LaueData(BaseDataModel):
                          LogType='Number',
                          NumberType='Double')
 
-    def normalize_to_Q_sample(self, md, extents, bins):
-        """
-        Histogram data into normalized Q-sample.
+    # def normalize_to_Q_sample(self, md, extents, bins, projections):
+    #     """
+    #     Histogram data into normalized Q-sample.
 
-        Parameters
-        ----------
-        md : str
-            3D Q-sample data.
-        extents : list
-            Min/max pairs for each dimension.
-        bins : list
-            Number of bins for each dimension.
+    #     Parameters
+    #     ----------
+    #     md : str
+    #         3D Q-sample data.
+    #     extents : list
+    #         Min/max pairs for each dimension.
+    #     bins : list
+    #         Number of bins for each dimension.
+    #     projections : list
+    #         Direction of projection for each dimension.
 
-        """
+    #     """
 
-        if mtd.doesExist(md) and mtd.doesExist('sa') and mtd.doesExist('flux'):
+    #     if mtd.doesExist(md) and mtd.doesExist('sa') and mtd.doesExist('flux'):
 
-            (Q0_min, Q0_max), (Q1_min, Q1_max), (Q2_min, Q2_max) = extents
+    #         u0, u1, u2 = projections
 
-            nQ0, nQ1, nQ2 = bins
+    #         SetUB(Workspace=md, UB=np.eye(3)/(2*np.pi)) # transform axes
 
-            Q0_min, Q0_max, dQ0 = self.calculate_binning_from_bins(Q0_min,
-                                                                   Q0_max, nQ0)
+    #         (Q0_min, Q0_max), (Q1_min, Q1_max), (Q2_min, Q2_max) = extents
 
-            Q1_min, Q1_max, dQ1 = self.calculate_binning_from_bins(Q1_min,
-                                                                   Q1_max, nQ1)
+    #         nQ0, nQ1, nQ2 = bins
 
-            Q2_min, Q2_max, dQ2 = self.calculate_binning_from_bins(Q2_min,
-                                                                   Q2_max, nQ2)
+    #         Q0_min, Q0_max, dQ0 = self.calculate_binning_from_bins(Q0_min,
+    #                                                                Q0_max,
+    #                                                                nQ0)
 
-            MDNorm(InputWorkspace=md,
-                   RLU=False,
-                   SolidAngleWorkspace='sa',
-                   FluxWorkspace='flux',
-                   Dimension0Binning='{},{},{}'.format(Q0_min,dQ0,Q0_max),
-                   Dimension1Binning='{},{},{}'.format(Q1_min,dQ1,Q1_max),
-                   Dimension2Binning='{},{},{}'.format(Q2_min,dQ2,Q2_max),
-                   OutputWorkspace=md+'_result',
-                   OutputDataWorkspace=md+'_data',
-                   OutputNormalizationWorkspace=md+'_norm')
+    #         Q1_min, Q1_max, dQ1 = self.calculate_binning_from_bins(Q1_min,
+    #                                                                Q1_max,
+    #                                                                nQ1)
 
-            data, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_data')
-            norm, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_norm')
+    #         Q2_min, Q2_max, dQ2 = self.calculate_binning_from_bins(Q2_min,
+    #                                                                Q2_max,
+    #                                                                nQ2)
 
-            return data, norm, Q0, Q1, Q2
+    #         MDNorm(InputWorkspace=md,
+    #                RLU=True,
+    #                SolidAngleWorkspace='sa',
+    #                FluxWorkspace='flux',
+    #                QDimension0='{},{},{}'.format(*u0),
+    #                QDimension1='{},{},{}'.format(*u1),
+    #                QDimension2='{},{},{}'.format(*u2),
+    #                Dimension0Binning='{},{},{}'.format(Q0_min,dQ0,Q0_max),
+    #                Dimension1Binning='{},{},{}'.format(Q1_min,dQ1,Q1_max),
+    #                Dimension2Binning='{},{},{}'.format(Q2_min,dQ2,Q2_max),
+    #                OutputWorkspace=md+'_result',
+    #                OutputDataWorkspace=md+'_data',
+    #                OutputNormalizationWorkspace=md+'_norm')
+
+    #         data, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_data')
+    #         norm, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_norm')
+
+    #         return data, norm, Q0, Q1, Q2
 
     def normalize_to_hkl(self, md, projections, extents, bins, symmetry=None):
         """

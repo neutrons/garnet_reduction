@@ -1,10 +1,10 @@
 import os
 
-import multiprocessing
+import multiprocess as multiprocessing
 multiprocessing.set_start_method('spawn', force=True)
 
 import numpy as np
-# np.seterr(divide='ignore', invalid='ignore')
+np.seterr(divide='ignore', invalid='ignore')
 
 from mantid import config
 config['Q.convention'] = 'Crystallography'

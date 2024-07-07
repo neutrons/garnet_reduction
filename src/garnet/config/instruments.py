@@ -16,6 +16,7 @@ beamlines = {
         'Groupings': ['1x1', '2x2', '4x4'],
         'RawFile': 'nexus/SNAP_{}.nxs.h5',
         'BankPixels': [256, 256],
+        'DeltaTheta': 0.0375,
     },
     'CORELLI': {
         'Facility': 'SNS',
@@ -38,6 +39,7 @@ beamlines = {
         'Groupings': ['1x1', '1x2', '1x4'],
         'RawFile': 'nexus/CORELLI_{}.nxs.h5',
         'BankPixels': [16, 256],
+        'DeltaTheta': 0.16,
     },
     'TOPAZ': {
         'Facility': 'SNS',
@@ -60,6 +62,7 @@ beamlines = {
         'Groupings': ['1x1', '2x2', '4x4'],
         'RawFile': 'nexus/TOPAZ_{}.nxs.h5',
         'BankPixels': [256, 256],
+        'DeltaTheta': 0.044,
     },
     'MANDI': {
         'Facility': 'SNS',
@@ -85,6 +88,7 @@ beamlines = {
         'Groupings': ['1x1', '2x2', '4x4'],
         'RawFile': 'nexus/MANDI_{}.nxs.h5',
         'BankPixels': [256, 256],
+        'DeltaTheta': 0.0420,
     },
     'WAND²': {
         'Facility': 'HFIR',
@@ -108,6 +112,7 @@ beamlines = {
         'Groupings': ['1x1', '2x2', '4x4'],
         'RawFile': 'nexus/HB2C_{}.nxs.h5',
         'BankPixels': [480, 512],
+        'DeltaTheta': 0.15625,
     },
     'DEMAND': {
         'Facility': 'HFIR',
@@ -130,5 +135,6 @@ beamlines = {
         'Groupings': ['1x1'],
         'RawFile': 'shared/autoreduce/HB3A_exp{:04}_scan{:04}.nxs',
         'BankPixels': [512, 512],
+        'DeltaTheta': 0.0158,
     },
 }

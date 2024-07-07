@@ -93,7 +93,7 @@ def test_peak_plot():
 
     np.random.seed(13)
 
-    nx, ny, nz = 21, 24, 29
+    nx, ny, nz = 21, 24, 31
 
     Qx_min, Qx_max = 0, 2
     Qy_min, Qy_max = -0.9, 3.1
@@ -107,7 +107,7 @@ def test_peak_plot():
     a = 0.3
     b = 1.4
     c = 6.4
-    d = 5.0
+    d = 2.0
 
     sigma_yz = sigma_y*sigma_z
     sigma_xz = sigma_x*sigma_z
@@ -172,13 +172,13 @@ def test_peak_plot():
 
     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing='ij')
 
-    params = 1.05, 0.05, -1.15, 0.5, 0.5, 0.5, [1,0,0], [0,1,0], [0,0,1]
+    params = 1.05, 1.05, -1.15, 0.5, 0.5, 0.5, [1,0,0], [0,1,0], [0,0,1]
 
-    ellipsoid = PeakEllipsoid(*params, 2, 2)
+    ellipsoid = PeakEllipsoid(*params, 1, 1, 0.1)
 
     params = ellipsoid.fit(Qx, Qy, Qz, data, norm)
 
-    c, S, W, *fitting = ellipsoid.best_fit
+    c, S, *fitting = ellipsoid.best_fit
 
     vals = ellipsoid.interp_fit
 
@@ -186,9 +186,6 @@ def test_peak_plot():
 
     assert ellipsoid.volume_fraction(Qx, Qy, Qz, data, norm, *params) > 0.75
 
-    method = 'laue'
-
-    R = np.eye(3)
     wavelength = 3.2887
 
     angles = 60, 0
@@ -196,15 +193,22 @@ def test_peak_plot():
 
     *_, binning, _ = fitting
 
-    I, sigma = ellipsoid.integrate_norm(binning, c, S, R, wavelength, method)
+    (x0, x1, x2), dx, y, e = binning
 
-    plot = PeakPlot(method)
+    n = y/e**2
+    d = (y/e)**2
+
+    bin_data_norm = (x0, x1, x2), dx, d, n
+
+    I, sigma = ellipsoid.integrate_norm(bin_data_norm, c, S)
+
+    plot = PeakPlot()
 
     plot.add_fitting(fitting)
-    plot.add_ellipsoid(c, S, W, vals)
+    plot.add_ellipsoid(c, S, vals)
     plot.add_peak_intensity(intens, sig_noise)
     plot.add_peak_info(wavelength, angles, goniometer)
-    # plot.add_norm(ellipsoid.integral)
+    plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 
     file = os.path.join(filepath, 'ellipsoid.png')
 
