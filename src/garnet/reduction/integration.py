@@ -472,7 +472,7 @@ class Integration(SubPlan):
 
             dQ = data.get_resolution_in_Q(wavelength, two_theta)
 
-            j, max_iter = 0, 2
+            j, max_iter = 0, 1
 
             while j < max_iter and params is not None:
 
@@ -754,8 +754,6 @@ class PeakEllipsoid:
         self.params.add('phi', value=phi, min=-np.pi, max=np.pi, vary=True)
         self.params.add('theta', value=theta, min=0, max=np.pi, vary=True)
         self.params.add('omega', value=omega, min=-np.pi, max=np.pi, vary=True)
-
-        self.r_cut = r_cut
 
     def eigenvectors(self, W):
 
@@ -1118,12 +1116,6 @@ class PeakEllipsoid:
         self.params.add('B_2d', value=0, min=0, max=np.inf, vary=False)
         self.params.add('B_3d', value=0, min=0, max=np.inf, vary=False)
 
-        # self.params['B_2d'].set(expr='B_1d')
-        # self.params['B_3d'].set(expr='B_1d')
-
-        # self.params['A_2d'].set(expr='A_1d')
-        # self.params['A_3d'].set(expr='A_1d')
-
         if mask.sum() > 34 and (np.array(mask.shape) >= 5).all():
 
             x = [x0, x1, x2]
@@ -1155,7 +1147,7 @@ class PeakEllipsoid:
 
             mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
 
-            if mask.sum() < 11:
+            if mask.sum() < 5:
                 return None
 
             Q, y, e = Q[mask], y[mask], e[mask]
@@ -1175,7 +1167,7 @@ class PeakEllipsoid:
 
             mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
 
-            if mask.sum() < 17:
+            if mask.sum() < 5:
                 return None
 
             Qu, Qv, y, e = Qu[mask], Qv[mask], y[mask], e[mask]
