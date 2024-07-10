@@ -320,7 +320,8 @@ class Integration(SubPlan):
         peaks.integrate_peaks('md_data',
                               'combine',
                               self.params['Radius'],
-                              method='sphere')
+                              method='sphere',
+                              centroid=False)
 
         peaks.save_peaks(output_file, 'combine')
 
@@ -610,9 +611,6 @@ class Integration(SubPlan):
 
         params = self.project_ellipsoid_parameters(params, projections)
 
-        # if bin_size < 1e-4:
-        #     bin_size = 0.001
-
         Q0, Q1, Q2, r0, r1, r2, v0, v1, v2 = params
 
         dQ = self.roi(r0, r1, r2, v0, v1, v2)
@@ -623,12 +621,14 @@ class Integration(SubPlan):
                             [Q1-dQ1, Q1+dQ1],
                             [Q2-dQ2, Q2+dQ2]])
 
-        bin_sizes = np.array([bin_size, bin_size, bin_size])/2
+        bin_sizes = np.array([bin_size, bin_size, bin_size])
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
 
         bins = ((max_adjusted-min_adjusted)/bin_sizes).astype(int)
+        bins[bins > 50] = 50
+        bin_sizes = (max_adjusted-min_adjusted)/bins
 
         bins = np.where(bins % 2 == 0, bins, bins+1)
 
@@ -1069,27 +1069,18 @@ class PeakEllipsoid:
 
         dx = x[1]-x[0]
 
-        xu = x1[0,:,0]
-        xv = x2[0,0,:]
-
-        du = xu[1]-xu[0]
-        dv = xv[1]-xv[0]
-
         y[np.isinf(y)] = np.nan
         e[np.isinf(e)] = np.nan
 
-        d2x = du*dv
+        mask = (y > 0) & (e > 0)
+        norm = np.sum(mask, axis=(1,2))
 
-        y = np.nansum(y, axis=(1,2))*d2x
-        e = np.sqrt(np.nansum(e**2, axis=(1,2)))*d2x
+        y = np.nansum(y, axis=(1,2))/norm
+        e = np.sqrt(np.nansum(e**2, axis=(1,2)))/norm
 
         return x, dx, y, e
 
     def bin2d(self, x0, x1, x2, y, e):
-
-        x = x0[:,0,0]
-
-        dx = x[1]-x[0]
 
         xu = x1[0,:,0]
         xv = x2[0,0,:]
@@ -1099,8 +1090,11 @@ class PeakEllipsoid:
 
         xu, xv = np.meshgrid(xu, xv, indexing='ij')
 
-        y = np.nansum(y, axis=0)*dx
-        e = np.sqrt(np.nansum(e**2, axis=0))*dx
+        mask = (y > 0) & (e > 0)
+        norm = np.sum(mask, axis=0)
+
+        y = np.nansum(y, axis=0)/norm
+        e = np.sqrt(np.nansum(e**2, axis=0))/norm
 
         return (xu, xv), (du, dv), y, e
 
@@ -1336,9 +1330,6 @@ class PeakEllipsoid:
 
         pk = np.abs(x-c)/r < 1
 
-        struct = scipy.ndimage.generate_binary_structure(1, 1)
-        pk = scipy.ndimage.binary_dilation(pk, struct, border_value=0)
-
         pk = pk & (e >= 0)
 
         bkg, bkg_err = self.bkg_1d
@@ -1373,9 +1364,6 @@ class PeakEllipsoid:
         x = np.array([xu-c[0], xv-c[1]])
 
         pk = np.einsum('ij,jkl,ikl->kl', np.linalg.inv(S), x, x) < 1
-
-        struct = scipy.ndimage.generate_binary_structure(2, 1)
-        pk = scipy.ndimage.binary_dilation(pk, struct, border_value=0)
 
         pk = pk & (e >= 0)
 
@@ -1416,9 +1404,6 @@ class PeakEllipsoid:
         x = np.array([x0-c[0], x1-c[1], x2-c[2]])
 
         pk = np.einsum('ij,jklm,iklm->klm', np.linalg.inv(S), x, x) < 1
-
-        struct = scipy.ndimage.generate_binary_structure(3, 1)
-        pk = scipy.ndimage.binary_dilation(pk, struct, border_value=0)
 
         pk = pk & (e >= 0)
 
@@ -1477,32 +1462,32 @@ class PeakEllipsoid:
 
         d3x = dx0*dx1*dx2
 
-        # y_bkg = y[bkg]
-        # e_bkg = e[bkg]
+        y_bkg = y[bkg]
+        e_bkg = e[bkg]
 
-        # w_bkg = 1/e_bkg**2
+        w_bkg = 1/e_bkg**2
 
-        # if len(w_bkg) > 2:
-        #     b = self.weighted_median(y_bkg, w_bkg)
-        #     b_err = self.jackknife_uncertainty(y_bkg, w_bkg)
-        # else:
-        #     b = b_err = 0.0
+        if len(w_bkg) > 2:
+            b = self.weighted_median(y_bkg, w_bkg)
+            b_err = self.jackknife_uncertainty(y_bkg, w_bkg)
+        else:
+            b = b_err = 0.0
 
-        n_pk = y[pk].size
-        n_bkg = y[bkg].size
+        # n_pk = y[pk].size
+        # n_bkg = y[bkg].size
 
-        if n_bkg == 0:
-            n_bkg = 1
+        # if n_bkg == 0:
+        #     n_bkg = 1
 
-        vol_ratio = n_pk/n_bkg
+        # vol_ratio = n_pk/n_bkg
 
-        b = np.nansum(y[bkg])
-        b_err = np.sqrt(np.nansum(e[bkg]**2))
+        # b = np.nansum(y[bkg])
+        # b_err = np.sqrt(np.nansum(e[bkg]**2))
 
-        self.info = [b/n_bkg, b_err/n_bkg]
+        self.info = [b, b_err]
 
-        intens = (np.nansum(y[pk])-b*vol_ratio)#*d3x
-        sig = np.sqrt(np.nansum(e[pk]**2)-(b_err*vol_ratio)**2)#*d3x
+        intens = np.nansum(y[pk]-b)
+        sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
 
         # d = y**2/e**2
         n = y/e**2
@@ -1532,13 +1517,13 @@ class PeakEllipsoid:
 
         self.info += info
 
-        freq = y-b/n_bkg
+        freq = y-b
         freq[~dilate] = np.nan
 
         if not np.isfinite(sig):
             sig = intens
 
-        xye = (x0, x1, x2), (dx0, dx1, dx2), freq, vals, norm
+        xye = (x0, x1, x2), (dx0, dx1, dx2), freq
 
         params = (intens, sig, b, b_err)
 

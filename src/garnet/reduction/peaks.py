@@ -154,7 +154,7 @@ class PeaksModel:
                                   peak_radius,
                                   background_inner_fact=1,
                                   background_outer_fact=1.5,
-                                  steps=101,
+                                  steps=51,
                                   fix=False):
         """
         Integrate peak intensity with radius varying from zero to cut off.
