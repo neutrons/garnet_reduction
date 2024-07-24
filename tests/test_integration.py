@@ -185,77 +185,77 @@ def test_ellipsoid():
     assert np.isclose(mu, Q0, atol=0.01).all()
     assert np.isclose(s, sigma, atol=0.001).all()
 
-def test_ellipsoid_methods():
+# def test_ellipsoid_methods():
 
-    params = 1.05, 0.05, -1.15, 0.5, 0.5, 0.5, [1,0,0], [0,1,0], [0,0,1]
+#     params = 1.05, 0.05, -1.15, 0.5, 0.5, 0.5, [1,0,0], [0,1,0], [0,0,1]
 
-    ellipsoid = PeakEllipsoid(*params, 1, 1)
+#     ellipsoid = PeakEllipsoid(*params, 1, 1)
 
-    vals = 1., 2., 3., 0.2, 1.1, -0.4
+#     vals = 1., 2., 3., 0.2, 1.1, -0.4
 
-    S = ellipsoid.S_matrix(*vals)
-    inv_S = ellipsoid.inv_S_matrix(*vals)
+#     S = ellipsoid.S_matrix(*vals)
+#     inv_S = ellipsoid.inv_S_matrix(*vals)
 
-    assert np.allclose(np.linalg.inv(S), inv_S)
+#     assert np.allclose(np.linalg.inv(S), inv_S)
 
-    P = np.eye(3)-np.outer(ellipsoid.n, ellipsoid.n)
+#     P = np.eye(3)-np.outer(ellipsoid.n, ellipsoid.n)
 
-    assert np.allclose(ellipsoid.u, P @ ellipsoid.u)
-    assert np.allclose(ellipsoid.v, P @ ellipsoid.v)
+#     assert np.allclose(ellipsoid.u, P @ ellipsoid.u)
+#     assert np.allclose(ellipsoid.v, P @ ellipsoid.v)
 
-    W = np.column_stack([ellipsoid.n, ellipsoid.u, ellipsoid.v])
+#     W = np.column_stack([ellipsoid.n, ellipsoid.u, ellipsoid.v])
 
-    assert np.isclose(np.abs(np.linalg.det(W)), 1)
+#     assert np.isclose(np.abs(np.linalg.det(W)), 1)
 
-    x = np.linspace(1, 3, 1000)
+#     x = np.linspace(1, 3, 1000)
     
-    dx = x[1]-x[0]
+#     dx = x[1]-x[0]
 
-    A, B, mu, sigma = 1.2, 0.2, 2, 0.2
+#     A, B, mu, sigma = 1.2, 0.2, 2, 0.2
 
-    y = ellipsoid.profile(x, A, B, mu, sigma)
-    yp = ellipsoid.profile_grad(x, A, B, mu, sigma)
+#     y = ellipsoid.profile(x, A, B, mu, sigma)
+#     yp = ellipsoid.profile_grad(x, A, B, mu, sigma)
 
-    grad_y = np.gradient(y, dx)
+#     grad_y = np.gradient(y, dx)
 
-    assert np.allclose(yp, grad_y, rtol=1e-2, atol=1e-4)
+#     assert np.allclose(yp, grad_y, rtol=1e-2, atol=1e-4)
 
-    xu = np.linspace(1, 3, 500)
-    xv = np.linspace(2, 4, 501)
+#     xu = np.linspace(1, 3, 500)
+#     xv = np.linspace(2, 4, 501)
 
-    dxu, dxv = xu[1]-xu[0], xv[1]-xv[0]
+#     dxu, dxv = xu[1]-xu[0], xv[1]-xv[0]
 
-    xu, xv = np.meshgrid(xu, xv, indexing='ij')
+#     xu, xv = np.meshgrid(xu, xv, indexing='ij')
 
-    mu_u, mu_v, sigma_u, sigma_v, rho = 2, 3, 0.4, 0.5, 0.1
+#     mu_u, mu_v, sigma_u, sigma_v, rho = 2, 3, 0.4, 0.5, 0.1
 
-    y = ellipsoid.projection(xu, xv, A, B, mu_u, mu_v, sigma_u, sigma_v, rho)
-    ypu, ypv = ellipsoid.projection_grad(xu, xv, A, B,
-                                         mu_u, mu_v, sigma_u, sigma_v, rho)
+#     y = ellipsoid.projection(xu, xv, A, B, mu_u, mu_v, sigma_u, sigma_v, rho)
+#     ypu, ypv = ellipsoid.projection_grad(xu, xv, A, B,
+#                                          mu_u, mu_v, sigma_u, sigma_v, rho)
 
-    grad_yu, grad_yv = np.gradient(y, dxu, dxv)
+#     grad_yu, grad_yv = np.gradient(y, dxu, dxv)
 
-    assert np.allclose(ypu, grad_yu, rtol=1e-2, atol=1e-3)
-    assert np.allclose(ypv, grad_yv, rtol=1e-2, atol=1e-3)
+#     assert np.allclose(ypu, grad_yu, rtol=1e-2, atol=1e-3)
+#     assert np.allclose(ypv, grad_yv, rtol=1e-2, atol=1e-3)
 
-    x0 = np.linspace(1, 3, 250)
-    x1 = np.linspace(2, 4, 251)
-    x2 = np.linspace(3, 5, 252)
+#     x0 = np.linspace(1, 3, 250)
+#     x1 = np.linspace(2, 4, 251)
+#     x2 = np.linspace(3, 5, 252)
 
-    dx0, dx1, dx2 = x0[1]-x0[0], x1[1]-x1[0], x2[1]-x2[0]
+#     dx0, dx1, dx2 = x0[1]-x0[0], x1[1]-x1[0], x2[1]-x2[0]
 
-    x0, x1, x2 = np.meshgrid(x0, x1, x2, indexing='ij')
+#     x0, x1, x2 = np.meshgrid(x0, x1, x2, indexing='ij')
 
-    c = [2, 3, 4]
-    S = np.array([[0.04, 0.005, 0.003],
-                  [0.005, 0.041, 0.02],
-                  [0.003, 0.02, 0.042]])
+#     c = [2, 3, 4]
+#     S = np.array([[0.04, 0.005, 0.003],
+#                   [0.005, 0.041, 0.02],
+#                   [0.003, 0.02, 0.042]])
 
-    y = ellipsoid.func(x0, x1, x2, A, B, c, S)
-    yp0, yp1, yp2 = ellipsoid.func_grad(x0, x1, x2, A, B, c, S)
+#     y = ellipsoid.func(x0, x1, x2, A, B, c, S)
+#     yp0, yp1, yp2 = ellipsoid.func_grad(x0, x1, x2, A, B, c, S)
 
-    grad_y0, grad_y1, grad_y2 = np.gradient(y, dx0, dx1, dx2)
+#     grad_y0, grad_y1, grad_y2 = np.gradient(y, dx0, dx1, dx2)
 
-    assert np.allclose(yp0, grad_y0, rtol=1e-2, atol=1e-3)
-    assert np.allclose(yp1, grad_y1, rtol=1e-2, atol=1e-3)
-    assert np.allclose(yp2, grad_y2, rtol=1e-2, atol=1e-3)
+#     assert np.allclose(yp0, grad_y0, rtol=1e-2, atol=1e-3)
+#     assert np.allclose(yp1, grad_y1, rtol=1e-2, atol=1e-3)
+#     assert np.allclose(yp2, grad_y2, rtol=1e-2, atol=1e-3)

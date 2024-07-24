@@ -443,6 +443,14 @@ class PeakPlot(BasePlot):
         x1_min, x1_max = x1[0,0,0]-s1, x1[0,-1,0]+s1
         x2_min, x2_max = x2[0,0,0]-s2, x2[0,0,-1]+s2
 
+        mask_0 = np.isfinite(y0) & (y0 > 0)
+        mask_1 = np.isfinite(y1) & (y1 > 0)
+        mask_2 = np.isfinite(y2) & (y2 > 0)
+
+        y0[~mask_0] = np.nan
+        y1[~mask_1] = np.nan
+        y2[~mask_2] = np.nan
+
         vmin, vmax = np.nanmin(y2), np.nanmax(y2)
 
         self.norm_im[0].set_data(y2.T)
@@ -513,7 +521,7 @@ class PeakPlot(BasePlot):
         vmin = np.nanmax([np.nanmin(y1), np.nanmin(y2)])
         vmax = np.nanmin([np.nanmax(y1), np.nanmax(y2)])
 
-        if np.isclose(vmin, vmax) or vmin >= vmax:
+        if vmin >= vmax:
             vmin, vmax = 0, 1
 
         return vmin, vmax
@@ -546,13 +554,17 @@ class PeakPlot(BasePlot):
         y1_fit = np.nansum(y_fit, axis=1)
         y2_fit = np.nansum(y_fit, axis=2)
 
-        y0[np.isclose(y0, 0)] = np.nan
-        y1[np.isclose(y1, 0)] = np.nan
-        y2[np.isclose(y2, 0)] = np.nan
+        mask_0 = np.isfinite(y0) & (y0 > 0)
+        mask_1 = np.isfinite(y1) & (y1 > 0)
+        mask_2 = np.isfinite(y2) & (y2 > 0)
 
-        y0_fit[np.isclose(y0_fit, 0)] = np.nan
-        y1_fit[np.isclose(y1_fit, 0)] = np.nan
-        y2_fit[np.isclose(y2_fit, 0)] = np.nan
+        y0[~mask_0] = np.nan
+        y1[~mask_1] = np.nan
+        y2[~mask_2] = np.nan
+
+        y0_fit[~mask_0] = np.nan
+        y1_fit[~mask_1] = np.nan
+        y2_fit[~mask_2] = np.nan
 
         d0 = 0.5*(x0[1,0,0]-x0[0,0,0])
         d1 = 0.5*(x1[0,1,0]-x1[0,0,0])
@@ -612,7 +624,9 @@ class PeakPlot(BasePlot):
 
         (xu, xv), (dxu, dxv), y, e = xye
 
-        mask = np.isfinite(y)
+        mask = np.isfinite(y) & (y > 0) & np.isfinite(e) & (e > 0)
+
+        y[~mask] = np.nan
         y_fit[~mask] = np.nan
 
         vmin, vmax = self._color_limits(y, y_fit)

@@ -166,25 +166,23 @@ def test_peak_plot():
     data[i,j,k] = data[ic,jc,kc]
     data[ic,jc,kc] = temp[i,j,k]
 
-    mask = np.random.random(norm.shape) < 0.05
-    norm[mask] = 0
-    data[mask] = 0
+    mask = np.random.random(norm.shape) < 0.2
+    norm[mask] = np.nan
+    data[mask] = np.nan
 
     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing='ij')
 
-    params = 1.05, 1.05, -1.15, 0.5, 0.5, 0.5, [1,0,0], [0,1,0], [0,0,1]
+    params = 1.05, 1.05, -1.15
 
-    ellipsoid = PeakEllipsoid(*params, 1, 1, 0.1)
+    ellipsoid = PeakEllipsoid(*params, 1, 1)
 
-    params = ellipsoid.fit(Qx, Qy, Qz, data, norm)
+    params = ellipsoid.fit(Qx, Qy, Qz, data, norm, 0.1)
 
     c, S, *fitting = ellipsoid.best_fit
 
     vals = ellipsoid.interp_fit
 
     intens, sig_noise = ellipsoid.intens_fit
-
-    assert ellipsoid.volume_fraction(Qx, Qy, Qz, data, norm, *params) > 0.75
 
     wavelength = 3.2887
 

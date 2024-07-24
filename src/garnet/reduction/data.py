@@ -1453,11 +1453,11 @@ class LaueData(BaseDataModel):
                              OutputWorkspace=event_name,
                              Target='Wavelength')                
 
-                params = [self.lamda_min, self.lamda_bin, self.lamda_max]
+                # params = [self.lamda_min, self.lamda_bin, self.lamda_max]
 
-                Rebin(InputWorkspace=event_name,
-                      OutputWorkspace=event_name,
-                      Params=params)
+                # Rebin(InputWorkspace=event_name,
+                #       OutputWorkspace=event_name,
+                #       Params=params)
 
                 Divide(LHSWorkspace=event_name,
                        RHSWorkspace='sa',

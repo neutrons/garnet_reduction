@@ -7,12 +7,10 @@ import scipy.interpolate
 import scipy.integrate
 import scipy.special
 import scipy.ndimage
+# import scipy.sparse
 
+import astropy.convolution
 from lmfit import Minimizer, Parameters
-
-# import logging
-# logger = logging.getLogger(__name__)
-# logging.basicConfig(filename='garnet.integration.log', level=logging.INFO)
 
 from mantid.simpleapi import mtd
 from mantid import config
@@ -473,7 +471,7 @@ class Integration(SubPlan):
 
             dQ = data.get_resolution_in_Q(wavelength, two_theta)
 
-            j, max_iter = 0, 1
+            j, max_iter = 0, 2
 
             while j < max_iter and params is not None:
 
@@ -492,14 +490,11 @@ class Integration(SubPlan):
 
                 params = self.project_ellipsoid_parameters(params, projections)
 
-                ellipsoid = PeakEllipsoid(*params,
-                                          r_cut/3,
-                                          self.params['Radius'],
-                                          dQ)
-
                 c0, c1, c2, *_ = params
 
-                params = ellipsoid.fit(Q0, Q1, Q2, y, e)
+                ellipsoid = PeakEllipsoid(c0, c1, c2, r_cut, r_cut)
+
+                params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ)
 
                 if params is not None:
 
@@ -510,10 +505,10 @@ class Integration(SubPlan):
                     params = self.revert_ellipsoid_parameters(params,
                                                               projections)
 
-                    if np.isclose(dx, 0).any():
-                        params = None
-                    elif np.all(np.abs(np.diff(extents, axis=1)/dx-1) < 0.15):
-                        j = max_iter
+                    # if np.isclose(dx, 0).any():
+                    #     params = None
+                    # elif np.all(np.abs(np.diff(extents, axis=1)/dx-1) < 0.15):
+                    #     j = max_iter
 
             if params is not None:
 
@@ -569,7 +564,7 @@ class Integration(SubPlan):
 
         n /= np.linalg.norm(n)
 
-        v = np.array([0, 0, 1])
+        v = np.array([0, 1, 0])
 
         u = np.cross(v, n)
         u /= np.linalg.norm(u)
@@ -621,13 +616,13 @@ class Integration(SubPlan):
                             [Q1-dQ1, Q1+dQ1],
                             [Q2-dQ2, Q2+dQ2]])
 
-        bin_sizes = np.array([bin_size, bin_size, bin_size])
+        # bin_sizes = np.array([bin_size, bin_size, bin_size])
+        bin_sizes = np.array([dQ0, dQ1, dQ2])/10
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
 
         bins = ((max_adjusted-min_adjusted)/bin_sizes).astype(int)
-        bins[bins > 50] = 50
         bin_sizes = (max_adjusted-min_adjusted)/bins
 
         bins = np.where(bins % 2 == 0, bins, bins+1)
@@ -670,7 +665,7 @@ class PeakSphere:
 
         self.params = Parameters()
 
-        self.params.add('sigma', value=r_cut/6, min=0.01, max=r_cut/3)
+        self.params.add('sigma', value=r_cut/6, min=0.01, max=r_cut/4)
 
     def model(self, x, A, sigma):
 
@@ -720,40 +715,23 @@ class PeakSphere:
 
 class PeakEllipsoid:
 
-    def __init__(self, c0, c1, c2,
-                       r0, r1, r2,
-                       v0, v1, v2, delta, r_cut, bin_size):
-
-        params = Parameters()
-
-        self.params = params
+    def __init__(self, c0, c1, c2, delta, r_cut):
 
         self.n, self.u, self.v = np.eye(3)
 
-        if np.allclose(np.column_stack([v0, v1, v2]), np.eye(3)):
-            v0, v1, v2 = self.n, self.u, self.v
+        self.params = Parameters()
 
-        phi, theta, omega = self.angles(v0, v1, v2)
+        self.params.add('c0', value=c0, min=c0-delta, max=c0+delta)
+        self.params.add('c1', value=c1, min=c1-delta, max=c1+delta)
+        self.params.add('c2', value=c2, min=c2-delta, max=c2+delta)
 
-        self.update_constraints(c0, c1, c2,
-                                r0, r1, r2,
-                                phi, theta, omega,
-                                delta, r_cut, bin_size)
+        self.params.add('r0', value=r_cut, min=r_cut*0.1, max=r_cut*1.5)
+        self.params.add('r1', value=r_cut, min=r_cut*0.1, max=r_cut*1.5)
+        self.params.add('r2', value=r_cut, min=r_cut*0.1, max=r_cut*1.5)
 
-    def update_constraints(self, c0, c1, c2, r0, r1, r2,
-                           phi, theta, omega, delta, r_cut, bin_size):
-
-        self.params.add('r0', value=r0, min=bin_size, max=r_cut, vary=True)
-        self.params.add('r1', value=r1, min=bin_size, max=r_cut, vary=True)
-        self.params.add('r2', value=r2, min=bin_size, max=r_cut, vary=True)
-
-        self.params.add('c0', value=c0, min=c0-delta, max=c0+delta, vary=True)
-        self.params.add('c1', value=c1, min=c1-delta, max=c1+delta, vary=True)
-        self.params.add('c2', value=c2, min=c2-delta, max=c2+delta, vary=True)
-
-        self.params.add('phi', value=phi, min=-np.pi, max=np.pi, vary=True)
-        self.params.add('theta', value=theta, min=0, max=np.pi, vary=True)
-        self.params.add('omega', value=omega, min=-np.pi, max=np.pi, vary=True)
+        self.params.add('phi', value=0, min=-np.pi, max=np.pi)
+        self.params.add('theta', value=np.pi, min=0, max=np.pi)
+        self.params.add('omega', value=0, min=-np.pi, max=np.pi)
 
     def eigenvectors(self, W):
 
@@ -819,153 +797,195 @@ class PeakEllipsoid:
 
         return c, S
 
-    def residual(self, params, bin_1d, bin_2d, bin_3d):
+    def integrate_1d(self, x0, x1, x2, y, e, b, mu, sigma):
 
-        c0 = params['c0']
-        c1 = params['c1']
-        c2 = params['c2']
+        x = x0[:,0,0].copy()
+        xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
 
-        r0 = params['r0']
-        r1 = params['r1']
-        r2 = params['r2']
+        dx = x[1]-x[0]
+        d2x = (xu[1]-xu[0])*(xv[1]-xv[0])
 
-        phi = params['phi']
-        theta = params['theta']
-        omega = params['omega']
+        y1 = np.nansum(y-b, axis=(1,2))*d2x
+        e1 = np.sqrt(np.nansum(e**2, axis=(1,2)))*d2x
+
+        mask = np.isfinite(y1) & np.isfinite(e1)
+
+        y1[~mask] = np.nan
+        e1[~mask] = np.nan
+
+        r = 4*sigma
+
+        pk = (np.abs(x-mu)/r < 1)
+        bkg = ~pk
+
+        pk = pk & (e1 > 0) & np.isfinite(e1)
+        bkg = bkg & (e1 > 0) & np.isfinite(e1)
+
+        if bkg.sum() == 0:
+            b = b_err = np.nanmin(y1)
+        else:
+            b = np.nansum(y1[bkg]/e1[bkg]**2)/np.nansum(1/e1[bkg]**2)
+            b_err = 1/np.sqrt(np.nansum(1/e1[bkg]**2))
+
+        intens = np.nansum(y1[pk]-b)*dx
+        sig = np.sqrt(np.nansum(e1[pk]**2+b_err**2))*dx
+
+        return intens, sig, b, b_err, y1, e1
+
+    def integrate_2d(self, x0, x1, x2, y, e, b, mu_u, mu_v, s_u, s_v, corr):
+
+        x = x0[:,0,0].copy()
+        xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
+
+        dx = x[1]-x[0]
+        d2x = (xu[1]-xu[0])*(xv[1]-xv[0])
+        xu, xv = np.meshgrid(xu, xv, indexing='ij')
+
+        S = np.array([[s_u**2, s_u*s_v*corr], [s_u*s_v*corr, s_v**2]])
+
+        x = np.array([xu-mu_u, xv-mu_v])
+
+        y2 = np.nansum(y-b, axis=0)*dx
+        e2 = np.sqrt(np.nansum(e**2, axis=0))*dx
+
+        mask = np.isfinite(y2) & np.isfinite(e2)
+
+        y2[~mask] = np.nan
+        e2[~mask] = np.nan
+
+        A = 16*S
+
+        pk = (np.einsum('ij,jkl,ikl->kl', self.inv_2d(A), x, x) < 1)
+        bkg = ~pk
+
+        pk = pk & (e2 > 0) & np.isfinite(e2)
+        bkg = bkg & (e2 > 0) & np.isfinite(e2)
+
+        if bkg.sum() == 0:
+            b = b_err = np.nanmin(y2)
+        else:
+            b = np.nansum(y2[bkg]/e2[bkg]**2)/np.nansum(1/e2[bkg]**2)
+            b_err = 1/np.sqrt(np.nansum(1/e2[bkg]**2))
+
+        intens = np.nansum(y2[pk]-b)*d2x
+        sig = np.sqrt(np.nansum(e2[pk]**2+b_err**2))*d2x
+
+        return intens, sig, b, b_err, y2, e2
+
+    def integrate_3d(self, x0, x1, x2, y, e, b, c, S):
+
+        d3x = self.voxel_volume(x0, x1, x2)
+
+        x = np.array([x0-c[0], x1-c[1], x2-c[2]])
+
+        y3 = y-b
+        e3 = np.sqrt(e.copy()**2)
+
+        mask = np.isfinite(y3) & np.isfinite(e3)
+
+        y3[~mask] = np.nan
+        e3[~mask] = np.nan
+
+        A = 16*S
+
+        pk = (np.einsum('ij,jklm,iklm->klm', self.inv_3d(A), x, x) < 1)
+        bkg = ~pk
+
+        pk = pk & (e3 > 0) & np.isfinite(e3)
+        bkg = bkg & (e3 > 0) & np.isfinite(e3)
+
+        if bkg.sum() == 0:
+            b = b_err = np.nanmin(y3)
+        else:
+            b = np.nansum(y3[bkg]/e3[bkg]**2)/np.nansum(1/e3[bkg]**2)
+            b_err = 1/np.sqrt(np.nansum(1/e3[bkg]**2))
+
+        intens = np.nansum(y3[pk]-b)*d3x
+        sig = np.sqrt(np.nansum(e3[pk]**2+b_err**2))*d3x
+
+        return intens, sig, b, b_err, y3, e3
+
+    def objective(self, params, x0, x1, x2, dx0, dx1, dx2, y, e):
+
+        a1d = params['a1d'].value
+        a2d = params['a2d'].value
+        a3d = params['a3d'].value
+
+        b1d = params['b1d'].value
+        b2d = params['b2d'].value
+        b3d = params['b3d'].value
+
+        c0 = params['c0'].value
+        c1 = params['c1'].value
+        c2 = params['c2'].value
+
+        r0 = params['r0'].value
+        r1 = params['r1'].value
+        r2 = params['r2'].value
+
+        phi = params['phi'].value
+        theta = params['theta'].value
+        omega = params['omega'].value
 
         c, S = self.centroid_covariance(c0, c1, c2,
                                         r0, r1, r2,
                                         phi, theta, omega)
-
-        res = [self.residual_prof(params, c, S, bin_1d),
-               self.residual_proj(params, c, S, bin_2d),
-               self.residual_func(params, c, S, bin_3d)]
-
-        diff = np.concatenate(res)
-
-        return diff
-
-    def residual_prof(self, params, c, S, xye, integrate=False):
-
-        x, dx, y, e = xye
-
-        A = params['A_1d'].value
-        B = params['B_1d'].value
 
         mu, sigma = self.profile_params(c, S)
 
-        args = x, A, B, mu, sigma, integrate
-
-        y_fit = self.profile(*args)
-
-        w = 1/e
-
-        diff = ((y-y_fit)*w).ravel()
-
-        return diff
-
-    def residual_proj(self, params, c, S, xye, integrate=False):
-
-        (xu, xv), (dxu, dxv), y, e = xye
-
-        A = params['A_2d'].value
-        B = params['B_2d'].value
-
         mu_u, mu_v, sigma_u, sigma_v, rho = self.projection_params(c, S)
 
-        args = xu, xv, A, B, mu_u, mu_v, sigma_u, sigma_v, rho, integrate
+        params_1d = self.integrate_1d(x0, x1, x2, y, e, b1d, mu, sigma)
 
-        y_fit = self.projection(*args)
+        params_2d = self.integrate_2d(x0, x1, x2, y, e, b2d, mu_u, mu_v,
+                                      sigma_u, sigma_v, rho)
 
-        w = 1/e
+        params_3d = self.integrate_3d(x0, x1, x2, y, e, b3d, c, S)
 
-        diff = ((y-y_fit)*w).ravel()
+        A_1d, A_1d_sig, B_1d, B_1d_sig, y_1d, e_1d = params_1d
+        A_2d, A_2d_sig, B_2d, B_2d_sig, y_2d, e_2d = params_2d
+        A_3d, A_3d_sig, B_3d, B_3d_sig, y_3d, e_3d = params_3d
 
-        return diff
+        x = x0[:,0,0].copy()
+        xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
+        xu, xv = np.meshgrid(xu, xv, indexing='ij')
 
-    def residual_func(self, params, c, S, xye, integrate=False):
+        y_1d_fit = self.profile(x, a1d, 0, mu, sigma)
 
-        (x0, x1, x2), (dx0, dx1, dx2), y, e = xye
+        y_2d_fit = self.projection(xu, xv, a2d, 0, mu_u, mu_v,
+                                   sigma_u, sigma_v, rho)
 
-        A = params['A_3d'].value
-        B = params['B_3d'].value
+        y_3d_fit = self.peak(x0, x1, x2, a3d, 0, c, S)
 
-        args = x0, x1, x2, A, B, c, S, integrate
+        mask_1d = np.isfinite(y_1d) & np.isfinite(e_1d) & (e_1d > 0)
+        mask_2d = np.isfinite(y_2d) & np.isfinite(e_2d) & (e_2d > 0)
+        mask_3d = np.isfinite(y_3d) & np.isfinite(e_3d) & (e_3d > 0)
 
-        y_fit = self.func(*args)
+        res = [((y_1d-y_1d_fit)/e_1d)[mask_1d], #
+               ((y_2d-y_2d_fit)/e_2d)[mask_2d], #
+               ((y_3d-y_3d_fit)/e_3d)[mask_3d]] #
 
-        w = 1/e
+        return np.concatenate(res)
 
-        diff = ((y-y_fit)*w).ravel()
-
-        return diff
-
-    def residual_integral(self, params, binning, integrate):
-
-        c0 = params['c0']
-        c1 = params['c1']
-        c2 = params['c2']
-
-        r0 = params['r0']
-        r1 = params['r1']
-        r2 = params['r2']
-
-        phi = params['phi']
-        theta = params['theta']
-        omega = params['omega']
-
-        c, S = self.centroid_covariance(c0, c1, c2,
-                                        r0, r1, r2,
-                                        phi, theta, omega)
-
-        return self.residual_func(params, c, S, binning, integrate=integrate)
-
-    def func(self, Q0, Q1, Q2, A, B, c, S, integrate=False):
+    def peak(self, Q0, Q1, Q2, A, B, c, S, integrate=True):
 
         y = self.generalized3d(Q0, Q1, Q2, c, S, integrate)
 
         return A*y+B
-
-    def func_grad(self, Q0, Q1, Q2, A, B, c, S, integrate=False):
-
-        y = self.generalized3d(Q0, Q1, Q2, c, S, integrate)
-
-        inv_S = np.linalg.inv(S)
-
-        coeff = np.einsum('ij,j...->i...', inv_S, [Q0-c[0], Q1-c[1], Q2-c[2]])
-
-        return -A*coeff[0]*y, -A*coeff[1]*y, -A*coeff[2]*y
 
     def projection(self, Qu, Qv, A, B, mu_u, mu_v, \
-                         sigma_u, sigma_v, rho, integrate=False):
+                         sigma_u, sigma_v, rho, integrate=True):
 
         y = self.generalized2d(Qu, Qv, mu_u, mu_v,
                                sigma_u, sigma_v, rho, integrate)
 
         return A*y+B
 
-    def projection_grad(self, Qu, Qv, A, B, mu_u, mu_v, \
-                              sigma_u, sigma_v, rho, integrate=False):
-
-        y = self.generalized2d(Qu, Qv, mu_u, mu_v,
-                               sigma_u, sigma_v, rho, integrate)
-
-        u = (Qu-mu_u)/(sigma_u*(1-rho**2))
-        v = (Qv-mu_v)/(sigma_v*(1-rho**2))
-
-        return -A*(u-rho*v)/sigma_u*y, -A*(v-rho*u)/sigma_v*y
-
-    def profile(self, Q, A, B, mu, sigma, integrate=False):
+    def profile(self, Q, A, B, mu, sigma, integrate=True):
 
         y = self.generalized1d(Q, mu, sigma, integrate)
 
         return A*y+B
-
-    def profile_grad(self, Q, A, B, mu, sigma, integrate=False):
-
-        y = self.generalized1d(Q, mu, sigma, integrate)
-
-        return -A*(Q-mu)/sigma**2*y
 
     def profile_params(self, c, S):
 
@@ -980,13 +1000,13 @@ class PeakEllipsoid:
         mu_u = np.dot(c, self.u)
         mu_v = np.dot(c, self.v)
 
-        s0 = np.sqrt(np.dot(np.dot(S, self.u), self.u))
-        s1 = np.sqrt(np.dot(np.dot(S, self.v), self.v))
-        s01 = np.dot(np.dot(S, self.u), self.v)
+        s_u = np.sqrt(np.dot(np.dot(S, self.u), self.u))
+        s_v = np.sqrt(np.dot(np.dot(S, self.v), self.v))
+        s_uv = np.dot(np.dot(S, self.u), self.v)
 
-        corr = s01/(s0*s1)
+        corr = s_uv/(s_u*s_v)
 
-        return mu_u, mu_v, s0, s1, corr
+        return mu_u, mu_v, s_u, s_v, corr
 
     def generalized3d(self, Q0, Q1, Q2, c, S, integrate):
 
@@ -1063,126 +1083,78 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def bin1d(self, x0, x1, x2, y, e):
+    def backfill_invalid(self, data, x0, x1, x2, dx):
 
-        x = x0[:,0,0]
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        dx = x[1]-x[0]
+        d0 = dx/dx0/2
+        d1 = dx/dx1/2
+        d2 = dx/dx2/2
 
-        y[np.isinf(y)] = np.nan
-        e[np.isinf(e)] = np.nan
+        k0 = astropy.convolution.Gaussian1DKernel(d0).array
+        k1 = astropy.convolution.Gaussian1DKernel(d1).array
+        k2 = astropy.convolution.Gaussian1DKernel(d2).array
 
-        mask = (y > 0) & (e > 0)
-        norm = np.sum(mask, axis=(1,2))
+        k = k0*k1.reshape((-1,1))*k2.reshape((-1,1,1))
 
-        y = np.nansum(y, axis=(1,2))/norm
-        e = np.sqrt(np.nansum(e**2, axis=(1,2)))/norm
+        return astropy.convolution.convolve(data, k, boundary='extend')
 
-        return x, dx, y, e
-
-    def bin2d(self, x0, x1, x2, y, e):
-
-        xu = x1[0,:,0]
-        xv = x2[0,0,:]
-
-        du = xu[1]-xu[0]
-        dv = xv[1]-xv[0]
-
-        xu, xv = np.meshgrid(xu, xv, indexing='ij')
-
-        mask = (y > 0) & (e > 0)
-        norm = np.sum(mask, axis=0)
-
-        y = np.nansum(y, axis=0)/norm
-        e = np.sqrt(np.nansum(e**2, axis=0))/norm
-
-        return (xu, xv), (du, dv), y, e
-
-    def fit(self, x0, x1, x2, y_norm, e_norm):
+    def fit(self, x0, x1, x2, y_norm, e_norm, dQ):
 
         mask = (y_norm > 0) & (e_norm > 0)
 
-        self.params.add('A_1d', value=0, min=0, max=1, vary=False)
-        self.params.add('A_2d', value=0, min=0, max=1, vary=False)
-        self.params.add('A_3d', value=0, min=0, max=1, vary=False)
+        if mask.sum() > 21 and (np.array(mask.shape) >= 5).all():
+            
+            y = y_norm.copy()
+            e = e_norm.copy()
 
-        self.params.add('B_1d', value=0, min=0, max=np.inf, vary=False)
-        self.params.add('B_2d', value=0, min=0, max=np.inf, vary=False)
-        self.params.add('B_3d', value=0, min=0, max=np.inf, vary=False)
+            y[~mask] = np.nan
+            e[~mask] = np.nan
 
-        if mask.sum() > 34 and (np.array(mask.shape) >= 5).all():
+            y = self.backfill_invalid(y, x0, x1, x2, dQ)
+            e = np.sqrt(self.backfill_invalid(e**2, x0, x1, x2, dQ))
 
-            x = [x0, x1, x2]
+            #mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
 
-            y = y_norm
-            e = e_norm
+            Q0, Q1, Q2 = x0.copy(), x1.copy(), x2.copy()
 
-            mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
-
-            Q0, Q1, Q2, y, e = x0[mask], x1[mask], x2[mask], y[mask], e[mask]
+            #y[~mask] = np.nan
+            #e[~mask] = np.nan
 
             dQ0, dQ1, dQ2 = self.voxels(x0, x1, x2)
 
-            bin_3d = (Q0, Q1, Q2), (dQ0, dQ1, dQ2), y, e
+            # y3 = y.copy()
+            # y2 = np.nansum(y, axis=0)
+            # y1 = np.nansum(y, axis=(1,2))
 
-            y_min = np.nanmin(y)
-            y_max = np.nanmax(y)
+            dx0, dx1, dx2 = dQ0, dQ1, dQ2
 
-            if y_max <= y_min or np.isclose(y_max, 0):
-                y_max = 1
+            x = x0[:,0,0].copy()
+            xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
+            xu, xv = np.meshgrid(xu, xv, indexing='ij')
 
-            self.params['A_3d'].set(value=y_max, min=0, max=5*y_max, vary=True)
-            self.params['B_3d'].set(value=y_min, min=0, max=y_max, vary=True)
+            d3x = dx0*dx1*dx2
 
-            bin_1d = self.bin1d(x0, x1, x2, y_norm, e_norm)
-            bin_2d = self.bin2d(x0, x1, x2, y_norm, e_norm)
+            a_max = np.nansum(y)*d3x
 
-            Q, dQ, y, e = bin_1d
+            b_max = np.nanmean(y)*0.95
+            b_min = np.nanmin(y)
 
-            mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
+            self.params.add('a1d', value=a_max, min=0, max=10*a_max)
+            self.params.add('a2d', value=a_max, min=0, max=10*a_max)
+            self.params.add('a3d', value=a_max, min=0, max=10*a_max)
 
-            if mask.sum() < 5:
-                return None
+            self.params.add('b1d', value=b_min, min=0, max=b_max)
+            self.params.add('b2d', value=b_min, min=0, max=b_max)
+            self.params.add('b3d', value=b_min, min=0, max=b_max)
 
-            Q, y, e = Q[mask], y[mask], e[mask]
-
-            bin_1d = Q, dQ, y, e
-
-            y_min = np.nanmin(y)
-            y_max = np.nanmax(y)
-
-            if y_max <= y_min or np.isclose(y_max, 0):
-                y_max = 1
-
-            self.params['A_1d'].set(value=y_max, min=0, max=5*y_max, vary=True)
-            self.params['B_1d'].set(value=y_min, min=0, max=y_max, vary=True)
-
-            (Qu, Qv), (dQu, dQv), y, e = bin_2d
-
-            mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
-
-            if mask.sum() < 5:
-                return None
-
-            Qu, Qv, y, e = Qu[mask], Qv[mask], y[mask], e[mask]
-
-            bin_2d = (Qu, Qv), (dQu, dQv), y, e
-
-            y_min = np.nanmin(y)
-            y_max = np.nanmax(y)
-
-            if y_max <= y_min or np.isclose(y_max, 0):
-                y_max = 1
-
-            self.params['A_2d'].set(value=y_max, min=0, max=5*y_max, vary=True)
-            self.params['B_2d'].set(value=y_min, min=0, max=y_max, vary=True)
-
-            out = Minimizer(self.residual,
+            out = Minimizer(self.objective,
                             self.params,
-                            fcn_args=(bin_1d, bin_2d, bin_3d),
+                            fcn_args=(Q0, Q1, Q2, dQ0, dQ1, dQ2, y, e),
+                            #reduce_fcn='negentropy',
                             nan_policy='omit')
 
-            result = out.minimize(method='least_squares', loss='soft_l1')
+            result = out.minimize(method='leastsq')
 
             self.params = result.params
 
@@ -1198,250 +1170,67 @@ class PeakEllipsoid:
             theta = self.params['theta'].value
             omega = self.params['omega'].value
 
-            self.params.pop('r0')
-            self.params.pop('r1')
-            self.params.pop('r2')
+            y, e = y_norm.copy(), e_norm.copy()
 
-            self.params.pop('phi')
-            self.params.pop('theta')
-            self.params.pop('omega')
+            b1d = self.params['b1d'].value
+            b2d = self.params['b2d'].value
+            b3d = self.params['b3d'].value
 
-            self.params.pop('c0')
-            self.params.pop('c1')
-            self.params.pop('c2')
+            mask = np.isfinite(e) & np.isfinite(y) & (e > 0) & (y > 0)
 
-            self.params['B_1d'].set(vary=False)
-            self.params['B_2d'].set(vary=False)
-            self.params['B_3d'].set(vary=False)
+            y[~mask] = np.nan
+            e[~mask] = np.nan
 
-            B_1d = self.params['B_1d'].value
-            B_2d = self.params['B_2d'].value
-            B_3d = self.params['B_3d'].value
-
-            B_1d_err = self.params['B_1d'].stderr
-            if B_1d_err is None:
-                B_1d_err = 0.0
-
-            B_2d_err = self.params['B_2d'].stderr
-            if B_2d_err is None:
-                B_2d_err = 0.0
-
-            B_3d_err = self.params['B_3d'].stderr
-            if B_3d_err is None:
-                B_3d_err = 0.0
-
-            self.bkg_1d = B_1d, B_1d_err
-            self.bkg_2d = B_2d, B_2d_err
-            self.bkg_3d = B_3d, B_3d_err
-
-            x = [x0, x1, x2]
-            dx = [dQ0, dQ1, dQ2]
-
-            y = y_norm
-            e = e_norm
-
-            bin_3d = x, dx, y, e
-
-            (Q0, Q1, Q2), dx, y, e = bin_3d
-
-            bin_1d = self.bin1d(x0, x1, x2, y_norm, e_norm)
-            bin_2d = self.bin2d(x0, x1, x2, y_norm, e_norm)
-
-            c, cov = self.centroid_covariance(c0, c1, c2,
-                                              r0, r1, r2,
-                                              phi, theta, omega)
-
-            S = self.S_matrix(r0, r1, r2, phi, theta, omega)
-
-            mu, sigma = self.profile_params(c, cov)
-            mu_u, mu_v, sigma_u, sigma_v, rho = self.projection_params(c, cov)
-
-            r, ru, rv = np.array([sigma, sigma_u, sigma_v])*4
-
-            R = [ru, rv, rho]
-
-            val_1d = self.integrate_profile(bin_1d, mu, r)
-            val_2d = self.integrate_projection(bin_2d, [mu_u, mu_v], R)
-            val_3d = self.integrate(bin_3d, c, S)
-
-            if val_1d is not None:
-                A_1d, A_1d_sig, B_1d, *p1 = val_1d
-            else:
-                return None
-
-            if val_2d is not None:
-                A_2d, A_2d_sig, B_2d, *p2 = val_2d
-            else:
-                return None
-
-            if val_3d is not None:
-                A_3d, A_3d_sig, B_3d, *p3 = val_3d
-            else:
-                return None
-
-            self.fit_est = p3
-
-            self.params.pop('A_1d')
-            self.params.pop('A_2d')
-            self.params.pop('A_3d')
-
-            self.params.pop('B_1d')
-            self.params.pop('B_2d')
-            self.params.pop('B_3d')
-
-            A = np.array([A_1d, A_2d, A_3d])
-            A_sig = np.array([A_1d_sig, A_2d_sig, A_3d_sig])
-
-            self.intens_fit = A, A/A_sig
-
-            args = Q0, Q1, Q2, A_3d, B_3d, *p3, True
-
-            y_3d_fit = self.func(*args)
-
-            (Qu, Qv), (dQu, dQv), y, e = bin_2d
-
-            args = Qu, Qv, A_2d, B_2d, *p2, True
-
-            y_2d_fit = self.projection(*args)
-
-            Q, dQ, y, e = bin_1d
-
-            args = Q, A_1d, B_1d, *p1, True
-
-            y_1d_fit = self.profile(*args)
-
-            fitting = bin_1d, y_1d_fit, bin_2d, y_2d_fit, bin_3d, y_3d_fit
-
-            self.best_fit = c, S, *fitting
-
-            x = A_1d, B_1d, A_2d, B_2d, A_3d, B_3d
-
-            self.interp_fit = mu, mu_u, mu_v, r, ru, rv, rho, *x
+            c, S = self.centroid_covariance(c0, c1, c2,
+                                            r0, r1, r2,
+                                            phi, theta, omega)
 
             U = self.U_matrix(phi, theta, omega)
 
             v0, v1, v2 = U.T
 
+            mu, sigma = self.profile_params(c, S)
+
+            mu_u, mu_v, sigma_u, sigma_v, rho = self.projection_params(c, S)
+
+            r, ru, rv = np.array([sigma, sigma_u, sigma_v])*4
+
+            params_1d = self.integrate_1d(x0, x1, x2, y, e, 0, mu, sigma)
+
+            params_2d = self.integrate_2d(x0, x1, x2, y, e, 0, mu_u, mu_v,
+                                          sigma_u, sigma_v, rho)
+
+            params_3d = self.integrate_3d(x0, x1, x2, y, e, 0, c, S)
+
+            A_1d, A_1d_sig, B_1d, B_1d_sig, y_1d, e_1d = params_1d
+            A_2d, A_2d_sig, B_2d, B_2d_sig, y_2d, e_2d = params_2d
+            A_3d, A_3d_sig, B_3d, B_3d_sig, y_3d, e_3d = params_3d
+
+            y_1d_fit = self.profile(x, A_1d, B_1d, mu, sigma)
+
+            y_2d_fit = self.projection(xu, xv, A_2d, B_2d, mu_u, mu_v, \
+                                       sigma_u, sigma_v, rho)
+
+            y_3d_fit = self.peak(x0, x1, x2, A_3d, B_3d, c, S)
+
+            bin_3d = (x0, x1, x2), (dx0, dx1, dx2), y_3d, e_3d
+            bin_2d = (xu, xv), (dx1, dx2), y_2d, e_2d
+            bin_1d = x, dx0, y_1d, e_1d
+
+            A = np.array([A_1d, A_2d, A_3d])/d3x
+            A_sig = np.array([A_1d_sig, A_2d_sig, A_3d_sig])/d3x
+
+            self.intens_fit = A, A/A_sig
+
+            fitting = bin_1d, y_1d_fit, bin_2d, y_2d_fit, bin_3d, y_3d_fit
+
+            self.best_fit = c, S*16, *fitting
+
+            x = A_1d, B_1d, A_2d, B_2d, A_3d, B_3d
+
+            self.interp_fit = mu, mu_u, mu_v, r, ru, rv, rho, *x
+
             return c0, c1, c2, r0, r1, r2, v0, v1, v2
-
-    def integrate_profile(self, bins, c, r):
-
-        x, dx, y, e = bins
-
-        pk = np.abs(x-c)/r < 1
-
-        pk = pk & (e >= 0)
-
-        bkg, bkg_err = self.bkg_1d
-
-        freq = y[pk]-bkg
-        var = e[pk]**2+bkg_err**2
-
-        intens = np.nansum(freq)*dx
-        sig = np.sqrt(np.nansum(var))*dx
-
-        if intens <= sig:
-            return None
-
-        wgt = freq.copy()
-        wgt[wgt < 0] = 0
-
-        if not wgt.sum() > 0:
-            return None
-
-        mu = np.average(x[pk], weights=wgt)
-
-        sigma = np.sqrt(np.average((x[pk]-mu)**2, weights=wgt))
-
-        return intens, sig, bkg, mu, sigma
-
-    def integrate_projection(self, bins, c, R):
-
-        (xu, xv), dx, y, e = bins
-
-        S = np.array([[R[0]**2, np.prod(R)], [np.prod(R), R[1]**2]])
-
-        x = np.array([xu-c[0], xv-c[1]])
-
-        pk = np.einsum('ij,jkl,ikl->kl', np.linalg.inv(S), x, x) < 1
-
-        pk = pk & (e >= 0)
-
-        bkg, bkg_err = self.bkg_2d
-
-        d2x = np.prod(dx)
-
-        freq = y[pk]-bkg
-        var = e[pk]**2+bkg_err**2
-
-        intens = np.nansum(freq)*d2x
-        sig = np.sqrt(np.nansum(var))*d2x
-
-        if intens <= sig:
-            return None
-
-        wgt = freq.copy()
-        wgt[wgt < 0] = 0
-
-        if not wgt.sum() > 0:
-            return None
-
-        mu_u = np.average(xu[pk], weights=wgt)
-        mu_v = np.average(xv[pk], weights=wgt)
-
-        sigma_u = np.sqrt(np.average((xu[pk]-mu_u)**2, weights=wgt))
-        sigma_v = np.sqrt(np.average((xv[pk]-mu_v)**2, weights=wgt))
-
-        rho = np.average((xu[pk]-mu_u)*\
-                         (xv[pk]-mu_v), weights=wgt)/(sigma_u*sigma_v)
-
-        return intens, sig, bkg, mu_u, mu_v, sigma_u, sigma_v, rho
-
-    def integrate(self, bins, c, S):
-
-        (x0, x1, x2), dx, y, e = bins
-
-        x = np.array([x0-c[0], x1-c[1], x2-c[2]])
-
-        pk = np.einsum('ij,jklm,iklm->klm', np.linalg.inv(S), x, x) < 1
-
-        pk = pk & (e >= 0)
-
-        bkg, bkg_err = self.bkg_3d
-
-        d3x = np.prod(dx)
-
-        freq = y[pk]-bkg
-        var = e[pk]**2+bkg_err**2
-
-        intens = np.nansum(freq)*d3x
-        sig = np.sqrt(np.nansum(var))*d3x
-
-        if intens <= sig:
-            return None
-
-        wgt = freq.copy()
-        wgt[wgt < 0] = 0
-
-        if not wgt.sum() > 0:
-            return None
-
-        mu0 = np.average(x0[pk], weights=wgt)
-        mu1 = np.average(x1[pk], weights=wgt)
-        mu2 = np.average(x2[pk], weights=wgt)
-
-        s0 = np.average((x0[pk]-mu0)**2, weights=wgt)
-        s1 = np.average((x1[pk]-mu1)**2, weights=wgt)
-        s2 = np.average((x2[pk]-mu2)**2, weights=wgt)
-
-        s01 = np.average((x0[pk]-mu0)*(x1[pk]-mu1), weights=wgt)
-        s02 = np.average((x0[pk]-mu0)*(x2[pk]-mu2), weights=wgt)
-        s12 = np.average((x1[pk]-mu1)*(x2[pk]-mu2), weights=wgt)
-
-        c = np.array([mu0, mu1, mu2])
-        S = np.array([[s0, s01, s02], [s01, s1, s12], [s02, s12, s2]])
-
-        return intens, sig, bkg, c, S
 
     def integrate_norm(self, bins, c, S):
 
@@ -1471,29 +1260,17 @@ class PeakEllipsoid:
             b = self.weighted_median(y_bkg, w_bkg)
             b_err = self.jackknife_uncertainty(y_bkg, w_bkg)
         else:
-            b = b_err = 0.0
-
-        # n_pk = y[pk].size
-        # n_bkg = y[bkg].size
-
-        # if n_bkg == 0:
-        #     n_bkg = 1
-
-        # vol_ratio = n_pk/n_bkg
-
-        # b = np.nansum(y[bkg])
-        # b_err = np.sqrt(np.nansum(e[bkg]**2))
+            b = b_err = np.nanmin(y)
 
         self.info = [b, b_err]
 
         intens = np.nansum(y[pk]-b)
         sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
 
-        # d = y**2/e**2
         n = y/e**2
 
         vals = y*n
-        norm = n#/d3x
+        norm = n
 
         mask = vals[pk] > 0
         wgt = vals[pk][mask]
@@ -1544,14 +1321,6 @@ class PeakEllipsoid:
 
         return dist < 1
 
-    def volume_fraction(self, x0, x1, x2, d, n, *params):
-
-        pk = self.envelope(x0, x1, x2, *params)
-
-        y = d[pk]/n[pk]
-
-        return np.sum(np.isfinite(y))/y.size
-
     def weighted_median(self, y, w):
 
         sort = np.argsort(y)
@@ -1584,7 +1353,3 @@ class PeakEllipsoid:
         dev = med-wgt_med
 
         return np.sqrt((n-1)*np.sum(dev**2)/n)
-
-    def smooth_bins(self, data):
-
-        return scipy.ndimage.gaussian_filter(data, sigma=1)
