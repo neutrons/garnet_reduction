@@ -617,7 +617,7 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array([dQ0, dQ1, dQ2])/10
+        bin_sizes = np.array([dQ0, dQ1, dQ2])/15
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
@@ -805,8 +805,13 @@ class PeakEllipsoid:
         dx = x[1]-x[0]
         d2x = (xu[1]-xu[0])*(xv[1]-xv[0])
 
-        y1 = np.nansum(y-b, axis=(1,2))*d2x
-        e1 = np.sqrt(np.nansum(e**2, axis=(1,2)))*d2x
+        w = 1/e**2
+        w[~np.isfinite(w)] = np.nan
+
+        w_norm = w/np.nansum(w, axis=(1,2), keepdims=True)
+
+        y1 = np.nansum((y-b)*w_norm, axis=(1,2))*d2x
+        e1 = np.sqrt(np.nansum((e*w_norm)**2, axis=(1,2)))*d2x
 
         mask = np.isfinite(y1) & np.isfinite(e1)
 
@@ -845,8 +850,13 @@ class PeakEllipsoid:
 
         x = np.array([xu-mu_u, xv-mu_v])
 
-        y2 = np.nansum(y-b, axis=0)*dx
-        e2 = np.sqrt(np.nansum(e**2, axis=0))*dx
+        w = 1/e**2
+        w[~np.isfinite(w)] = np.nan
+
+        w_norm = w/np.nansum(w, axis=0, keepdims=True)
+
+        y2 = np.nansum((y-b)*w_norm, axis=0)*dx
+        e2 = np.sqrt(np.nansum((e*w_norm)**2, axis=0))*dx
 
         mask = np.isfinite(y2) & np.isfinite(e2)
 
