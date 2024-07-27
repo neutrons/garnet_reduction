@@ -1111,15 +1111,15 @@ class PeakEllipsoid:
         mask = (y_norm > 0) & (e_norm > 0)
 
         if mask.sum() > 21 and (np.array(mask.shape) >= 5).all():
-            
+
             y = y_norm.copy()
             e = e_norm.copy()
 
             y[~mask] = np.nan
             e[~mask] = np.nan
 
-            y = self.backfill_invalid(y, x0, x1, x2, dQ)
-            e = np.sqrt(self.backfill_invalid(e**2, x0, x1, x2, dQ))
+            #y = self.backfill_invalid(y, x0, x1, x2, dQ)
+            #e = np.sqrt(self.backfill_invalid(e**2, x0, x1, x2, dQ))
 
             mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
 
@@ -1197,7 +1197,12 @@ class PeakEllipsoid:
             theta = self.params['theta'].value
             omega = self.params['omega'].value
 
-            # y, e = y_norm.copy(), e_norm.copy()
+            y, e = y_norm.copy(), e_norm.copy()
+
+            mask = (y_norm > 0) & (e_norm > 0)
+
+            y[~mask] = np.nan
+            e[~mask] = np.nan
 
             a1d = self.params['a1d'].value
             a2d = self.params['a2d'].value
@@ -1221,6 +1226,17 @@ class PeakEllipsoid:
             c1d = self.params['c1d'].value
             c2d1 = self.params['c2d1'].value
             c2d2 = self.params['c2d2'].value
+
+            # y = y_norm.copy()
+            # e = e_norm.copy()
+
+            # y_1d = np.nansum(y, axis=(1,2))*d2x
+            # y_2d = np.nansum(y, axis=0)*d1x
+            # y_3d = y.copy()
+
+            # e_1d = np.sqrt(np.nansum(e**2, axis=(1,2)))*d2x
+            # e_2d = np.sqrt(np.nansum(e**2, axis=0))*d1x
+            # e_3d = e.copy()
 
             c, S = self.centroid_covariance(c0, c1, c2,
                                             r0, r1, r2,
@@ -1284,8 +1300,8 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1) & (e > 0)
-        bkg = (ellipsoid > 1) & (ellipsoid <= 1.5**2) & (e > 0)
+        pk = (ellipsoid <= 1) & (e > 0) & (y > 0)
+        bkg = (ellipsoid > 1) & (ellipsoid <= 1.5**2) & (e > 0) & (y > 0)
 
         dilate = pk | bkg
 
@@ -1294,20 +1310,20 @@ class PeakEllipsoid:
         y_bkg = y[bkg]
         e_bkg = e[bkg]
 
-        w_bkg = 1/e_bkg**2
+        b = np.nansum(y_bkg)
+        b_err = np.sqrt(np.nansum(e_bkg**2))
 
-        if len(w_bkg) > 2:
-            b = self.weighted_median(y_bkg, w_bkg)
-            b_err = self.jackknife_uncertainty(y_bkg, w_bkg)
-        else:
-            b = b_err = np.nanmin(y)
+        vol_ratio = np.sum(pk)/np.sum(bkg)
+
+        b *= vol_ratio
+        b_err *= vol_ratio
 
         self.info = [b, b_err]
 
-        intens = np.nansum(y[pk]-b)
-        sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
+        intens = np.nansum(y[pk])-b
+        sig = np.sqrt(np.nansum(e[pk]**2)+b_err**2)
 
-        print(np.round(b/intens*100), 2)
+        print(np.round((np.nansum(y[pk])/intens-1)*100, 2))
 
         n = y/e**2
 
@@ -1336,7 +1352,7 @@ class PeakEllipsoid:
 
         self.info += info
 
-        freq = y-b
+        freq = y.copy()
         freq[~dilate] = np.nan
 
         if not np.isfinite(sig):
