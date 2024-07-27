@@ -1128,7 +1128,7 @@ class PeakEllipsoid:
         d0, d1, d2 = np.ceil(dx/np.array([dx0, dx1, dx2])).astype(int)
 
         return scipy.ndimage.generic_filter(data,
-                                            function=np.nansum,
+                                            function=np.nanmean,
                                             cval=np.nan,
                                             size=[d0,d1,d2])
 
@@ -1139,7 +1139,7 @@ class PeakEllipsoid:
         d1, d2 = np.ceil(dx/np.array([dx1, dx2])).astype(int)
 
         return scipy.ndimage.generic_filter(data,
-                                            function=np.nansum,
+                                            function=np.nanmean,
                                             cval=np.nan,
                                             size=[d1,d2])
 
