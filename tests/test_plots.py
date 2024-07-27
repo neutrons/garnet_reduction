@@ -164,7 +164,7 @@ def test_peak_plot():
     data_norm[i,j,k] = data_norm[ic,jc,kc]
     data_norm[ic,jc,kc] = temp[i,j,k]
 
-    mask = np.random.random(data_norm.shape) < 0.4
+    mask = np.random.random(data_norm.shape) < 0.7
     data_norm[mask] = np.nan
     uncertanties[mask] = np.nan
 

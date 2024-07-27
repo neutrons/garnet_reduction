@@ -1104,7 +1104,11 @@ class PeakEllipsoid:
 
         k = k0*k1.reshape((-1,1))*k2.reshape((-1,1,1))
 
-        return astropy.convolution.convolve(data, k, boundary='extend')
+        return astropy.convolution.convolve(data,
+                                            k,
+                                            boundary='fill',
+                                            normalize_kernel=True,
+                                            fill_value=0)
 
     def fit(self, x0, x1, x2, y_norm, e_norm, dQ):
 
@@ -1118,8 +1122,8 @@ class PeakEllipsoid:
             y[~mask] = np.nan
             e[~mask] = np.nan
 
-            #y = self.backfill_invalid(y, x0, x1, x2, dQ)
-            #e = np.sqrt(self.backfill_invalid(e**2, x0, x1, x2, dQ))
+            y = self.backfill_invalid(y, x0, x1, x2, dQ)
+            e = np.sqrt(self.backfill_invalid(e**2, x0, x1, x2, dQ))
 
             mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
 
@@ -1164,9 +1168,6 @@ class PeakEllipsoid:
             self.params.add('a2d', value=a2_max, min=0, max=10*a2_max)
             self.params.add('a3d', value=a3_max, min=0, max=10*a3_max)
 
-            # self.params.add('a2d', expr='a1d')
-            # self.params.add('a3d', expr='a1d')
-
             self.params.add('b1d', value=b1_min, min=0, max=b1_max)
             self.params.add('b2d', value=b2_min, min=0, max=b2_max)
             self.params.add('b3d', value=b3_min, min=0, max=b3_max)
@@ -1181,7 +1182,7 @@ class PeakEllipsoid:
             out = Minimizer(self.objective,
                             self.params,
                             fcn_args=args,
-                            reduce_fcn='negentropy',
+                            # reduce_fcn='negentropy',
                             nan_policy='omit')
 
             result = out.minimize(method='leastsq')
