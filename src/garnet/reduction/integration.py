@@ -1119,7 +1119,7 @@ class PeakEllipsoid:
         return scipy.interpolate.griddata((x0[mask], x1[mask], x2[mask]), 
                                           data[mask],
                                           (x0, x1, x2),
-                                          fill_value=0,
+                                          fill_value=np.nan,
                                           method='linear')
 
 
