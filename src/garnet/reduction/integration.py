@@ -152,10 +152,10 @@ class Integration(SubPlan):
 
             peaks.integrate_peaks('md',
                                   'peaks',
-                                  r_cut/2,
+                                  r_cut,
                                   method='sphere')
 
-            peaks.remove_weak_peaks('peaks')
+            # peaks.remove_weak_peaks('peaks')
 
             self.fit_peaks('peaks', r_cut)
 
@@ -524,13 +524,9 @@ class Integration(SubPlan):
 
                 if (sig_noise > 3).all():
 
-                    *_, binning, _ = fitting
+                    bin_data = ellipsoid.bin_data
 
-                    (x0, x1, x2), dx, y, e = binning
-
-                    bin_data_norm = (x0, x1, x2), dx, y, e
-
-                    I, sigma = ellipsoid.integrate_norm(bin_data_norm, c, S)
+                    I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
 
                     peak.set_peak_intensity(i, I, sigma)
 
@@ -797,7 +793,7 @@ class PeakEllipsoid:
 
         return c, S
 
-    def integrate_1d(self, x0, x1, x2, y, e, b, mu, sigma):
+    def integrate_1d(self, x0, x1, x2, y, e, b, c, mu, sigma):
 
         x = x0[:,0,0].copy()
         xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
@@ -805,13 +801,13 @@ class PeakEllipsoid:
         dx = x[1]-x[0]
         d2x = (xu[1]-xu[0])*(xv[1]-xv[0])
 
-        w = 1/e**2
-        w[~np.isfinite(w)] = np.nan
+        #w = 1/e**2
+        #w[~np.isfinite(w)] = np.nan
 
-        w_norm = w/np.nansum(w, axis=(1,2), keepdims=True)
+        #vol_fract = np.mean(w > 0, axis=(1,2))
 
-        y1 = np.nansum((y-b)*w_norm, axis=(1,2))*d2x
-        e1 = np.sqrt(np.nansum((e*w_norm)**2, axis=(1,2)))*d2x
+        y1 = np.nansum(y, axis=(1,2))*d2x#-b-c*(x-mu)
+        e1 = np.sqrt(np.nansum(e**2, axis=(1,2)))*d2x
 
         mask = np.isfinite(y1) & np.isfinite(e1)
 
@@ -832,12 +828,15 @@ class PeakEllipsoid:
             b = np.nansum(y1[bkg]/e1[bkg]**2)/np.nansum(1/e1[bkg]**2)
             b_err = 1/np.sqrt(np.nansum(1/e1[bkg]**2))
 
+        b = b_err = 0
+
         intens = np.nansum(y1[pk]-b)*dx
         sig = np.sqrt(np.nansum(e1[pk]**2+b_err**2))*dx
 
         return intens, sig, b, b_err, y1, e1
 
-    def integrate_2d(self, x0, x1, x2, y, e, b, mu_u, mu_v, s_u, s_v, corr):
+    def integrate_2d(self, x0, x1, x2, y, e, b, cu, cv, 
+                          mu_u, mu_v, s_u, s_v, corr):
 
         x = x0[:,0,0].copy()
         xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
@@ -850,13 +849,13 @@ class PeakEllipsoid:
 
         x = np.array([xu-mu_u, xv-mu_v])
 
-        w = 1/e**2
-        w[~np.isfinite(w)] = np.nan
+        #w = 1/e**2
+        #w[~np.isfinite(w)] = np.nan
 
-        w_norm = w/np.nansum(w, axis=0, keepdims=True)
+        #vol_fract = np.mean(w > 0, axis=0)
 
-        y2 = np.nansum((y-b)*w_norm, axis=0)*dx
-        e2 = np.sqrt(np.nansum((e*w_norm)**2, axis=0))*dx
+        y2 = np.nansum(y, axis=0)*dx#-b-cu*(xu-mu_u)-cv*(xv-mu_v)#/vol_fract
+        e2 = np.sqrt(np.nansum(e**2, axis=0))*dx#/vol_fract
 
         mask = np.isfinite(y2) & np.isfinite(e2)
 
@@ -877,6 +876,8 @@ class PeakEllipsoid:
             b = np.nansum(y2[bkg]/e2[bkg]**2)/np.nansum(1/e2[bkg]**2)
             b_err = 1/np.sqrt(np.nansum(1/e2[bkg]**2))
 
+        b = b_err = 0
+
         intens = np.nansum(y2[pk]-b)*d2x
         sig = np.sqrt(np.nansum(e2[pk]**2+b_err**2))*d2x
 
@@ -888,7 +889,7 @@ class PeakEllipsoid:
 
         x = np.array([x0-c[0], x1-c[1], x2-c[2]])
 
-        y3 = y-b
+        y3 = y#-b
         e3 = np.sqrt(e.copy()**2)
 
         mask = np.isfinite(y3) & np.isfinite(e3)
@@ -910,12 +911,15 @@ class PeakEllipsoid:
             b = np.nansum(y3[bkg]/e3[bkg]**2)/np.nansum(1/e3[bkg]**2)
             b_err = 1/np.sqrt(np.nansum(1/e3[bkg]**2))
 
+        b = b_err = 0
+
         intens = np.nansum(y3[pk]-b)*d3x
         sig = np.sqrt(np.nansum(e3[pk]**2+b_err**2))*d3x
 
         return intens, sig, b, b_err, y3, e3
 
-    def objective(self, params, x0, x1, x2, dx0, dx1, dx2, y, e):
+    def objective(self, params, x0, x1, x2, dx0, dx1, dx2,
+                        y_1d, e_1d, y_2d, e_2d, y_3d, e_3d):
 
         a1d = params['a1d'].value
         a2d = params['a2d'].value
@@ -924,6 +928,10 @@ class PeakEllipsoid:
         b1d = params['b1d'].value
         b2d = params['b2d'].value
         b3d = params['b3d'].value
+
+        c1d = params['c1d'].value
+        c2d1 = params['c2d1'].value
+        c2d2 = params['c2d2'].value
 
         c0 = params['c0'].value
         c1 = params['c1'].value
@@ -945,35 +953,24 @@ class PeakEllipsoid:
 
         mu_u, mu_v, sigma_u, sigma_v, rho = self.projection_params(c, S)
 
-        params_1d = self.integrate_1d(x0, x1, x2, y, e, b1d, mu, sigma)
-
-        params_2d = self.integrate_2d(x0, x1, x2, y, e, b2d, mu_u, mu_v,
-                                      sigma_u, sigma_v, rho)
-
-        params_3d = self.integrate_3d(x0, x1, x2, y, e, b3d, c, S)
-
-        A_1d, A_1d_sig, B_1d, B_1d_sig, y_1d, e_1d = params_1d
-        A_2d, A_2d_sig, B_2d, B_2d_sig, y_2d, e_2d = params_2d
-        A_3d, A_3d_sig, B_3d, B_3d_sig, y_3d, e_3d = params_3d
-
         x = x0[:,0,0].copy()
         xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
         xu, xv = np.meshgrid(xu, xv, indexing='ij')
 
-        y_1d_fit = self.profile(x, a1d, 0, mu, sigma)
+        y_1d_fit = self.profile(x, a1d, b1d, c1d, mu, sigma)
 
-        y_2d_fit = self.projection(xu, xv, a2d, 0, mu_u, mu_v,
-                                   sigma_u, sigma_v, rho)
+        y_2d_fit = self.projection(xu, xv, a2d, b2d, c2d1, c2d2, 
+                                   mu_u, mu_v, sigma_u, sigma_v, rho)
 
-        y_3d_fit = self.peak(x0, x1, x2, a3d, 0, c, S)
+        y_3d_fit = self.peak(x0, x1, x2, a3d, b3d, c, S)
 
         mask_1d = np.isfinite(y_1d) & np.isfinite(e_1d) & (e_1d > 0)
         mask_2d = np.isfinite(y_2d) & np.isfinite(e_2d) & (e_2d > 0)
         mask_3d = np.isfinite(y_3d) & np.isfinite(e_3d) & (e_3d > 0)
 
-        res = [((y_1d-y_1d_fit)/e_1d)[mask_1d], #
-               ((y_2d-y_2d_fit)/e_2d)[mask_2d], #
-               ((y_3d-y_3d_fit)/e_3d)[mask_3d]] #
+        res = [((y_1d-y_1d_fit)/e_1d)[mask_1d]/np.sum(mask_1d), #
+               ((y_2d-y_2d_fit)/e_2d)[mask_2d]/np.sum(mask_2d), #
+               ((y_3d-y_3d_fit)/e_3d)[mask_3d]/np.sum(mask_3d)] #
 
         return np.concatenate(res)
 
@@ -983,19 +980,19 @@ class PeakEllipsoid:
 
         return A*y+B
 
-    def projection(self, Qu, Qv, A, B, mu_u, mu_v, \
+    def projection(self, Qu, Qv, A, B, Cu, Cv, mu_u, mu_v, \
                          sigma_u, sigma_v, rho, integrate=True):
 
         y = self.generalized2d(Qu, Qv, mu_u, mu_v,
                                sigma_u, sigma_v, rho, integrate)
 
-        return A*y+B
+        return A*y+B+Cu*(Qu-mu_u)+Cv*(Qv-mu_v)
 
-    def profile(self, Q, A, B, mu, sigma, integrate=True):
+    def profile(self, Q, A, B, C, mu, sigma, integrate=True):
 
         y = self.generalized1d(Q, mu, sigma, integrate)
 
-        return A*y+B
+        return A*y+B+C*(Q-mu)
 
     def profile_params(self, c, S):
 
@@ -1124,18 +1121,14 @@ class PeakEllipsoid:
             y = self.backfill_invalid(y, x0, x1, x2, dQ)
             e = np.sqrt(self.backfill_invalid(e**2, x0, x1, x2, dQ))
 
-            #mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
+            mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
 
             Q0, Q1, Q2 = x0.copy(), x1.copy(), x2.copy()
 
-            #y[~mask] = np.nan
-            #e[~mask] = np.nan
+            y[~mask] = np.nan
+            e[~mask] = np.nan
 
             dQ0, dQ1, dQ2 = self.voxels(x0, x1, x2)
-
-            # y3 = y.copy()
-            # y2 = np.nansum(y, axis=0)
-            # y1 = np.nansum(y, axis=(1,2))
 
             dx0, dx1, dx2 = dQ0, dQ1, dQ2
 
@@ -1143,24 +1136,48 @@ class PeakEllipsoid:
             xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
             xu, xv = np.meshgrid(xu, xv, indexing='ij')
 
+            d1x = dx0
+            d2x = dx1*dx2
             d3x = dx0*dx1*dx2
 
-            a_max = np.nansum(y)*d3x
+            y_1d = np.nansum(y, axis=(1,2))*d2x
+            y_2d = np.nansum(y, axis=0)*d1x
+            y_3d = y.copy()
 
-            b_max = np.nanmean(y)*0.95
-            b_min = np.nanmin(y)
+            e_1d = np.sqrt(np.nansum(e**2, axis=(1,2)))*d2x
+            e_2d = np.sqrt(np.nansum(e**2, axis=0))*d1x
+            e_3d = e.copy()
 
-            self.params.add('a1d', value=a_max, min=0, max=10*a_max)
-            self.params.add('a2d', value=a_max, min=0, max=10*a_max)
-            self.params.add('a3d', value=a_max, min=0, max=10*a_max)
+            a1_max = np.nansum(y_1d)
+            a2_max = np.nansum(y_2d)
+            a3_max = np.nansum(y_3d)
 
-            self.params.add('b1d', value=b_min, min=0, max=b_max)
-            self.params.add('b2d', value=b_min, min=0, max=b_max)
-            self.params.add('b3d', value=b_min, min=0, max=b_max)
+            b1_max = np.nanmax(y_1d)
+            b2_max = np.nanmax(y_2d)
+            b3_max = np.nanmax(y_3d)
+
+            b1_min = np.nanmin(y_1d)
+            b2_min = np.nanmin(y_2d)
+            b3_min = np.nanmin(y_3d)
+
+            self.params.add('a1d', value=a1_max, min=0, max=10*a1_max)
+            self.params.add('a2d', value=a2_max, min=0, max=10*a2_max)
+            self.params.add('a3d', value=a3_max, min=0, max=10*a3_max)
+
+            self.params.add('b1d', value=b1_min, min=0, max=b1_max)
+            self.params.add('b2d', value=b2_min, min=0, max=b2_max)
+            self.params.add('b3d', value=b3_min, min=0, max=b3_max)
+
+            self.params.add('c1d', value=0, min=-b1_max, max=b1_max)
+            self.params.add('c2d1', value=0, min=-b2_max, max=b2_max)
+            self.params.add('c2d2', value=0, min=-b2_max, max=b2_max)
+
+            args = (Q0, Q1, Q2, dQ0, dQ1, dQ2, 
+                    y_1d, e_1d, y_2d, e_2d, y_3d, e_3d)
 
             out = Minimizer(self.objective,
                             self.params,
-                            fcn_args=(Q0, Q1, Q2, dQ0, dQ1, dQ2, y, e),
+                            fcn_args=args,
                             #reduce_fcn='negentropy',
                             nan_policy='omit')
 
@@ -1180,16 +1197,30 @@ class PeakEllipsoid:
             theta = self.params['theta'].value
             omega = self.params['omega'].value
 
-            y, e = y_norm.copy(), e_norm.copy()
+            # y, e = y_norm.copy(), e_norm.copy()
+
+            a1d = self.params['a1d'].value
+            a2d = self.params['a2d'].value
+            a3d = self.params['a3d'].value
+
+            a1d_err = self.params['a1d'].stderr
+            a2d_err = self.params['a2d'].stderr
+            a3d_err = self.params['a3d'].stderr
+
+            if a1d_err is None:
+                a1d_err = a1d
+            if a2d_err is None:
+                a2d_err = a2d
+            if a3d_err is None:
+                a3d_err = a3d
 
             b1d = self.params['b1d'].value
             b2d = self.params['b2d'].value
             b3d = self.params['b3d'].value
 
-            mask = np.isfinite(e) & np.isfinite(y) & (e > 0) & (y > 0)
-
-            y[~mask] = np.nan
-            e[~mask] = np.nan
+            c1d = self.params['c1d'].value
+            c2d1 = self.params['c2d1'].value
+            c2d2 = self.params['c2d2'].value
 
             c, S = self.centroid_covariance(c0, c1, c2,
                                             r0, r1, r2,
@@ -1205,30 +1236,19 @@ class PeakEllipsoid:
 
             r, ru, rv = np.array([sigma, sigma_u, sigma_v])*4
 
-            params_1d = self.integrate_1d(x0, x1, x2, y, e, 0, mu, sigma)
+            y_1d_fit = self.profile(x, a1d, b1d, c1d, mu, sigma)
 
-            params_2d = self.integrate_2d(x0, x1, x2, y, e, 0, mu_u, mu_v,
-                                          sigma_u, sigma_v, rho)
+            y_2d_fit = self.projection(xu, xv, a2d, b2d, c2d1, c2d2, \
+                                       mu_u, mu_v, sigma_u, sigma_v, rho)
 
-            params_3d = self.integrate_3d(x0, x1, x2, y, e, 0, c, S)
-
-            A_1d, A_1d_sig, B_1d, B_1d_sig, y_1d, e_1d = params_1d
-            A_2d, A_2d_sig, B_2d, B_2d_sig, y_2d, e_2d = params_2d
-            A_3d, A_3d_sig, B_3d, B_3d_sig, y_3d, e_3d = params_3d
-
-            y_1d_fit = self.profile(x, A_1d, B_1d, mu, sigma)
-
-            y_2d_fit = self.projection(xu, xv, A_2d, B_2d, mu_u, mu_v, \
-                                       sigma_u, sigma_v, rho)
-
-            y_3d_fit = self.peak(x0, x1, x2, A_3d, B_3d, c, S)
+            y_3d_fit = self.peak(x0, x1, x2, a3d, b3d, c, S)
 
             bin_3d = (x0, x1, x2), (dx0, dx1, dx2), y_3d, e_3d
             bin_2d = (xu, xv), (dx1, dx2), y_2d, e_2d
             bin_1d = x, dx0, y_1d, e_1d
 
-            A = np.array([A_1d, A_2d, A_3d])/d3x
-            A_sig = np.array([A_1d_sig, A_2d_sig, A_3d_sig])/d3x
+            A = np.array([a1d, a2d, a3d])/d3x
+            A_sig = np.array([a1d_err, a2d_err, a3d_err])/d3x
 
             self.intens_fit = A, A/A_sig
 
@@ -1236,9 +1256,19 @@ class PeakEllipsoid:
 
             self.best_fit = c, S*16, *fitting
 
-            x = A_1d, B_1d, A_2d, B_2d, A_3d, B_3d
+            x = a1d, b1d, a2d, b2d, a3d, b3d
 
             self.interp_fit = mu, mu_u, mu_v, r, ru, rv, rho, *x
+
+            y = y_norm.copy()
+            e = e_norm.copy()
+
+            mask = np.isfinite(e) & np.isfinite(y) & (e > 0) & (y > 0)
+
+            y[~mask] = np.nan
+            e[~mask] = np.nan
+
+            self.bin_data = (x0, x1, x2), (dx0, dx1, dx2), y, e
 
             return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
@@ -1276,6 +1306,8 @@ class PeakEllipsoid:
 
         intens = np.nansum(y[pk]-b)
         sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
+
+        print(np.round(b/intens*100), 2)
 
         n = y/e**2
 

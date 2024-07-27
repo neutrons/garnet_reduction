@@ -9,6 +9,7 @@ from mantid.simpleapi import (Load,
                               LoadIsawDetCal,
                               ApplyCalibration,
                               Rebin,
+                              InterpolatingRebin,
                               Divide,
                               FilterBadPulses,
                               PreprocessDetectorsToMD,
@@ -1160,24 +1161,7 @@ class LaueData(BaseDataModel):
                                     OutputWorkspace='detectors')
 
             two_theta = mtd['detectors'].column('TwoTheta')
-            # self.two_thetas = two_theta
             self.theta_max = 0.5*np.max(two_theta)
-
-            # self.det_ids = np.array(mtd['detectors'].column('DetectorID'))
-            # self.azimuthals = np.array(mtd['detectors'].column('Azimuthal'))
-
-            # points = np.column_stack((self.two_thetas, self.azimuthals))
-            # self.tree = scipy.spatial.KDTree(points)
-
-            # if mtd.doesExist('flux'):
-            #     i = self.det_ids.tolist()
-            #     flux_inds = list(mtd['flux'].getIndicesFromDetectorIDs(i))
-            #     assert len(i) == len(flux_inds)
-            #     self.flux_inds = np.array(flux_inds)
-            # if mtd.doesExist('sa'):
-            #     sa_inds = np.array(mtd['sa'].getIndicesFromDetectorIDs(i))
-            #     self.efficiency = mtd['sa'].extractY().flatten()[sa_inds]
-            #     assert len(self.efficiency) == len(i)
 
             self.calculate_maximum_Q()
 
@@ -1416,13 +1400,38 @@ class LaueData(BaseDataModel):
             self.lamda_min = mtd['spectra'].getXDimension().getMinimum()
             self.lamda_max = mtd['spectra'].getXDimension().getMaximum()
 
+            params = '{},{},{}'.format(self.lamda_min,
+                                       self.lamda_max,
+                                       self.lamda_max)
+
+            Rebin(InputWorkspace='spectra',
+                  OutputWorkspace='norm',
+                  Params=params,
+                  PreserveEvents=False)
+
+            Divide(LHSWorkspace='spectra',
+                   RHSWorkspace='norm',
+                   OutputWorkspace='spectra',
+                   AllowDifferentNumberSpectra=True,
+                   WarnOnZeroDivide=False)
+
+            # bin_width = mtd['spectra'].getXDimension().getBinWidth()/3
+
+            # params = '{},{},{}'.format(self.lamda_min+bin_width*2,
+            #                            bin_width,
+            #                            self.lamda_max-bin_width*2)
+
+            # InterpolatingRebin(InputWorkspace='spectra',
+            #                    OutputWorkspace='spectra',
+            #                    Params=params)
+
             bins = mtd['spectra'].getXDimension().getNBins()
+
+            self.lamda_min = mtd['spectra'].getXDimension().getMinimum()
+            self.lamda_max = mtd['spectra'].getXDimension().getMaximum()
             self.lamda_bin = (self.lamda_max-self.lamda_min)/bins
 
-            lamda_min = self.lamda_min
-            lamda_max = self.lamda_max
-
-            self.wavelength_band = [lamda_min, lamda_max]
+            self.wavelength_band = [self.lamda_min, self.lamda_max]
 
     def crop_for_normalization(self, event_name):
         """
@@ -1459,15 +1468,15 @@ class LaueData(BaseDataModel):
                 #       OutputWorkspace=event_name,
                 #       Params=params)
 
-                Divide(LHSWorkspace=event_name,
-                       RHSWorkspace='sa',
-                       OutputWorkspace=event_name,
-                       AllowDifferentNumberSpectra=True)
+                # Divide(LHSWorkspace=event_name,
+                #        RHSWorkspace='sa',
+                #        OutputWorkspace=event_name,
+                #        AllowDifferentNumberSpectra=True)
 
-                Divide(LHSWorkspace=event_name,
-                       RHSWorkspace='spectra',
-                       OutputWorkspace=event_name,
-                       AllowDifferentNumberSpectra=True)
+                # Divide(LHSWorkspace=event_name,
+                #        RHSWorkspace='spectra',
+                #        OutputWorkspace=event_name,
+                #        AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """

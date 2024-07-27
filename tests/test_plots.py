@@ -107,7 +107,6 @@ def test_peak_plot():
     a = 0.3
     b = 1.4
     c = 6.4
-    d = 2.0
 
     sigma_yz = sigma_y*sigma_z
     sigma_xz = sigma_x*sigma_z
@@ -140,8 +139,7 @@ def test_peak_plot():
     data_norm *= c
     data_norm += b+a*(2*np.random.random(data_norm.shape)-1)
 
-    norm = np.full_like(data_norm, d)
-    data = data_norm*norm
+    uncertanties = np.sqrt(data_norm)
 
     m = 1
 
@@ -162,13 +160,13 @@ def test_peak_plot():
     jc = np.random.randint(j_min, j_max, size=n).ravel()
     kc = np.random.randint(k_min, k_max, size=n).ravel()
 
-    temp = np.copy(data)
-    data[i,j,k] = data[ic,jc,kc]
-    data[ic,jc,kc] = temp[i,j,k]
+    temp = np.copy(data_norm)
+    data_norm[i,j,k] = data_norm[ic,jc,kc]
+    data_norm[ic,jc,kc] = temp[i,j,k]
 
-    mask = np.random.random(norm.shape) < 0.2
-    norm[mask] = np.nan
-    data[mask] = np.nan
+    mask = np.random.random(data_norm.shape) < 0.4
+    data_norm[mask] = np.nan
+    uncertanties[mask] = np.nan
 
     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing='ij')
 
@@ -176,7 +174,7 @@ def test_peak_plot():
 
     ellipsoid = PeakEllipsoid(*params, 1, 1)
 
-    params = ellipsoid.fit(Qx, Qy, Qz, data, norm, 0.1)
+    params = ellipsoid.fit(Qx, Qy, Qz, data_norm, uncertanties, 0.1)
 
     c, S, *fitting = ellipsoid.best_fit
 
@@ -189,16 +187,9 @@ def test_peak_plot():
     angles = 60, 0
     goniometer = [0,0,0]
 
-    *_, binning, _ = fitting
+    bin_data = ellipsoid.bin_data
 
-    (x0, x1, x2), dx, y, e = binning
-
-    n = y/e**2
-    d = (y/e)**2
-
-    bin_data_norm = (x0, x1, x2), dx, d, n
-
-    I, sigma = ellipsoid.integrate_norm(bin_data_norm, c, S)
+    I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
 
     plot = PeakPlot()
 

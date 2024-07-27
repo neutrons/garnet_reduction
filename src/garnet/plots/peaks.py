@@ -522,6 +522,9 @@ class PeakPlot(BasePlot):
         vmax = np.nanmin([np.nanmax(y1), np.nanmax(y2)])
 
         if vmin >= vmax:
+            vmax, vmin = vmin, vmax
+
+        if vmin == vmax:
             vmin, vmax = 0, 1
 
         return vmin, vmax
