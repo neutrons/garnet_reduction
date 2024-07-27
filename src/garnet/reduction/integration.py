@@ -1090,25 +1090,38 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
+    # def backfill_invalid(self, data, x0, x1, x2, dx):
+
+    #     dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
+    #     d0 = dx/dx0/2
+    #     d1 = dx/dx1/2
+    #     d2 = dx/dx2/2
+
+    #     k0 = astropy.convolution.Gaussian1DKernel(d0).array
+    #     k1 = astropy.convolution.Gaussian1DKernel(d1).array
+    #     k2 = astropy.convolution.Gaussian1DKernel(d2).array
+
+    #     k = k0*k1.reshape((-1,1))*k2.reshape((-1,1,1))
+
+    #     val_min = data[np.isfinite(data) & (data > 0)].min()
+
+    #     return astropy.convolution.convolve(data,
+    #                                         k,
+    #                                         boundary='fill',
+    #                                         normalize_kernel=True,
+    #                                         fill_value=val_min)
+
     def backfill_invalid(self, data, x0, x1, x2, dx):
 
-        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+        mask = np.isfinite(data) & (data > 0)        
 
-        d0 = dx/dx0/2
-        d1 = dx/dx1/2
-        d2 = dx/dx2/2
+        return scipy.interpolate.griddata((x0[mask], x1[mask], x2[mask]), 
+                                          data[mask],
+                                          (x0, x1, x2),
+                                          fill_value=0,
+                                          method='linear')
 
-        k0 = astropy.convolution.Gaussian1DKernel(d0).array
-        k1 = astropy.convolution.Gaussian1DKernel(d1).array
-        k2 = astropy.convolution.Gaussian1DKernel(d2).array
-
-        k = k0*k1.reshape((-1,1))*k2.reshape((-1,1,1))
-
-        return astropy.convolution.convolve(data,
-                                            k,
-                                            boundary='fill',
-                                            normalize_kernel=True,
-                                            fill_value=0)
 
     def fit(self, x0, x1, x2, y_norm, e_norm, dQ):
 
@@ -1125,7 +1138,7 @@ class PeakEllipsoid:
             y = self.backfill_invalid(y, x0, x1, x2, dQ)
             e = np.sqrt(self.backfill_invalid(e**2, x0, x1, x2, dQ))
 
-            mask = np.isfinite(e) & np.isfinite(y) & (e > 0)
+            mask = np.isfinite(e) & np.isfinite(y) & (e > 0) & (y > 0)
 
             Q0, Q1, Q2 = x0.copy(), x1.copy(), x2.copy()
 
