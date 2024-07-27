@@ -1286,11 +1286,6 @@ class PeakEllipsoid:
             y = y_norm.copy()
             e = e_norm.copy()
 
-            mask = np.isfinite(e) & np.isfinite(y) & (e > 0) & (y > 0)
-
-            y[~mask] = np.nan
-            e[~mask] = np.nan
-
             self.bin_data = (x0, x1, x2), (dx0, dx1, dx2), y, e
 
             return c0, c1, c2, r0, r1, r2, v0, v1, v2
@@ -1330,9 +1325,9 @@ class PeakEllipsoid:
         intens = np.nansum(y[pk])-b
         sig = np.sqrt(np.nansum(e[pk]**2)+b_err**2)
 
-        print(vol_ratio)
-        print(np.round((np.nansum(y[pk])/intens-1)*100, 2))
-        print(np.round(intens/sig, 2))
+        # print(vol_ratio)
+        # print(np.round((np.nansum(y[pk])/intens-1)*100, 2))
+        # print(np.round(intens/sig, 2))
 
         n = y/e**2
 
