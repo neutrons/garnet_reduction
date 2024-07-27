@@ -1182,7 +1182,7 @@ class PeakEllipsoid:
             e[~mask] = np.nan
 
             y = np.nansum(y, axis=0)
-            e = np.nansum(e, axis=0)
+            e = np.nansum(e**2, axis=0)
 
             y_2d = self.backfill_invalid_2d(y, x0, x1, x2, dQ)
             e_2d = np.sqrt(self.backfill_invalid_2d(e**2, x0, x1, x2, dQ))
