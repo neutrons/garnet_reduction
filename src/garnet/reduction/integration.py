@@ -1121,18 +1121,27 @@ class PeakEllipsoid:
     #                                       fill_value=np.nan,
     #                                       method='linear')
 
-    def backfill_invalid(self, data, x0, x1, x2, dx):
+    def backfill_invalid_3d(self, data, x0, x1, x2, dx):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        d0, d1, d2 = np.ceil(dx/np.array([dx0, dx1, dx2])/2).astype(int)     
-
-        #mask = np.isfinite(data) & (data > 0)        
+        d0, d1, d2 = np.ceil(dx/np.array([dx0, dx1, dx2])/2).astype(int)
 
         return scipy.ndimage.generic_filter(data,
-                                            function=np.nanmean,
+                                            function=np.nansum,
                                             cval=np.nan,
                                             size=[d0,d1,d2])
+
+    def backfill_invalid_2d(self, data, x0, x1, x2, dx):
+
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
+        d1, d2 = np.ceil(dx/np.array([dx1, dx2])/2).astype(int)
+
+        return scipy.ndimage.generic_filter(data,
+                                            function=np.nansum,
+                                            cval=np.nan,
+                                            size=[d1,d2])
 
     def fit(self, x0, x1, x2, y_norm, e_norm, dQ):
 
@@ -1143,21 +1152,7 @@ class PeakEllipsoid:
 
         if mask.sum() > 21 and (np.array(mask.shape) >= 5).all():
 
-            y = y_norm.copy()
-            e = e_norm.copy()
-
-            y[~mask] = np.nan
-            e[~mask] = np.nan
-
-            y = self.backfill_invalid(y, x0, x1, x2, dQ)
-            e = np.sqrt(self.backfill_invalid(e**2, x0, x1, x2, dQ))
-
-            mask = np.isfinite(e) & np.isfinite(y) & (e > 0) & (y > 0)
-
             Q0, Q1, Q2 = x0.copy(), x1.copy(), x2.copy()
-
-            y[~mask] = np.nan
-            e[~mask] = np.nan
 
             dQ0, dQ1, dQ2 = self.voxels(x0, x1, x2)
 
@@ -1171,13 +1166,29 @@ class PeakEllipsoid:
             d2x = dx1*dx2
             d3x = d1x*d2x
 
-            y_1d = np.nanmean(y_norm, axis=(1,2))#/n_1d#*d2x
-            y_2d = np.nanmean(y_norm, axis=0)#/n_2d#*d1x
-            y_3d = y.copy()
+            y = y_norm.copy()
+            e = e_norm.copy()
 
-            e_1d = np.sqrt(np.nanmean(e_norm**2, axis=(1,2)))#/n_1d#*d2x
-            e_2d = np.sqrt(np.nanmean(e_norm**2, axis=0))#/n_2d#*d1x
-            e_3d = e.copy()
+            y[~mask] = np.nan
+            e[~mask] = np.nan
+
+            y_3d = self.backfill_invalid_3d(y, x0, x1, x2, dQ)
+            e_3d = np.sqrt(self.backfill_invalid_3d(e**2, x0, x1, x2, dQ))
+
+            y = y_norm.copy()
+            e = e_norm.copy()
+
+            y[~mask] = np.nan
+            e[~mask] = np.nan
+
+            y = np.nansum(y, axis=0)
+            e = np.nansum(e, axis=0)
+
+            y_2d = self.backfill_invalid_2d(y, x0, x1, x2, dQ)
+            e_2d = np.sqrt(self.backfill_invalid_2d(e**2, x0, x1, x2, dQ))
+
+            y_1d = np.nansum(y_norm, axis=(1,2))
+            e_1d = np.sqrt(np.nansum(e_norm**2, axis=(1,2)))
 
             a1_max = np.nansum(y_1d)
             a2_max = np.nansum(y_2d)
