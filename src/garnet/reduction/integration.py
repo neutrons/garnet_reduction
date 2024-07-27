@@ -1300,8 +1300,8 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1) & (e > 0) & (y > 0)
-        bkg = (ellipsoid > 1) & (ellipsoid <= 1.5**2) & (e > 0) & (y > 0)
+        pk = (ellipsoid <= 1) & (e >= 0) & (y >= 0)
+        bkg = (ellipsoid > 1) & (ellipsoid <= 1.5**2) & (e >= 0) & (y >= 0)
 
         dilate = pk | bkg
 
