@@ -1125,7 +1125,7 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        d0, d1, d2 = np.ceil(dx/np.array([dx0, dx1, dx2])/2).astype(int)
+        d0, d1, d2 = np.ceil(dx/np.array([dx0, dx1, dx2])).astype(int)
 
         return scipy.ndimage.generic_filter(data,
                                             function=np.nansum,
@@ -1136,7 +1136,7 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        d1, d2 = np.ceil(dx/np.array([dx1, dx2])/2).astype(int)
+        d1, d2 = np.ceil(dx/np.array([dx1, dx2])).astype(int)
 
         return scipy.ndimage.generic_filter(data,
                                             function=np.nansum,
@@ -1147,8 +1147,8 @@ class PeakEllipsoid:
 
         mask = (y_norm > 0) & (e_norm > 0)
 
-        #n_1d = np.sum(mask, axis=(1,2))
-        #n_2d = np.sum(mask, axis=0)
+        # n_1d = np.sum(mask, axis=(1,2))
+        # n_2d = np.sum(mask, axis=0)
 
         if mask.sum() > 21 and (np.array(mask.shape) >= 5).all():
 
