@@ -974,23 +974,22 @@ class PeakEllipsoid:
 
         return np.concatenate(res)
 
-    def peak(self, Q0, Q1, Q2, A, B, c, S, integrate=True):
+    def peak(self, Q0, Q1, Q2, A, B, c, S):
 
-        y = self.generalized3d(Q0, Q1, Q2, c, S, integrate)
+        y = self.generalized3d(Q0, Q1, Q2, c, S, True)
 
         return A*y+B
 
-    def projection(self, Qu, Qv, A, B, Cu, Cv, mu_u, mu_v, \
-                         sigma_u, sigma_v, rho, integrate=True):
+    def projection(self, Qu, Qv, A, B, Cu, Cv, 
+                        mu_u, mu_v, sigma_u, sigma_v, rho):
 
-        y = self.generalized2d(Qu, Qv, mu_u, mu_v,
-                               sigma_u, sigma_v, rho, integrate)
+        y = self.generalized2d(Qu, Qv, mu_u, mu_v, sigma_u, sigma_v, rho, True)
 
         return A*y+B+Cu*(Qu-mu_u)+Cv*(Qv-mu_v)
 
-    def profile(self, Q, A, B, C, mu, sigma, integrate=True):
+    def profile(self, Q, A, B, C, mu, sigma):
 
-        y = self.generalized1d(Q, mu, sigma, integrate)
+        y = self.generalized1d(Q, mu, sigma, True)
 
         return A*y+B+C*(Q-mu)
 
@@ -1112,20 +1111,35 @@ class PeakEllipsoid:
     #                                         normalize_kernel=True,
     #                                         fill_value=val_min)
 
+    # def backfill_invalid(self, data, x0, x1, x2, dx):
+
+    #     mask = np.isfinite(data) & (data > 0)        
+
+    #     return scipy.interpolate.griddata((x0[mask], x1[mask], x2[mask]), 
+    #                                       data[mask],
+    #                                       (x0, x1, x2),
+    #                                       fill_value=np.nan,
+    #                                       method='linear')
+
     def backfill_invalid(self, data, x0, x1, x2, dx):
 
-        mask = np.isfinite(data) & (data > 0)        
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        return scipy.interpolate.griddata((x0[mask], x1[mask], x2[mask]), 
-                                          data[mask],
-                                          (x0, x1, x2),
-                                          fill_value=np.nan,
-                                          method='linear')
+        d0, d1, d2 = np.ceil(dx/np.array([dx0, dx1, dx2])/2).astype(int)     
 
+        #mask = np.isfinite(data) & (data > 0)        
+
+        return scipy.ndimage.generic_filter(data,
+                                            function=np.nanmean,
+                                            cval=np.nan,
+                                            size=[d0,d1,d2])
 
     def fit(self, x0, x1, x2, y_norm, e_norm, dQ):
 
         mask = (y_norm > 0) & (e_norm > 0)
+
+        #n_1d = np.sum(mask, axis=(1,2))
+        #n_2d = np.sum(mask, axis=0)
 
         if mask.sum() > 21 and (np.array(mask.shape) >= 5).all():
 
@@ -1155,14 +1169,14 @@ class PeakEllipsoid:
 
             d1x = dx0
             d2x = dx1*dx2
-            d3x = dx0*dx1*dx2
+            d3x = d1x*d2x
 
-            y_1d = np.nansum(y, axis=(1,2))*d2x
-            y_2d = np.nansum(y, axis=0)*d1x
+            y_1d = np.nanmean(y_norm, axis=(1,2))#/n_1d#*d2x
+            y_2d = np.nanmean(y_norm, axis=0)#/n_2d#*d1x
             y_3d = y.copy()
 
-            e_1d = np.sqrt(np.nansum(e**2, axis=(1,2)))*d2x
-            e_2d = np.sqrt(np.nansum(e**2, axis=0))*d1x
+            e_1d = np.sqrt(np.nanmean(e_norm**2, axis=(1,2)))#/n_1d#*d2x
+            e_2d = np.sqrt(np.nanmean(e_norm**2, axis=0))#/n_2d#*d1x
             e_3d = e.copy()
 
             a1_max = np.nansum(y_1d)
