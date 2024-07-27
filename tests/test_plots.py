@@ -105,7 +105,7 @@ def test_peak_plot():
     rho_yz, rho_xz, rho_xy = 0.5, -0.1, -0.12
 
     a = 0.3
-    b = 1.4
+    b = 0.2
     c = 6.4
 
     sigma_yz = sigma_y*sigma_z

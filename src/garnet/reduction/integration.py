@@ -1149,8 +1149,8 @@ class PeakEllipsoid:
             e_3d = e.copy()
 
             a1_max = np.nansum(y_1d)
-            a2_max = np.nansum(y_2d)
-            a3_max = np.nansum(y_3d)
+            #a2_max = np.nansum(y_2d)
+            #a3_max = np.nansum(y_3d)
 
             b1_max = np.nanmax(y_1d)
             b2_max = np.nanmax(y_2d)
@@ -1161,8 +1161,11 @@ class PeakEllipsoid:
             b3_min = np.nanmin(y_3d)
 
             self.params.add('a1d', value=a1_max, min=0, max=10*a1_max)
-            self.params.add('a2d', value=a2_max, min=0, max=10*a2_max)
-            self.params.add('a3d', value=a3_max, min=0, max=10*a3_max)
+            #self.params.add('a2d', value=a2_max, min=0, max=10*a2_max)
+            #self.params.add('a3d', value=a3_max, min=0, max=10*a3_max)
+
+            self.params.add('a2d', expr='a1d')
+            self.params.add('a3d', expr='a1d')
 
             self.params.add('b1d', value=b1_min, min=0, max=b1_max)
             self.params.add('b2d', value=b2_min, min=0, max=b2_max)
@@ -1178,7 +1181,7 @@ class PeakEllipsoid:
             out = Minimizer(self.objective,
                             self.params,
                             fcn_args=args,
-                            #reduce_fcn='negentropy',
+                            reduce_fcn='negentropy',
                             nan_policy='omit')
 
             result = out.minimize(method='leastsq')
@@ -1222,6 +1225,10 @@ class PeakEllipsoid:
             b1d = self.params['b1d'].value
             b2d = self.params['b2d'].value
             b3d = self.params['b3d'].value
+
+            print(b1d/a1d)
+            print(b2d/a2d)
+            print(b3d/a3d)
 
             c1d = self.params['c1d'].value
             c2d1 = self.params['c2d1'].value
@@ -1323,7 +1330,9 @@ class PeakEllipsoid:
         intens = np.nansum(y[pk])-b
         sig = np.sqrt(np.nansum(e[pk]**2)+b_err**2)
 
+        print(vol_ratio)
         print(np.round((np.nansum(y[pk])/intens-1)*100, 2))
+        print(np.round(intens/sig, 2))
 
         n = y/e**2
 
