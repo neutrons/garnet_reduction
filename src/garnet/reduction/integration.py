@@ -522,33 +522,33 @@ class Integration(SubPlan):
 
                 int_intens, sig_noise = ellipsoid.intens_fit
 
-                if (sig_noise > 3).all():
+                #if (sig_noise > 3).all():
 
-                    bin_data = ellipsoid.bin_data
+                bin_data = ellipsoid.bin_data
 
-                    I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
+                I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
 
-                    peak.set_peak_intensity(i, I, sigma)
+                peak.set_peak_intensity(i, I, sigma)
 
-                    peak.add_diagonstic_info(i, ellipsoid.info)
+                peak.add_diagonstic_info(i, ellipsoid.info)
 
-                    plot.add_fitting(fitting)
+                plot.add_fitting(fitting)
 
-                    vals = ellipsoid.interp_fit
+                vals = ellipsoid.interp_fit
 
-                    plot.add_ellipsoid(c, S, vals)
+                plot.add_ellipsoid(c, S, vals)
 
-                    plot.add_peak_intensity(int_intens, sig_noise)
+                plot.add_peak_intensity(int_intens, sig_noise)
 
-                    goniometer = peak.get_goniometer_angles(i)
+                goniometer = peak.get_goniometer_angles(i)
 
-                    plot.add_peak_info(wavelength, angles, goniometer)
+                plot.add_peak_info(wavelength, angles, goniometer)
 
-                    plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
+                plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 
-                    peak_name = peak.get_peak_name(i)
+                peak_name = peak.get_peak_name(i)
 
-                    plot.save_plot(self.get_plot_file(peak_name))
+                plot.save_plot(self.get_plot_file(peak_name))
 
     def bin_axes(self, R, two_theta, az_phi):
 
@@ -1017,12 +1017,12 @@ class PeakEllipsoid:
         weights = scipy.ndimage.generic_filter(1/error**2,
                                                function=np.nansum,
                                                cval=np.nan,
-                                               size=[d0,d1,d2])
+                                               size=[d0, d1, d2])
 
         values = scipy.ndimage.generic_filter(data/error**2,
                                               function=np.nansum,
                                               cval=np.nan,
-                                              size=[d0,d1,d2])
+                                              size=[d0, d1, d2])
 
         return values/weights, 1/np.sqrt(weights)
 
@@ -1035,12 +1035,12 @@ class PeakEllipsoid:
         weights = scipy.ndimage.generic_filter(1/error**2,
                                                function=np.nansum,
                                                cval=np.nan,
-                                               size=[d1,d2])
+                                               size=[d1, d2])
 
         values = scipy.ndimage.generic_filter(data/error**2,
                                               function=np.nansum,
                                               cval=np.nan,
-                                              size=[d1,d2])
+                                              size=[d1, d2])
 
         return values/weights, 1/np.sqrt(weights)
 
@@ -1060,9 +1060,9 @@ class PeakEllipsoid:
             xu, xv = x1[0,:,0].copy(), x2[0,0,:].copy()
             xu, xv = np.meshgrid(xu, xv, indexing='ij')
 
-            d1x = dx0
-            d2x = dx1*dx2
-            d3x = d1x*d2x
+            # d1x = dx0
+            # d2x = dx1*dx2
+            # d3x = d1x*d2x
 
             y = y_norm.copy()
             e = e_norm.copy()
@@ -1261,10 +1261,6 @@ class PeakEllipsoid:
 
         intens = np.nansum(y[pk])-b
         sig = np.sqrt(np.nansum(e[pk]**2)+b_err**2)
-
-        # print(vol_ratio)
-        # print(np.round((np.nansum(y[pk])/intens-1)*100, 2))
-        # print(np.round(intens/sig, 2))
 
         n = y/e**2
 
