@@ -106,7 +106,7 @@ def test_peak_plot():
 
     a = 0.3
     b = 0.2
-    c = 6.4
+    c = 16.4
 
     sigma_yz = sigma_y*sigma_z
     sigma_xz = sigma_x*sigma_z
@@ -139,8 +139,6 @@ def test_peak_plot():
     data_norm *= c
     data_norm += b+a*(2*np.random.random(data_norm.shape)-1)
 
-    uncertanties = np.sqrt(data_norm)
-
     m = 1
 
     i, j, k = np.array(np.meshgrid(np.arange(nx),
@@ -164,7 +162,9 @@ def test_peak_plot():
     data_norm[i,j,k] = data_norm[ic,jc,kc]
     data_norm[ic,jc,kc] = temp[i,j,k]
 
-    mask = np.random.random(data_norm.shape) < 0.7
+    uncertanties = np.sqrt(data_norm)*0.1+1
+
+    mask = np.random.random(data_norm.shape) < 0.5
     data_norm[mask] = np.nan
     uncertanties[mask] = np.nan
 
