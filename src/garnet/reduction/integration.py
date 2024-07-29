@@ -7,6 +7,7 @@ import scipy.interpolate
 import scipy.integrate
 import scipy.special
 import scipy.ndimage
+import scipy.linalg
 
 from sklearn.cluster import DBSCAN
 from lmfit import Minimizer, Parameters
@@ -690,40 +691,41 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def min_enclosing_ellipsoid(self, points, tol=1e-6, max_iter=2000):
-    
-        n, d = points.shape
-        Q = np.vstack([points.T, np.ones(n)])
+    def min_enclosing_ellipsoid(self, vals, tol=1e-6, max_iter=1000, reg=1e-9):
 
-        err = tol+1.0
-        u = np.ones(n)/n
-    
+        n, d = vals.shape
+        Q = np.vstack([vals.T, np.ones(n)])
+
+        u = np.ones(n) / n
+        err = tol + 1.0
+
         i = 0
         while err > tol and i < max_iter:
-            X = Q @ np.diag(u) @ Q.T
-            M = np.diag(Q.T @ np.linalg.inv(X) @ Q)
+            X = Q @ np.diag(u) @ Q.T+reg*np.eye(d+1)
+            M = np.einsum('ij,ji->i', Q.T, scipy.linalg.solve(X, Q))
             j = np.argmax(M)
             maximum = M[j]
-            step_size = (maximum-d-1)/((d+1)*(maximum-1))
-            new_u = (1-step_size)*u
+            step_size = (maximum - d - 1) / ((d + 1) * (maximum - 1))
+            new_u = (1 - step_size) * u
             new_u[j] += step_size
-            err = np.linalg.norm(new_u-u)
+            err = np.linalg.norm(new_u - u)
             u = new_u
             i += 1
-    
-        c = points.T @ u
-        A = np.linalg.inv(points.T @ np.diag(u) @ points-np.outer(c, c))/d
-    
+
+        c = vals.T @ u
+        A_inv = vals.T @ np.diag(u) @ vals-np.outer(c, c)
+        A = scipy.linalg.inv(A_inv+reg*np.eye(d))/d
+
         return c, A
 
     def cluster(self, x0, x1, x2, dx, n_events=30):
-        
+
         mask = self.counts > 0
 
         X = np.column_stack([x0[mask], x1[mask], x2[mask]])
         wgt = self.counts[mask]
-        
-        db = DBSCAN(eps=dx*1.5, min_samples=n_events).fit(X, sample_weight=wgt)
+
+        db = DBSCAN(eps=dx*1.3, min_samples=n_events).fit(X, sample_weight=wgt)
         labels = db.labels_
 
         return X, labels
