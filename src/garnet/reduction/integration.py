@@ -683,13 +683,15 @@ class PeakEllipsoid:
 
         self.counts = counts.copy()
 
-    def estimate_weights(self, bkg_level=30):
+    def estimate_weights(self, y, bkg_level=30):
 
-        mask = self.counts > 0
+        mask = y > 0
 
-        bkg = np.percentile(self.counts[mask], bkg_level).round()
+        weights = y/np.nansum(y)*np.nansum(self.counts)
 
-        weights = self.counts-bkg
+        bkg = np.nanpercentile(weights[mask], bkg_level)
+
+        weights -= bkg
         weights[weights < 0] = 0
 
         return weights
@@ -753,7 +755,7 @@ class PeakEllipsoid:
             y[~mask] = np.nan
             e[~mask] = np.nan
 
-            weights = self.estimate_weights()
+            weights = self.estimate_weights(y)
 
             mask = weights > 0
 
