@@ -483,17 +483,11 @@ class Integration(SubPlan):
 
             counts = data.extract_counts('md_data')
 
-            params = self.project_ellipsoid_parameters(params, projections)
-
-            c0, c1, c2, *_ = params
-
             ellipsoid = PeakEllipsoid(counts)
 
             params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ)
 
             if params is not None:
-
-                params = self.project_ellipsoid_parameters(params, projections)
 
                 c, S, *fitting = ellipsoid.best_fit
 
@@ -586,7 +580,7 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array([bin_size, bin_size, bin_size])/2
+        bin_sizes = np.array([bin_size, bin_size, bin_size])/3
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes

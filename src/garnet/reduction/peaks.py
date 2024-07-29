@@ -124,7 +124,7 @@ class PeaksModel:
             Integration method. The default is 'sphere'.
         centroid : str, optional
             Shift peak position to centroid. The default is True.
-            
+
         """
 
         background_inner_radius = peak_radius*background_inner_fact
