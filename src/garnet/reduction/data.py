@@ -1415,12 +1415,10 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=spectra_file,
                       OutputWorkspace='spectra')
 
-            self.lamda_min = mtd['spectra'].getXDimension().getMinimum()
-            self.lamda_max = mtd['spectra'].getXDimension().getMaximum()
+            lamda_min = mtd['spectra'].getXDimension().getMinimum()
+            lamda_max = mtd['spectra'].getXDimension().getMaximum()
 
-            params = '{},{},{}'.format(self.lamda_min,
-                                       self.lamda_max,
-                                       self.lamda_max)
+            params = '{},{},{}'.format(lamda_min, lamda_max, lamda_max)
 
             Rebin(InputWorkspace='spectra',
                   OutputWorkspace='norm',
@@ -1487,14 +1485,14 @@ class LaueData(BaseDataModel):
                 #       Params=params)
 
                 Divide(LHSWorkspace=event_name,
-                        RHSWorkspace='sa',
-                        OutputWorkspace=event_name,
-                        AllowDifferentNumberSpectra=True)
+                       RHSWorkspace='sa',
+                       OutputWorkspace=event_name,
+                       AllowDifferentNumberSpectra=True)
 
                 Divide(LHSWorkspace=event_name,
-                        RHSWorkspace='spectra',
-                        OutputWorkspace=event_name,
-                        AllowDifferentNumberSpectra=True)
+                       RHSWorkspace='spectra',
+                       OutputWorkspace=event_name,
+                       AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """

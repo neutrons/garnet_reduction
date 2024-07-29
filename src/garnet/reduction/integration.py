@@ -581,7 +581,7 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array([bin_size, bin_size, bin_size])/4
+        bin_sizes = np.array([bin_size, bin_size, bin_size])/2
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
@@ -681,7 +681,18 @@ class PeakEllipsoid:
 
     def __init__(self, counts):
 
-        self.counts = counts
+        self.counts = counts.copy()
+
+    def estimate_weights(self, bkg_level=10):
+
+        mask = self.counts > 0
+
+        bkg = np.percentile(self.counts[mask], bkg_level).round()
+
+        weights = self.counts-bkg
+        weights[weights < 0] = 0
+
+        return weights
 
     def voxels(self, x0, x1, x2):
 
@@ -718,12 +729,13 @@ class PeakEllipsoid:
 
         return c, A
 
-    def cluster(self, x0, x1, x2, dx, n_events=30):
+    def cluster(self, x0, x1, x2, dx, weights, n_events=30):
 
-        mask = self.counts > 0
+        mask = weights > 0
+
+        wgt = weights[mask]
 
         X = np.column_stack([x0[mask], x1[mask], x2[mask]])
-        wgt = self.counts[mask]
 
         db = DBSCAN(eps=dx*1.5, min_samples=n_events).fit(X, sample_weight=wgt)
         labels = db.labels_
@@ -741,7 +753,14 @@ class PeakEllipsoid:
             y[~mask] = np.nan
             e[~mask] = np.nan
 
-            X, labels = self.cluster(x0, x1, x2, dx)
+            weights = self.estimate_weights()
+
+            mask = weights > 0
+
+            if mask.sum() < 5:
+                return None
+
+            X, labels = self.cluster(x0, x1, x2, dx, weights)
 
             mask = labels >= 0
 
@@ -749,7 +768,7 @@ class PeakEllipsoid:
                 return None
 
             peak = y.copy()*np.nan
-            peak[self.counts > 0] = labels+1.0
+            peak[weights > 0] = labels+1.0
 
             c, A = self.min_enclosing_ellipsoid(X[mask])
 
@@ -813,7 +832,7 @@ class PeakEllipsoid:
 
         self.info += [d3x*np.sum(pk)]
 
-        freq = y-b
+        freq = y.copy()#-b
         freq[~dilate] = np.nan
 
         if not np.isfinite(sig):

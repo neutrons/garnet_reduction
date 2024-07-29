@@ -60,7 +60,7 @@ class PeakPlot(BasePlot):
 
         plt.close('all')
 
-        self.fig = plt.figure(figsize=(6.4, 6.4), layout='constrained')
+        self.fig = plt.figure(figsize=(6.4, 9.6), layout='constrained')
 
         sp = GridSpec(2, 1, figure=self.fig, height_ratios=[1,1])
 
