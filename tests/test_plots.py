@@ -118,7 +118,7 @@ def test_peak_plot():
 
     Q0 = np.array([Q0_x, Q0_y, Q0_z])
 
-    signal = np.random.multivariate_normal(Q0, cov, size=10000)
+    signal = np.random.multivariate_normal(Q0, cov, size=1000)
 
     data_norm, bins = np.histogramdd(signal,
                                      density=False,
@@ -126,6 +126,8 @@ def test_peak_plot():
                                      range=[(Qx_min, Qx_max),
                                             (Qy_min, Qy_max),
                                             (Qz_min, Qz_max)])
+
+    counts = data_norm.copy()
 
     data_norm /= np.max(data_norm)
     data_norm /= np.sqrt(np.linalg.det(2*np.pi*cov))
@@ -170,17 +172,11 @@ def test_peak_plot():
 
     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing='ij')
 
-    params = 1.05, 1.05, -1.15
+    ellipsoid = PeakEllipsoid(counts)
 
-    ellipsoid = PeakEllipsoid(*params, 1, 1)
-
-    params = ellipsoid.fit(Qx, Qy, Qz, data_norm, uncertanties, 0.1)
+    ellipsoid.fit(Qx, Qy, Qz, data_norm, uncertanties, 0.1)
 
     c, S, *fitting = ellipsoid.best_fit
-
-    vals = ellipsoid.interp_fit
-
-    intens, sig_noise = ellipsoid.intens_fit
 
     wavelength = 3.2887
 
@@ -193,9 +189,8 @@ def test_peak_plot():
 
     plot = PeakPlot()
 
-    plot.add_fitting(fitting)
-    plot.add_ellipsoid(c, S, vals)
-    plot.add_peak_intensity(intens, sig_noise)
+    plot.add_fitting(*fitting)
+    plot.add_ellipsoid(c, S)
     plot.add_peak_info(wavelength, angles, goniometer)
     plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 

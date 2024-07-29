@@ -395,6 +395,24 @@ class BaseDataModel:
 
         return signal, error, *xs
 
+    def extract_counts(self, ws):
+        """
+        Obtain the bin counts from a histogram.
+
+        Parameters
+        ----------
+        ws : str
+            Name of histogram.
+
+        Returns
+        -------
+        Counts : array
+            Number of events.
+
+        """
+
+        return mtd[ws].getNumEventsArray()
+
     def extract_axis_info(self, ws):
         """
         Obtain the axis information from a histogram.

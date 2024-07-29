@@ -595,9 +595,8 @@ class PeaksModel:
             merge_run = mtd[merge].run()
             peaks_run = mtd[peaks].run()
 
-            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 'bkg', 'bkg_err', 
-                    'data', 'data_err', 'norm', 'norm_err', 'vol',
-                    'A1d', 'A2d', 'A3d', 'sn1d', 'sn2d', 'sn3d']
+            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
+                    'bkg', 'bkg_err', 'vol']
 
             for key in keys:
                 log = 'peaks_{}'.format(key)
@@ -879,9 +878,7 @@ class PeakModel:
         run_info = mtd[self.peaks].run()
         run_info_keys = run_info.keys()
 
-        keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 'bkg', 'bkg_err', 
-                'data', 'data_err', 'norm', 'norm_err', 'vol',
-                'A1d', 'A2d', 'A3d', 'sn1d', 'sn2d', 'sn3d']
+        keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 'bkg', 'bkg_err', 'vol']
 
         vals = [run, h, k, l, m, n, p]+values
 
