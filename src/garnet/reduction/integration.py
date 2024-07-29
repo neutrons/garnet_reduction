@@ -581,7 +581,7 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array([bin_size, bin_size, bin_size])/2
+        bin_sizes = np.array([bin_size, bin_size, bin_size])/3
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
@@ -683,7 +683,7 @@ class PeakEllipsoid:
 
         self.counts = counts.copy()
 
-    def estimate_weights(self, bkg_level=10):
+    def estimate_weights(self, bkg_level=30):
 
         mask = self.counts > 0
 
