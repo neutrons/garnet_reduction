@@ -771,7 +771,7 @@ class PeakEllipsoid:
 
             fitting = binning, peak
 
-            self.best_fit = c, S*1.5**2, *fitting
+            self.best_fit = c, S, *fitting
 
             self.bin_data = (x0, x1, x2), (dx0, dx1, dx2), y, e
 
