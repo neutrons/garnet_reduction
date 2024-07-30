@@ -833,7 +833,7 @@ class PeakEllipsoid:
         intens = np.nansum(y[pk]-b)
         sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
 
-        bin_count = np.nansum(self.counts[pk])
+        bin_count = int(np.nansum(self.counts[pk]))
 
         self.info += [d3x*np.sum(pk)]
 
