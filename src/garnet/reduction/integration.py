@@ -763,6 +763,9 @@ class PeakEllipsoid:
 
             n_events = int(np.nanmax(weights))
 
+            if n_events < 1 or np.isinf(n_events):
+                return None
+
             X, labels = self.cluster(x0, x1, x2, dx, weights, n_events)
 
             mask = labels >= 0
