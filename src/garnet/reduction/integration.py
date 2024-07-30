@@ -761,7 +761,7 @@ class PeakEllipsoid:
             if mask.sum() < 5:
                 return None
 
-            n_events = np.nanmax(weights)
+            n_events = int(np.nanmax(weights))
 
             X, labels = self.cluster(x0, x1, x2, dx, weights, n_events)
 
@@ -833,7 +833,7 @@ class PeakEllipsoid:
         intens = np.nansum(y[pk]-b)
         sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
 
-        bin_count = int(np.nansum(self.counts[pk]))
+        bin_count = np.nansum(self.counts[pk])
 
         self.info += [d3x*np.sum(pk)]
 
