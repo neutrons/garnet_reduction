@@ -692,9 +692,8 @@ class PeakEllipsoid:
         bkg = np.nanpercentile(weights[mask], bkg_level)
 
         weights -= bkg
-        weights[weights < 0] = 0
 
-        return weights
+        return weights 
 
     def voxels(self, x0, x1, x2):
 
