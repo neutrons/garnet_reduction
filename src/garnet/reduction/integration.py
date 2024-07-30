@@ -691,7 +691,7 @@ class PeakEllipsoid:
 
         bkg = np.nanpercentile(weights[mask], bkg_level)
 
-        weights -= bkg
+        weights[mask] -= bkg
 
         return weights 
 
