@@ -498,9 +498,9 @@ class Integration(SubPlan):
 
                 bin_data = ellipsoid.bin_data
 
-                I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
+                I, sigma, bin_count = ellipsoid.integrate_norm(bin_data, c, S)
 
-                peak.set_peak_intensity(i, I, sigma)
+                peak.set_peak_intensity(i, I, sigma, bin_count)
 
                 peak.add_diagonstic_info(i, ellipsoid.info)
 
@@ -738,7 +738,7 @@ class PeakEllipsoid:
 
         X = np.column_stack([x0[mask], x1[mask], x2[mask]])
 
-        db = DBSCAN(eps=dx*1.5, min_samples=n_events).fit(X, sample_weight=wgt)
+        db = DBSCAN(eps=dx*1.2, min_samples=n_events).fit(X, sample_weight=wgt)
         labels = db.labels_
 
         return X, labels
@@ -761,7 +761,9 @@ class PeakEllipsoid:
             if mask.sum() < 5:
                 return None
 
-            X, labels = self.cluster(x0, x1, x2, dx, weights)
+            n_events = np.nanmax(weights)
+
+            X, labels = self.cluster(x0, x1, x2, dx, weights, n_events)
 
             mask = labels >= 0
 
@@ -831,6 +833,8 @@ class PeakEllipsoid:
         intens = np.nansum(y[pk]-b)
         sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
 
+        bin_count = np.nansum(self.counts[pk])
+
         self.info += [d3x*np.sum(pk)]
 
         freq = y.copy()#-b
@@ -845,7 +849,7 @@ class PeakEllipsoid:
 
         self.data_norm_fit = xye, params
 
-        return intens, sig
+        return intens, sig, bin_count
 
     def weighted_median(self, y, w):
 

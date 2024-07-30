@@ -729,7 +729,7 @@ class PeakModel:
 
         return mtd[self.peaks].getNumberPeaks()
 
-    def set_peak_intensity(self, no, intens, sig):
+    def set_peak_intensity(self, no, intens, sig, bin_count=0):
         """
         Update the peak intensity.
 
@@ -741,11 +741,14 @@ class PeakModel:
             Intensity.
         sig : float
             Uncertainty.
+        bin_count : float, optional
+            Total count bin count. Default is 0.
 
         """
 
         mtd[self.peaks].getPeak(no).setIntensity(intens)
         mtd[self.peaks].getPeak(no).setSigmaIntensity(sig)
+        mtd[self.peaks].getPeak(no).setBinCount(bin_count)
 
     def get_wavelength(self, no):
         """

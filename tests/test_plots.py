@@ -185,7 +185,7 @@ def test_peak_plot():
 
     bin_data = ellipsoid.bin_data
 
-    I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
+    I, sigma, bin_count = ellipsoid.integrate_norm(bin_data, c, S)
 
     plot = PeakPlot()
 
