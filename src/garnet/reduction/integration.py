@@ -774,12 +774,11 @@ class PeakEllipsoid:
 
         dx = np.array([x0-c0, x1-c1, x2-c2])
 
-        sol = scipy.optimize.minimize(self.objective,
-                                      x0=(1,),
-                                      bounds=([0.5,2],),
-                                      args=(S_inv, dx, y, e))
+        res = scipy.optimize.brute(self.objective,
+                                   ranges=([0.5, 2],),
+                                   args=(S_inv, dx, y, e))
 
-        return S*np.cbrt(sol.x[0])
+        return S*np.cbrt(res[0])
 
     def fit(self, x0, x1, x2, y, e, dx):
 
