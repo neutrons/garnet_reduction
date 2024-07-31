@@ -752,17 +752,17 @@ class PeakEllipsoid:
         bkg = (ellip > 1) & (ellip <= np.cbrt(2)**2)
 
         if bkg.sum() == 0 or pk.sum() == 0:
-            return np.inf
+            return -np.inf
 
         b = np.nansum(y[bkg]/e[bkg]**2)/np.nansum(1/e[bkg]**2)
         b_err = 1/np.sqrt(np.nansum(1/e[bkg]**2))
 
         I = np.nansum(y[pk]-b)
-        sigma = np.sqrt(e[pk]**2+b_err**2)
+        sigma = np.sqrt(np.nansum(e[pk]**2+b_err**2))
 
-        sigma_over_I = sigma/I if I > 0 else np.inf
+        signal_to_noise = I/sigma if I > 0 else -np.inf
 
-        return sigma_over_I
+        return signal_to_noise
 
     def maximize_signal_to_noise(self, bins, c, S):
 
