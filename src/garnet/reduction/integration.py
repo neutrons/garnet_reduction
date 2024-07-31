@@ -693,7 +693,7 @@ class PeakEllipsoid:
 
         weights[mask] -= bkg
 
-        return weights 
+        return weights
 
     def voxels(self, x0, x1, x2):
 
@@ -703,7 +703,7 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def min_enclosing_ellipsoid(self, vals, tol=1e-6, max_iter=1000, reg=1e-9):
+    def min_enclosing_ellipsoid(self, vals, tol=1e-6, max_iter=1000, reg=1e-8):
 
         n, d = vals.shape
         Q = np.vstack([vals.T, np.ones(n)])
@@ -725,10 +725,9 @@ class PeakEllipsoid:
             i += 1
 
         c = vals.T @ u
-        A_inv = vals.T @ np.diag(u) @ vals-np.outer(c, c)
-        A = scipy.linalg.inv(A_inv+reg*np.eye(d))/d
+        S = vals.T @ np.diag(u) @ vals-np.outer(c, c)
 
-        return c, A
+        return c, S
 
     def cluster(self, x0, x1, x2, dx, weights, n_events=30):
 
@@ -742,6 +741,45 @@ class PeakEllipsoid:
         labels = db.labels_
 
         return X, labels
+
+    def objective(self, params, S_inv, dx, y, e):
+
+        x = params[0]        
+
+        ellip = np.einsum('ij,jk,ik->k', S_inv/np.cbrt(x), dx, dx)
+
+        pk = (ellip <= 1)
+        bkg = (ellip > 1) & (ellip <= np.cbrt(2)**2)
+
+        if bkg.sum() == 0 or pk.sum() == 0:
+            return np.inf
+
+        b = np.nansum(y[bkg]/e[bkg]**2)/np.nansum(1/e[bkg]**2)
+        b_err = 1/np.sqrt(np.nansum(1/e[bkg]**2))
+
+        I = np.nansum(y[pk]-b)
+        sigma = np.sqrt(e[pk]**2+b_err**2)
+
+        sigma_over_I = sigma/I if I > 0 else np.inf
+
+        return sigma_over_I
+
+    def maximize_signal_to_noise(self, bins, c, S):
+
+        (x0, x1, x2), y, e = bins
+
+        S_inv = np.linalg.inv(S)
+
+        c0, c1, c2 = c
+
+        dx = np.array([x0-c0, x1-c1, x2-c2])
+
+        sol = scipy.optimize.minimize(self.objective,
+                                      x0=(1,),
+                                      bounds=([0.5,2],),
+                                      args=(S_inv, dx, y, e))
+
+        return S*np.cbrt(sol.x[0])
 
     def fit(self, x0, x1, x2, y, e, dx):
 
@@ -776,15 +814,22 @@ class PeakEllipsoid:
             peak = y.copy()*np.nan
             peak[weights > 0] = labels+1.0
 
-            c, A = self.min_enclosing_ellipsoid(X[mask])
+            c, S = self.min_enclosing_ellipsoid(X[mask])
 
-            S = np.linalg.inv(A)
+            if np.linalg.det(S) <= 0:
+                return None
 
-            V, W = np.linalg.eigh(A)
+            mask = (y > 0) & (e > 0)
+
+            bins = (x0[mask], x1[mask], x2[mask]), y[mask], e[mask]
+
+            S = self.maximize_signal_to_noise(bins, c, S)
+
+            V, W = np.linalg.eigh(S)
 
             c0, c1, c2 = c
 
-            r0, r1, r2 = 1/np.sqrt(V)
+            r0, r1, r2 = np.sqrt(V)
 
             v0, v1, v2 = W.T
 
