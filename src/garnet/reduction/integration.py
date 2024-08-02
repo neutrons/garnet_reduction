@@ -465,6 +465,8 @@ class Integration(SubPlan):
 
             angles = peak.get_angles(i)
 
+            det_id = peak.get_detector_id(i)
+
             two_theta, az_phi = angles
 
             R = peak.get_goniometer_matrix(i)
@@ -488,7 +490,7 @@ class Integration(SubPlan):
 
             params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ)
 
-            if params is not None:
+            if params is not None and det_id > 0:
 
                 c, S, *fitting = ellipsoid.best_fit
 
@@ -499,6 +501,21 @@ class Integration(SubPlan):
                 bin_data = ellipsoid.bin_data
 
                 I, sigma, bin_count = ellipsoid.integrate_norm(bin_data, c, S)
+
+                scale = 1
+
+                if data.laue:
+
+                    (Q0, Q1, Q2), weights = ellipsoid.weights
+
+                    Q0, Q1, Q2 = self.trasform_Q(Q0, Q1, Q2, projections)
+
+                    scale = data.calculate_norm(det_id, Q0, Q1, Q2, weights)
+
+                    I /= scale
+                    sigma /= scale
+
+                peak.set_scale_factor(i, scale)
 
                 peak.set_peak_intensity(i, I, sigma, bin_count)
 
@@ -557,6 +574,12 @@ class Integration(SubPlan):
         V = np.column_stack([v0, v1, v2])
 
         return *np.dot(W, [c0, c1, c2]), r0, r1, r2, *np.dot(W, V).T
+
+    def trasform_Q(self, Q0, Q1, Q2, projections):
+
+        W = np.column_stack(projections)
+
+        return np.einsum('ij,jk->ik', W, [Q0, Q1, Q2])
 
     def bin_extent(self, Q0, Q1, Q2,
                          r0, r1, r2,
@@ -882,6 +905,8 @@ class PeakEllipsoid:
 
         intens = np.nansum(y[pk]-b)
         sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
+
+        self.weights = (x0[pk], x1[pk], x2[pk]), self.counts[pk]
 
         bin_count = np.nansum(self.counts[pk])
 

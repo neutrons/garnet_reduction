@@ -1022,6 +1022,39 @@ class PeakModel:
 
         mtd[self.peaks].getPeak(no).setPeakShape(shape)
 
+    def get_detector_id(self, no):
+        """
+        Obtain the peak detector id number.
+
+        Parameters
+        ----------
+        no : int
+            Peak index number.
+
+        Returns
+        -------
+        det_id : int
+            Detector number.
+
+        """
+
+        return mtd[self.peaks].getPeak(no).getDetectorID()
+
+    def set_scale_factor(self, no, scale):
+        """
+        update the peak normalization scale factor.
+
+        Parameters
+        ----------
+        no : int
+            Peak index number.
+        scale : float
+            Peak scale factor
+
+        """
+
+        mtd[self.peaks].getPeak(no).setMonitorCount(scale)
+
 
 class PeaksStatisticsModel(PeaksModel):
 
