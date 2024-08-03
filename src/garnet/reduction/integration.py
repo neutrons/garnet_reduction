@@ -455,7 +455,7 @@ class Integration(SubPlan):
             iters = '({:}/{:})'.format(self.run, self.runs)
             proc = 'Proc {:2}:'.format(self.proc)
 
-            print(proc+' '+iters+' '+comp)
+            #print(proc+' '+iters+' '+comp)
 
             params = peak.get_peak_shape(i, r_cut)
 
@@ -880,8 +880,8 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1) & (e >= 0) & (y >= 0)
-        bkg = (ellipsoid > 1) & (ellipsoid <= 1.5**2) & (e >= 0) & (y >= 0)
+        pk = (ellipsoid <= 1) & (e > 0) & (y > 0)
+        bkg = (ellipsoid > 1) & (ellipsoid <= 1.5**2) & (e > 0) & (y > 0)
 
         dilate = pk | bkg
 
