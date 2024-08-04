@@ -1450,10 +1450,10 @@ class LaueData(BaseDataModel):
                        OutputWorkspace=event_name,
                        AllowDifferentNumberSpectra=True)
 
-                # Divide(LHSWorkspace=event_name,
-                #        RHSWorkspace='spectra',
-                #        OutputWorkspace=event_name,
-                #        AllowDifferentNumberSpectra=True)
+                Divide(LHSWorkspace=event_name,
+                       RHSWorkspace='spectra',
+                       OutputWorkspace=event_name,
+                       AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """

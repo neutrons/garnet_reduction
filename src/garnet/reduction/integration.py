@@ -504,16 +504,16 @@ class Integration(SubPlan):
 
                 scale = 1
 
-                if data.laue:
+                # if data.laue:
 
-                    (Q0, Q1, Q2), weights = ellipsoid.weights
+                #     (Q0, Q1, Q2), weights = ellipsoid.weights
 
-                    Q0, Q1, Q2 = self.trasform_Q(Q0, Q1, Q2, projections)
+                #     Q0, Q1, Q2 = self.trasform_Q(Q0, Q1, Q2, projections)
 
-                    scale = data.calculate_norm(det_id, Q0, Q1, Q2, weights)
+                #     scale = data.calculate_norm(det_id, Q0, Q1, Q2, weights)
 
-                    I /= scale
-                    sigma /= scale
+                #     I /= scale
+                #     sigma /= scale
 
                 peak.set_scale_factor(i, scale)
 
