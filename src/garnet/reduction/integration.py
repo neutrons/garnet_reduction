@@ -776,8 +776,7 @@ class PeakEllipsoid:
         bkg = (ellip > 1) & (ellip <= np.cbrt(2)**2)
 
         if bkg.sum() == 0 or pk.sum() == 0:
-            return -np.inf
-
+            return -1e9
         y_bkg = y[bkg]
         w_bkg = 1/e[bkg]**2
 
@@ -787,7 +786,7 @@ class PeakEllipsoid:
         I = np.nansum(y[pk]-b)
         sigma = np.sqrt(np.nansum(e[pk]**2+b_err**2))
 
-        signal_to_noise = I/sigma if I > 0 else -np.inf
+        signal_to_noise = I/sigma if I > 0 else -1e9
 
         return -signal_to_noise
 
