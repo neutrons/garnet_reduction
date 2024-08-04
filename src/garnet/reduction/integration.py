@@ -791,23 +791,17 @@ class PeakEllipsoid:
 
         return -signal_to_noise
 
-    def maximize_signal_to_noise(self, bins, c, S):
+    def maximize_signal_to_noise(self, bins, mu, c, S):
 
         (x0, x1, x2), y, e = bins
-
-        mu0 = np.average(x0, weights=y)
-        mu1 = np.average(x1, weights=y)
-        mu2 = np.average(x2, weights=y)
-
-        mu = np.array([mu0, mu1, mu2])
 
         S_inv = np.linalg.inv(S)
 
         x = np.array([x0, x1, x2])
 
-        res = scipy.optimize.brute(self.objective,
-                                   ranges=([0.5, 2], [0, 1]),
-                                   args=(mu, c, S_inv, x, y, e))
+        res = scipy.optimize.dual_annealing(self.objective,
+                                            bounds=([0.5, 2], [0, 1]),
+                                            args=(mu, c, S_inv, x, y, e)).x
 
         return res[1]*mu+(1-res[1])*c, S*np.cbrt(res[0])
 
@@ -836,15 +830,23 @@ class PeakEllipsoid:
 
             X, labels = self.cluster(x0, x1, x2, dx, weights, n_events)
 
-            mask = labels >= 0
+            signal = labels >= 0
 
-            if mask.sum() < 5:
+            if signal.sum() < 5:
                 return None
 
             peak = y.copy()*np.nan
             peak[weights > 0] = labels+1.0
 
-            c, S = self.min_enclosing_ellipsoid(X[mask])
+            mask = (peak > 0) & (y > 0)
+
+            mu0 = np.average(x0[mask], weights=y[mask])
+            mu1 = np.average(x1[mask], weights=y[mask])
+            mu2 = np.average(x2[mask], weights=y[mask])
+
+            mu = np.array([mu0, mu1, mu2])
+
+            c, S = self.min_enclosing_ellipsoid(X[signal])
 
             if np.linalg.det(S) <= 0:
                 return None
@@ -853,7 +855,7 @@ class PeakEllipsoid:
 
             bins = (x0[mask], x1[mask], x2[mask]), y[mask], e[mask]
 
-            c, S = self.maximize_signal_to_noise(bins, c, S)
+            c, S = self.maximize_signal_to_noise(bins, mu, c, S)
 
             if np.linalg.det(S) <= 0:
                 return None
