@@ -776,7 +776,8 @@ class PeakEllipsoid:
         bkg = (ellip > 1) & (ellip <= np.cbrt(2)**2)
 
         if bkg.sum() == 0 or pk.sum() == 0:
-            return -1e9
+            return 1e9
+
         y_bkg = y[bkg]
         w_bkg = 1/e[bkg]**2
 
