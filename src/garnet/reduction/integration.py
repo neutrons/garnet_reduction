@@ -455,7 +455,7 @@ class Integration(SubPlan):
             iters = '({:}/{:})'.format(self.run, self.runs)
             proc = 'Proc {:2}:'.format(self.proc)
 
-            #print(proc+' '+iters+' '+comp)
+            print(proc+' '+iters+' '+comp)
 
             params = peak.get_peak_shape(i, r_cut)
 
@@ -706,7 +706,7 @@ class PeakEllipsoid:
 
         self.counts = counts.copy()
 
-    def estimate_weights(self, y, bkg_level=30):
+    def estimate_weights(self, y, bkg_level=50):
 
         mask = y > 0
 
@@ -749,7 +749,6 @@ class PeakEllipsoid:
 
         c = vals.T @ u
         S = vals.T @ np.diag(u) @ vals-np.outer(c, c)
-
         return c, S
 
     def cluster(self, x0, x1, x2, dx, weights, n_events=30):
@@ -765,11 +764,13 @@ class PeakEllipsoid:
 
         return X, labels
 
-    def objective(self, params, S_inv, dx, y, e):
+    def objective(self, params, mu, c, S_inv, x, y, e):
 
-        x = params[0]        
+        vol_x, center_x = params     
 
-        ellip = np.einsum('ij,jk,ik->k', S_inv/np.cbrt(x), dx, dx)
+        dx = x-(center_x*mu+(1-center_x)*c).reshape(3,1)
+
+        ellip = np.einsum('ij,jk,ik->k', S_inv/np.cbrt(vol_x), dx, dx)
 
         pk = (ellip <= 1)
         bkg = (ellip > 1) & (ellip <= np.cbrt(2)**2)
@@ -794,17 +795,21 @@ class PeakEllipsoid:
 
         (x0, x1, x2), y, e = bins
 
+        mu0 = np.average(x0, weights=y)
+        mu1 = np.average(x1, weights=y)
+        mu2 = np.average(x2, weights=y)
+
+        mu = np.array([mu0, mu1, mu2])
+
         S_inv = np.linalg.inv(S)
 
-        c0, c1, c2 = c
-
-        dx = np.array([x0-c0, x1-c1, x2-c2])
+        x = np.array([x0, x1, x2])
 
         res = scipy.optimize.brute(self.objective,
-                                   ranges=([0.5, 2],),
-                                   args=(S_inv, dx, y, e))
+                                   ranges=([0.5, 2], [0, 1]),
+                                   args=(mu, c, S_inv, x, y, e))
 
-        return S*np.cbrt(res[0])
+        return res[1]*mu+(1-res[1])*c, S*np.cbrt(res[0])
 
     def fit(self, x0, x1, x2, y, e, dx):
 
@@ -848,7 +853,10 @@ class PeakEllipsoid:
 
             bins = (x0[mask], x1[mask], x2[mask]), y[mask], e[mask]
 
-            S = self.maximize_signal_to_noise(bins, c, S)
+            c, S = self.maximize_signal_to_noise(bins, c, S)
+
+            if np.linalg.det(S) <= 0:
+                return None
 
             V, W = np.linalg.eigh(S)
 
