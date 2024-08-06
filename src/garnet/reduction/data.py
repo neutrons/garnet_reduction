@@ -10,6 +10,7 @@ from mantid.simpleapi import (Load,
                               ApplyCalibration,
                               Rebin,
                               Divide,
+                              Minus,
                               FilterBadPulses,
                               PreprocessDetectorsToMD,
                               ExtractMonitors,
@@ -52,6 +53,7 @@ from mantid.simpleapi import (Load,
                               DeleteWorkspaces,
                               MergeMD,
                               MergeMDFiles,
+                              SetUB,
                               mtd)
 
 from mantid import config
@@ -451,6 +453,21 @@ class BaseDataModel:
 
         return UB, W, titles, xs
 
+    def delete_workspace(self, ws):
+        """
+        Delete workspace.
+
+        Parameters
+        ----------
+        ws : str
+            Workspace to remove.
+
+        """
+
+        if mtd.doesExist(ws):
+
+            DeleteWorkspace(Workspace=ws)
+
     def combine_histograms(self, ws, merge):
         """
         Add two histogram workspaces together.
@@ -733,6 +750,65 @@ class BaseDataModel:
                   OutputWorkspace=md+'_data')
 
             return self.extract_bin_info(md+'_data')
+
+    def normalize_to_Q_sample_norm(self, md, extents, bins, projections):
+        """
+        Histogram data into normalized Q-sample.
+
+        Parameters
+        ----------
+        md : str
+            3D Q-sample data.
+        extents : list
+            Min/max pairs for each dimension.
+        bins : list
+            Number of bins for each dimension.
+        projections : list
+            Direction of projection for each dimension.
+
+        """
+
+        if mtd.doesExist(md) and mtd.doesExist('sa') and mtd.doesExist('flux'):
+
+            u0, u1, u2 = projections
+
+            SetUB(Workspace=md, UB=np.eye(3)/(2*np.pi)) # transform axes
+
+            (Q0_min, Q0_max), (Q1_min, Q1_max), (Q2_min, Q2_max) = extents
+
+            nQ0, nQ1, nQ2 = bins
+
+            Q0_min, Q0_max, dQ0 = self.calculate_binning_from_bins(Q0_min,
+                                                                   Q0_max,
+                                                                   nQ0)
+
+            Q1_min, Q1_max, dQ1 = self.calculate_binning_from_bins(Q1_min,
+                                                                   Q1_max,
+                                                                   nQ1)
+
+            Q2_min, Q2_max, dQ2 = self.calculate_binning_from_bins(Q2_min,
+                                                                   Q2_max,
+                                                                   nQ2)
+
+            MDNorm(InputWorkspace=md,
+                   RLU=True,
+                   SolidAngleWorkspace='sa',
+                   FluxWorkspace='flux',
+                   QDimension0='{},{},{}'.format(*u0),
+                   QDimension1='{},{},{}'.format(*u1),
+                   QDimension2='{},{},{}'.format(*u2),
+                   Dimension0Binning='{},{},{}'.format(Q0_min,dQ0,Q0_max),
+                   Dimension1Binning='{},{},{}'.format(Q1_min,dQ1,Q1_max),
+                   Dimension2Binning='{},{},{}'.format(Q2_min,dQ2,Q2_max),
+                   OutputWorkspace=md+'_result',
+                   OutputDataWorkspace=md+'_data',
+                   OutputNormalizationWorkspace=md+'_norm')
+
+            data, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_data')
+            norm, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_norm')
+
+            return data, norm, Q0, Q1, Q2
+
 
 class MonochromaticData(BaseDataModel):
 
@@ -1107,6 +1183,12 @@ class LaueData(BaseDataModel):
                 LoadIsawDetCal(InputWorkspace=event_name,
                                Filename=detector_calibration)
 
+        if mtd.doesExist('bkg'):
+
+            Minus(LHSWorkspace=event_name,
+                  RHSWorkspace='bkg',
+                  OutputWorkspace=event_name)
+
     def preprocess_detectors(self, ws=None):
         """
         Generate detector coordinates.
@@ -1439,11 +1521,11 @@ class LaueData(BaseDataModel):
                              OutputWorkspace=event_name,
                              Target='Wavelength')
 
-                params = [self.lamda_min, self.lamda_bin, self.lamda_max]
+                # params = [self.lamda_min, self.lamda_bin, self.lamda_max]
 
-                Rebin(InputWorkspace=event_name,
-                      OutputWorkspace=event_name,
-                      Params=params)
+                # Rebin(InputWorkspace=event_name,
+                #       OutputWorkspace=event_name,
+                #       Params=params)
 
                 Divide(LHSWorkspace=event_name,
                        RHSWorkspace='sa',
@@ -1482,18 +1564,20 @@ class LaueData(BaseDataModel):
                 NormaliseByCurrent(InputWorkspace='bkg',
                                    OutputWorkspace='bkg')
 
-            Q_min_vals, Q_max_vals = self.get_min_max_values()
+            if not mtd.doesExist('spectra'):
 
-            ConvertToMD(InputWorkspace='bkg',
-                        QDimensions='Q3D',
-                        dEAnalysisMode='Elastic',
-                        Q3DFrames='Q_lab',
-                        LorentzCorrection=False,
-                        MinValues=Q_min_vals,
-                        MaxValues=Q_max_vals,
-                        OutputWorkspace='bkg_mde')
+                Q_min_vals, Q_max_vals = self.get_min_max_values()
 
-            DeleteWorkspace(Workspace='bkg')
+                ConvertToMD(InputWorkspace='bkg',
+                            QDimensions='Q3D',
+                            dEAnalysisMode='Elastic',
+                            Q3DFrames='Q_lab',
+                            LorentzCorrection=False,
+                            MinValues=Q_min_vals,
+                            MaxValues=Q_max_vals,
+                            OutputWorkspace='bkg_mde')
+
+                DeleteWorkspace(Workspace='bkg')
 
         if mtd.doesExist('bkg_mde'):
 

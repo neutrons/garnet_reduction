@@ -90,7 +90,7 @@ class PeakPlot(BasePlot):
         self.ellip = []
         self.ellip_im = []
         self.ellip_el = []
-        self.ellip_pt = []
+        # self.ellip_pt = []
 
         x = np.arange(5)
         y = np.arange(6)
@@ -117,8 +117,8 @@ class PeakPlot(BasePlot):
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
 
-        line = self._draw_intersecting_line(ax, 2.5, 3)
-        self.ellip_pt.append(line)
+        # line = self._draw_intersecting_line(ax, 2.5, 3)
+        # self.ellip_pt.append(line)
 
         ax = self.fig.add_subplot(gs[1,0])
 
@@ -142,8 +142,8 @@ class PeakPlot(BasePlot):
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
 
-        line = self._draw_intersecting_line(ax, 2.5, 3)
-        self.ellip_pt.append(line)
+        # line = self._draw_intersecting_line(ax, 2.5, 3)
+        # self.ellip_pt.append(line)
 
         ax = self.fig.add_subplot(gs[0,1])
 
@@ -164,8 +164,8 @@ class PeakPlot(BasePlot):
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
 
-        line = self._draw_intersecting_line(ax, 2.5, 3)
-        self.ellip_pt.append(line)
+        # line = self._draw_intersecting_line(ax, 2.5, 3)
+        # self.ellip_pt.append(line)
 
         ax = self.fig.add_subplot(gs[1,1])
 
@@ -189,8 +189,8 @@ class PeakPlot(BasePlot):
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
 
-        line = self._draw_intersecting_line(ax, 2.5, 3)
-        self.ellip_pt.append(line)
+        # line = self._draw_intersecting_line(ax, 2.5, 3)
+        # self.ellip_pt.append(line)
 
         ax = self.fig.add_subplot(gs[0,2])
 
@@ -211,8 +211,8 @@ class PeakPlot(BasePlot):
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
 
-        line = self._draw_intersecting_line(ax, 2.5, 3)
-        self.ellip_pt.append(line)
+        # line = self._draw_intersecting_line(ax, 2.5, 3)
+        # self.ellip_pt.append(line)
 
         ax = self.fig.add_subplot(gs[1,2])
 
@@ -237,8 +237,8 @@ class PeakPlot(BasePlot):
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
 
-        line = self._draw_intersecting_line(ax, 2.5, 3)
-        self.ellip_pt.append(line)
+        # line = self._draw_intersecting_line(ax, 2.5, 3)
+        # self.ellip_pt.append(line)
 
         norm = Normalize(0, 29)
         im = ScalarMappable(norm=norm)
@@ -541,23 +541,20 @@ class PeakPlot(BasePlot):
                S[0,2]/r[0]/r[2],
                S[0,1]/r[0]/r[1]]
 
-        for el, pt, ax in zip(self.ellip_el[0:2],
-                              self.ellip_pt[0:2],
-                              self.ellip[0:2]):
+        for el, ax in zip(self.ellip_el[0:2],
+                          self.ellip[0:2]):
             self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
-            self._update_intersecting_line(pt, ax, c[0], c[1])
+            # self._update_intersecting_line(pt, ax, c[0], c[1])
 
-        for el, pt, ax in zip(self.ellip_el[2:4],
-                              self.ellip_pt[2:4],
-                              self.ellip[2:4]):
+        for el, ax in zip(self.ellip_el[2:4],
+                          self.ellip[2:4]):
             self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
-            self._update_intersecting_line(pt, ax, c[0], c[2])
+            # self._update_intersecting_line(pt, ax, c[0], c[2])
 
-        for el, pt, ax in zip(self.ellip_el[4:6],
-                              self.ellip_pt[4:6],
-                              self.ellip[4:6]):
+        for el, ax in zip(self.ellip_el[4:6],
+                          self.ellip[4:6]):
             self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
-            self._update_intersecting_line(pt, ax, c[1], c[2])
+            # self._update_intersecting_line(pt, ax, c[1], c[2])
 
         for el, ax in zip(self.norm_el[0:1], self.norm[0:1]):
             self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
@@ -572,8 +569,16 @@ class PeakPlot(BasePlot):
 
         ellipse.set_center((0, 0))
 
+        if not np.isfinite(rho):
+            rho = 0
+
         ellipse.width = 2*np.sqrt(1+rho)
         ellipse.height = 2*np.sqrt(1-rho)
+
+        if np.isclose(rx, 0):
+            rx = 1
+        if np.isclose(ry, 0):
+            ry = 1
 
         trans = Affine2D()
         trans.rotate_deg(45).scale(rx, ry).translate(cx, cy)

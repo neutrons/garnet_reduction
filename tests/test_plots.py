@@ -174,7 +174,7 @@ def test_peak_plot():
 
     ellipsoid = PeakEllipsoid(counts)
 
-    ellipsoid.fit(Qx, Qy, Qz, data_norm, uncertanties, 0.1)
+    ellipsoid.fit(Qx, Qy, Qz, data_norm, uncertanties, 0.2)
 
     c, S, *fitting = ellipsoid.best_fit
 

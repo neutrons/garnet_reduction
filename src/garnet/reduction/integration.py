@@ -112,6 +112,8 @@ class Integration(SubPlan):
 
             data.load_spectra_file(self.plan['SpectraFile'])
 
+            data.load_background(self.plan['BackgroundFile'], 'data')
+
             data.apply_calibration('data',
                                    self.plan.get('DetectorCalibration'),
                                    self.plan.get('TubeCalibration'))
@@ -146,6 +148,8 @@ class Integration(SubPlan):
                                               self.params['MaxOrder'],
                                               self.params['CrossTerms'])
 
+            data.delete_workspace('data')
+
             self.peaks, self.data = peaks, data
 
             r_cut = self.estimate_peak_size('peaks', 'md')
@@ -154,8 +158,6 @@ class Integration(SubPlan):
                                   'peaks',
                                   r_cut,
                                   method='sphere')
-
-            # peaks.remove_weak_peaks('peaks')
 
             self.fit_peaks('peaks', r_cut)
 
@@ -227,37 +229,10 @@ class Integration(SubPlan):
 
             data.load_generate_normalization(self.plan['VanadiumFile'], 'data')
 
-            data.convert_to_Q_sample('data', 'md_data', lorentz_corr=False)
-            data.convert_to_Q_sample('data', 'md_corr', lorentz_corr=True)
+            data.convert_to_Q_sample('data', 'md', lorentz_corr=True)
 
-            if self.plan.get('UBFile') is None:
-                UB_file = output_file.replace('.nxs', '.mat')
-                data.save_UB(UB_file, 'md_data')
-                self.plan['UBFile'] = UB_file
-
-            data.load_clear_UB(self.plan['UBFile'], 'md_data')
-
-            peaks.predict_peaks('md_data',
-                                'peaks',
-                                self.params['Centering'],
-                                self.params['MinD'],
-                                lamda_min,
-                                lamda_max)
-
-            if self.params['MaxOrder'] > 0:
-
-                peaks.predict_satellite_peaks('peaks',
-                                              'md_data',
-                                              self.params['MinD'],
-                                              lamda_min,
-                                              lamda_max,
-                                              self.params['ModVec1'],
-                                              self.params['ModVec2'],
-                                              self.params['ModVec3'],
-                                              self.params['MaxOrder'],
-                                              self.params['CrossTerms'])
-
-            peaks.combine_peaks('peaks', 'combine')
+            md_file = self.get_diagnostic_file('run#{}_data'.format(self.run))
+            data.save_histograms(md_file, 'md', sample_logs=True)
 
         else:
 
@@ -274,24 +249,17 @@ class Integration(SubPlan):
                                                  'data')
 
                 data.convert_to_Q_sample('data',
-                                         'tmp_data',
-                                         lorentz_corr=False)
-
-                data.convert_to_Q_sample('data',
-                                         'tmp_corr',
+                                         'md',
                                          lorentz_corr=True)
-
-                data.combine_histograms('tmp_data', 'md_data')
-                data.combine_histograms('tmp_corr', 'md_corr')
 
                 if self.plan.get('UBFile') is None:
                     UB_file = output_file.replace('.nxs', '.mat')
                     data.save_UB(UB_file, 'md_data')
                     self.plan['UBFile'] = UB_file
 
-                data.load_clear_UB(self.plan['UBFile'], 'md_data')
+                data.load_clear_UB(self.plan['UBFile'], 'md')
 
-                peaks.predict_peaks('md_data',
+                peaks.predict_peaks('md',
                                     'peaks',
                                     self.params['Centering'],
                                     self.params['MinD'],
@@ -301,7 +269,7 @@ class Integration(SubPlan):
                 if self.params['MaxOrder'] > 0:
 
                     peaks.predict_satellite_peaks('peaks',
-                                                  'md_data',
+                                                  'md',
                                                   self.params['MinD'],
                                                   lamda_min,
                                                   lamda_max,
@@ -311,21 +279,30 @@ class Integration(SubPlan):
                                                   self.params['MaxOrder'],
                                                   self.params['CrossTerms'])
 
+                self.peaks, self.data = peaks, data
+
+                r_cut = self.estimate_peak_size('peaks', 'md')
+
+                peaks.integrate_peaks('md',
+                                      'peaks',
+                                      r_cut,
+                                      method='sphere')
+
+                self.fit_peaks('peaks', r_cut)
+
                 peaks.combine_peaks('peaks', 'combine')
 
-        peaks.convert_peaks('combine')
+                md_file = self.get_diagnostic_file('run#{}_data'.format(run))
+                data.save_histograms(md_file, 'md', sample_logs=True)
 
-        peaks.integrate_peaks('md_data',
-                              'combine',
-                              self.params['Radius'],
-                              method='sphere',
-                              centroid=False)
+                pk_file = self.get_diagnostic_file('run#{}_peaks'.format(run))
+                peaks.save_peaks(pk_file, 'peaks')
 
-        peaks.save_peaks(output_file, 'combine')
+        if self.plan['Instrument'] != 'WAND²':
 
-        for ws in ['md_data', 'md_corr', 'norm']:
-            file = output_file.replace('.nxs', '_{}.nxs'.format(ws))
-            data.save_histograms(file, ws, sample_logs=True)
+            peaks.remove_weak_peaks('combine')
+
+            peaks.save_peaks(output_file, 'combine')
 
         mtd.clear()
 
@@ -340,48 +317,89 @@ class Integration(SubPlan):
 
         peaks = PeaksModel()
 
-        for ws in ['md_data', 'md_corr', 'norm']:
+        lamda_min, lamda_max = data.wavelength_ba
+
+        if self.plan['Instrument'] == 'WAND²':
 
             merge = []
-
             for file in files:
-                md_file = file.replace('.nxs', '_{}.nxs'.format(ws))
+
+                peaks.load_peaks(file, 'peaks')
+                peaks.combine_peaks('peaks', 'combine')
+
+                md_file = file.replace('_peaks', '_data')
                 data.load_histograms(md_file, md_file)
+
                 merge.append(md_file)
                 os.remove(md_file)
 
-            data.combine_Q_sample(merge, ws)
+            data.combine_Q_sample(merge, 'md')
 
-            if ws == 'md_data':
-                for file in files:
-                    peaks.load_peaks(file, 'peaks')
-                    peaks.combine_peaks('peaks', 'combine')
-                    os.remove(file)
-                md_file = output_file.replace('.nxs', '_{}.nxs'.format(ws))
-                data.save_histograms(md_file, ws, sample_logs=True)
+            if self.plan.get('UBFile') is None:
+                UB_file = output_file.replace('.nxs', '.mat')
+                data.save_UB(UB_file, 'md')
+                self.plan['UBFile'] = UB_file
 
-        pk_file = output_file.replace('.nxs', '_pk.nxs')
-        peaks.save_peaks(pk_file, 'combine')
+            data.load_clear_UB(self.plan['UBFile'], 'md')
 
-        peaks.renumber_runs_by_index('md_data', 'combine')
+            peaks.predict_peaks('md',
+                                'peaks',
+                                self.params['Centering'],
+                                self.params['MinD'],
+                                lamda_min,
+                                lamda_max)
 
-        self.peaks, self.data = peaks, data
+            if self.params['MaxOrder'] > 0:
 
-        r_cut = self.estimate_peak_size('combine', 'md_corr')
+                peaks.predict_satellite_peaks('peaks',
+                                              'md',
+                                              self.params['MinD'],
+                                              lamda_min,
+                                              lamda_max,
+                                              self.params['ModVec1'],
+                                              self.params['ModVec2'],
+                                              self.params['ModVec3'],
+                                              self.params['MaxOrder'],
+                                              self.params['CrossTerms'])
 
-        self.fit_peaks('combine', r_cut)
+            self.peaks, self.data = peaks, data
 
-        peaks.remove_weak_peaks('combine')
+            r_cut = self.estimate_peak_size('peaks', 'md')
 
-        peaks.save_peaks(output_file, 'combine')
+            peaks.integrate_peaks('md',
+                                  'peaks',
+                                  r_cut,
+                                  method='sphere')
 
-        opt = Optimization('combine')
-        opt.optimize_lattice(self.params['Cell'])
+            self.fit_peaks('peaks', r_cut)
 
-        ub_file = os.path.splitext(output_file)[0]+'.mat'
+            md_file = self.get_diagnostic_file('data')
+            data.save_histograms(md_file, 'md', sample_logs=True)
 
-        ub = UBModel('combine')
-        ub.save_UB(ub_file)
+            pk_file = self.get_diagnostic_file('peaks')
+            peaks.save_peaks(pk_file, 'peaks')
+
+        else:
+
+            for file in files:
+
+                peaks.load_peaks(file, 'tmp')
+                peaks.combine_peaks('tmp', 'combine')
+
+            for file in files:
+                os.remove(file)
+
+        if mtd.doesExist('combine'):
+
+            peaks.save_peaks(output_file, 'combine')
+
+            opt = Optimization('combine')
+            opt.optimize_lattice(self.params['Cell'])
+
+            ub_file = os.path.splitext(output_file)[0]+'.mat'
+
+            ub = UBModel('combine')
+            ub.save_UB(ub_file)
 
         mtd.clear()
 
@@ -604,7 +622,8 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array([bin_size, bin_size, bin_size])/3
+        bin_sizes = np.array(dQ)/20
+        bin_sizes[bin_sizes < bin_size/2] = bin_size/2
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
@@ -706,7 +725,7 @@ class PeakEllipsoid:
 
         self.counts = counts.copy()
 
-    def estimate_weights(self, y, bkg_level=50):
+    def estimate_weights(self, y, bkg_level=15):
 
         mask = y > 0
 
@@ -759,16 +778,16 @@ class PeakEllipsoid:
 
         X = np.column_stack([x0[mask], x1[mask], x2[mask]])
 
-        db = DBSCAN(eps=dx*1.2, min_samples=n_events).fit(X, sample_weight=wgt)
+        db = DBSCAN(eps=dx*2, min_samples=n_events).fit(X, sample_weight=wgt)
         labels = db.labels_
 
         return X, labels
 
     def objective(self, params, mu, c, S_inv, x, y, e):
 
-        vol_x, center_x = params     
+        vol_x, center_x = params
 
-        dx = x-(center_x*mu+(1-center_x)*c).reshape(3,1)
+        dx = x-(center_x*mu+(1-center_x)*c).reshape(3, 1)
 
         ellip = np.einsum('ij,jk,ik->k', S_inv/np.cbrt(vol_x), dx, dx)
 
@@ -838,11 +857,11 @@ class PeakEllipsoid:
             peak = y.copy()*np.nan
             peak[weights > 0] = labels+1.0
 
-            mask = (peak > 0) & (y > 0)
+            mask = (peak > 0) & (weights > 0)
 
-            mu0 = np.average(x0[mask], weights=y[mask])
-            mu1 = np.average(x1[mask], weights=y[mask])
-            mu2 = np.average(x2[mask], weights=y[mask])
+            mu0 = np.average(x0[mask], weights=weights[mask])
+            mu1 = np.average(x1[mask], weights=weights[mask])
+            mu2 = np.average(x2[mask], weights=weights[mask])
 
             mu = np.array([mu0, mu1, mu2])
 
@@ -864,7 +883,7 @@ class PeakEllipsoid:
 
             c0, c1, c2 = c
 
-            r0, r1, r2 = np.sqrt(V)
+            r0, r1, r2 = np.sqrt(V)*1.2
 
             v0, v1, v2 = W.T
 
@@ -878,7 +897,7 @@ class PeakEllipsoid:
 
             return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
-    def integrate_norm(self, bins, c, S):
+    def integrate_norm(self, bins, c, S, norm=False):
 
         (x0, x1, x2), (dx0, dx1, dx2), y, e = bins
 
@@ -897,11 +916,8 @@ class PeakEllipsoid:
 
         d3x = dx0*dx1*dx2
 
-        y_bkg = y[bkg]
-        e_bkg = e[bkg]
-
-        y_bkg = y[bkg]
-        e_bkg = e[bkg]
+        y_bkg = y[bkg].copy()
+        e_bkg = e[bkg].copy()
 
         w_bkg = 1/e_bkg**2
 
@@ -911,16 +927,21 @@ class PeakEllipsoid:
         else:
             b = b_err = 0
 
-        self.info = [b, b_err]
+        if not norm:
+            self.info = [b, b_err]
+  
+        scale = d3x if norm else 1
 
-        intens = np.nansum(y[pk]-b)
-        sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))
+        intens = np.nansum(y[pk]-b)*scale
+        sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))*scale
 
-        self.weights = (x0[pk], x1[pk], x2[pk]), self.counts[pk]
+        if not norm:
+            self.weights = (x0[pk], x1[pk], x2[pk]), self.counts[pk]
 
         bin_count = np.nansum(self.counts[pk])
 
-        self.info += [d3x*np.sum(pk)]
+        if not norm:
+            self.info += [d3x*np.sum(pk)]
 
         freq = y.copy()#-b
         freq[~dilate] = np.nan
