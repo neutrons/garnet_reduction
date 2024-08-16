@@ -596,7 +596,7 @@ class PeaksModel:
             peaks_run = mtd[peaks].run()
 
             keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-                    'bkg', 'bkg_err', 'vol']
+                    'bkg', 'bkg_err', 'vol', 'intens', 'sig']
 
             for key in keys:
                 log = 'peaks_{}'.format(key)
@@ -709,6 +709,7 @@ class PeaksModel:
 
         name = 'peaks_run#{}'
         return name.format(run)
+
 
 class PeakModel:
 
@@ -881,7 +882,8 @@ class PeakModel:
         run_info = mtd[self.peaks].run()
         run_info_keys = run_info.keys()
 
-        keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 'bkg', 'bkg_err', 'vol']
+        keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
+                'bkg', 'bkg_err', 'vol', 'intens', 'sig']
 
         vals = [run, h, k, l, m, n, p]+values
 
@@ -1079,4 +1081,3 @@ class PeaksStatisticsModel(PeaksModel):
         for peak in mtd[self.peaks]:
             peak.setIntensity(scale*peak.getIntensity())
             peak.setSigmaIntensity(scale*peak.getSigmaIntensity())
-

@@ -4,7 +4,7 @@ import numpy as np
 import scipy.linalg
 import scipy.spatial
 
-from garnet.reduction.integration import PeakSphere, PeakEllipsoid
+from garnet.reduction.integration import PeakSphere, PeakEllipsoid, PeakEllipsoidFit
 from garnet.plots.peaks import RadiusPlot, PeakPlot
 from garnet.plots.volume import SlicePlot
 
@@ -172,9 +172,13 @@ def test_peak_plot():
 
     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing='ij')
 
-    ellipsoid = PeakEllipsoid(counts)
+    #ellipsoid = PeakEllipsoid(counts)
+    ellipsoid = PeakEllipsoidFit(*Q0, 
+                                 0.2, 0.2, 0.2,
+                                 *np.eye(3),
+                                 1.0, 1.0, 0.001)
 
-    ellipsoid.fit(Qx, Qy, Qz, data_norm, uncertanties, 0.2)
+    ellipsoid.fit(Qx, Qy, Qz, data_norm, uncertanties)
 
     c, S, *fitting = ellipsoid.best_fit
 
@@ -185,7 +189,8 @@ def test_peak_plot():
 
     bin_data = ellipsoid.bin_data
 
-    I, sigma, bin_count = ellipsoid.integrate_norm(bin_data, c, S)
+    #I, sigma, bin_count = ellipsoid.integrate_norm(bin_data, c, S)
+    I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
 
     plot = PeakPlot()
 
