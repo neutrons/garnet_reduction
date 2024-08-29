@@ -135,7 +135,7 @@ class Normalization(SubPlan):
             else:
 
                 for run in runs:
-                    
+
                     self.runs += 1
 
                     data.load_data('md',

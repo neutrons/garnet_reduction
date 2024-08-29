@@ -9,6 +9,7 @@ from mantid.simpleapi import (Load,
                               LoadIsawDetCal,
                               ApplyCalibration,
                               Rebin,
+                              Multiply,
                               Divide,
                               Minus,
                               FilterBadPulses,
@@ -16,13 +17,14 @@ from mantid.simpleapi import (Load,
                               ExtractMonitors,
                               LoadMask,
                               MaskDetectors,
+                              MaskDetectorsIf,
                               ExtractMask,
-                              RemoveMaskedSpectra,
                               SetGoniometer,
                               LoadWANDSCD,
                               HB3AAdjustSampleNorm,
                               CorelliCrossCorrelate,
                               NormaliseByCurrent,
+                              CompressEvents,
                               GroupDetectors,
                               LoadEmptyInstrument,
                               CopyInstrumentParameters,
@@ -31,7 +33,6 @@ from mantid.simpleapi import (Load,
                               ReplicateMD,
                               BinMD,
                               DivideMD,
-                              MultiplyMD,
                               MDNorm,
                               ConvertWANDSCDtoQ,
                               ConvertQtoHKLMDHisto,
@@ -53,7 +54,6 @@ from mantid.simpleapi import (Load,
                               DeleteWorkspaces,
                               MergeMD,
                               MergeMDFiles,
-                              SetUB,
                               mtd)
 
 from mantid import config
@@ -717,14 +717,14 @@ class BaseDataModel:
 
         return dQ
 
-    def normalize_to_Q_sample(self, md, extents, bins, projections):
+    def normalize_in_Q(self, md, extents, bins, projections):
         """
-        Histogram data into normalized Q-sample.
+        Histogram data into normalized Q-space.
 
         Parameters
         ----------
         md : str
-            3D Q-sample data.
+            3D Q-space data.
         extents : list
             Min/max pairs for each dimension.
         bins : list
@@ -742,73 +742,34 @@ class BaseDataModel:
 
             BinMD(InputWorkspace=md,
                   AxisAligned=False,
-                  BasisVector0='Q_sample_x,Angstrom^-1,{},{},{}'.format(*u0),
-                  BasisVector1='Q_sample_y,Angstrom^-1,{},{},{}'.format(*u1),
-                  BasisVector2='Q_sample_z,Angstrom^-1,{},{},{}'.format(*u2),
+                  BasisVector0='Q_x,Angstrom^-1,{},{},{}'.format(*u0),
+                  BasisVector1='Q_y,Angstrom^-1,{},{},{}'.format(*u1),
+                  BasisVector2='Q_z,Angstrom^-1,{},{},{}'.format(*u2),
                   OutputExtents=extents,
                   OutputBins=bins,
                   OutputWorkspace=md+'_data')
 
-            return self.extract_bin_info(md+'_data')
+            y, e, x0, x1, x2 = self.extract_bin_info(md+'_data')
 
-    def normalize_to_Q_sample_norm(self, md, extents, bins, projections):
-        """
-        Histogram data into normalized Q-sample.
+            if mtd.doesExist('bkg_mde'):
 
-        Parameters
-        ----------
-        md : str
-            3D Q-sample data.
-        extents : list
-            Min/max pairs for each dimension.
-        bins : list
-            Number of bins for each dimension.
-        projections : list
-            Direction of projection for each dimension.
+                BinMD(InputWorkspace='bkg_mde',
+                      AxisAligned=False,
+                      BasisVector0='Q_x,Angstrom^-1,{},{},{}'.format(*u0),
+                      BasisVector1='Q_y,Angstrom^-1,{},{},{}'.format(*u1),
+                      BasisVector2='Q_z,Angstrom^-1,{},{},{}'.format(*u2),
+                      OutputExtents=extents,
+                      OutputBins=bins,
+                      OutputWorkspace=md+'_bkg')
 
-        """
+                y_bkg, e_bkg, *x = self.extract_bin_info(md+'_bkg')
 
-        if mtd.doesExist(md) and mtd.doesExist('sa') and mtd.doesExist('flux'):
+            else:
 
-            u0, u1, u2 = projections
+                y_bkg = np.zeros_like(y)
+                e_bkg = np.zeros_like(e)
 
-            SetUB(Workspace=md, UB=np.eye(3)/(2*np.pi)) # transform axes
-
-            (Q0_min, Q0_max), (Q1_min, Q1_max), (Q2_min, Q2_max) = extents
-
-            nQ0, nQ1, nQ2 = bins
-
-            Q0_min, Q0_max, dQ0 = self.calculate_binning_from_bins(Q0_min,
-                                                                   Q0_max,
-                                                                   nQ0)
-
-            Q1_min, Q1_max, dQ1 = self.calculate_binning_from_bins(Q1_min,
-                                                                   Q1_max,
-                                                                   nQ1)
-
-            Q2_min, Q2_max, dQ2 = self.calculate_binning_from_bins(Q2_min,
-                                                                   Q2_max,
-                                                                   nQ2)
-
-            MDNorm(InputWorkspace=md,
-                   RLU=True,
-                   SolidAngleWorkspace='sa',
-                   FluxWorkspace='flux',
-                   QDimension0='{},{},{}'.format(*u0),
-                   QDimension1='{},{},{}'.format(*u1),
-                   QDimension2='{},{},{}'.format(*u2),
-                   Dimension0Binning='{},{},{}'.format(Q0_min,dQ0,Q0_max),
-                   Dimension1Binning='{},{},{}'.format(Q1_min,dQ1,Q1_max),
-                   Dimension2Binning='{},{},{}'.format(Q2_min,dQ2,Q2_max),
-                   OutputWorkspace=md+'_result',
-                   OutputDataWorkspace=md+'_data',
-                   OutputNormalizationWorkspace=md+'_norm')
-
-            data, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_data')
-            norm, _, Q0, Q1, Q2 = self.extract_bin_info(md+'_norm')
-
-            return data, norm, Q0, Q1, Q2
-
+            return y, e, y_bkg, e_bkg, x0, x1, x2
 
 class MonochromaticData(BaseDataModel):
 
@@ -1241,14 +1202,18 @@ class LaueData(BaseDataModel):
             MaskDetectors(Workspace=event_name,
                           MaskedWorkspace='sa_mask')
 
-            RemoveMaskedSpectra(InputWorkspace=event_name,
-                                MaskedWorkspace=event_name,
-                                OutputWorkspace=event_name)
+            # RemoveMaskedSpectra(InputWorkspace=event_name,
+            #                     MaskedWorkspace=event_name,
+            #                     OutputWorkspace=event_name)
 
         if mtd.doesExist('mask'):
 
             MaskDetectors(Workspace=event_name,
                           MaskedWorkspace='mask')
+
+            # RemoveMaskedSpectra(InputWorkspace=event_name,
+            #                     MaskedWorkspace=event_name,
+            #                     OutputWorkspace=event_name)
 
     def create_grouping(self, filename, grouping):
         """
@@ -1347,6 +1312,38 @@ class LaueData(BaseDataModel):
             RecalculateTrajectoriesExtents(InputWorkspace=md_name,
                                            OutputWorkspace=md_name)
 
+    def convert_to_Q_lab(self, event_name, md_name, lorentz_corr=False):
+        """
+        Convert raw data to Q-lab.
+
+        Parameters
+        ----------
+        event_name : str
+            Name of raw event name data.
+        md_name : str
+            Name of Q-sample workspace.
+        lorentz_corr : bool, optional
+            Apply Lorentz correction. The default is False.
+
+        """
+
+        self.preprocess_detectors(event_name)
+
+        self.calculate_maximum_Q()
+
+        if mtd.doesExist(event_name):
+
+            Q_min_vals, Q_max_vals = self.get_min_max_values()
+
+            ConvertToMD(InputWorkspace=event_name,
+                        QDimensions='Q3D',
+                        dEAnalysisMode='Elastic',
+                        Q3DFrames='Q_lab',
+                        LorentzCorrection=lorentz_corr,
+                        MinValues=Q_min_vals,
+                        MaxValues=Q_max_vals,
+                        OutputWorkspace=md_name)
+
     def coverage(self, Q0, Q1, Q2):
         """
         Spectral and detector coverage.
@@ -1395,9 +1392,13 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=vanadium_file,
                       OutputWorkspace='sa')
 
+            MaskDetectorsIf(InputWorkspace='sa',
+                            Operator='LessEqual',
+                            OutputWorkspace='sa')
+
             ExtractMask(InputWorkspace='sa', OutputWorkspace='sa_mask')
 
-            RemoveMaskedSpectra(InputWorkspace='sa', OutputWorkspace='sa')
+            # RemoveMaskedSpectra(InputWorkspace='sa', OutputWorkspace='sa')
 
             #if self.grouping is not None:
 
@@ -1442,11 +1443,11 @@ class LaueData(BaseDataModel):
                   Params=params,
                   PreserveEvents=False)
 
-            Divide(LHSWorkspace='spectra',
-                   RHSWorkspace='norm',
-                   OutputWorkspace='spectra',
-                   AllowDifferentNumberSpectra=True,
-                   WarnOnZeroDivide=False)
+            # Divide(LHSWorkspace='spectra',
+            #        RHSWorkspace='norm',
+            #        OutputWorkspace='spectra',
+            #        AllowDifferentNumberSpectra=True,
+            #        WarnOnZeroDivide=False)
 
             self.spectra_x = mtd['spectra'].readX(0).copy()
             self.spectra_y = mtd['spectra'].extractY().copy()
@@ -1488,9 +1489,13 @@ class LaueData(BaseDataModel):
 
         lamda, _, _ = self.coverage(Q0, Q1, Q2)
 
-        w, _ = np.histogram(lamda, bins=self.spectra_x, weights=weights)
+        scale = 0.0
+        if np.sum(weights) > 0:
+            w, _ = np.histogram(lamda, bins=self.spectra_x, weights=weights)
+            if np.sum(w) > 0:
+                scale = np.sum(y*w)/np.sum(w)
 
-        return np.sum(y*w)/np.sum(w)
+        return scale
 
     def crop_for_normalization(self, event_name):
         """
@@ -1506,6 +1511,10 @@ class LaueData(BaseDataModel):
             ConvertUnits(InputWorkspace=event_name,
                          OutputWorkspace=event_name,
                          Target='Momentum')
+
+            CompressEvents(InputWorkspace=event_name,
+                           OutputWorkspace=event_name,
+                           Tolerance=0.0001)
 
             CropWorkspaceForMDNorm(InputWorkspace=event_name,
                                    XMin=self.k_min,
@@ -1527,15 +1536,16 @@ class LaueData(BaseDataModel):
                 #       OutputWorkspace=event_name,
                 #       Params=params)
 
-                Divide(LHSWorkspace=event_name,
-                       RHSWorkspace='sa',
-                       OutputWorkspace=event_name,
-                       AllowDifferentNumberSpectra=True)
+                # Divide(LHSWorkspace=event_name,
+                #        RHSWorkspace='sa',
+                #        OutputWorkspace=event_name,
+                #        WarnOnZeroDivide=False,
+                #        AllowDifferentNumberSpectra=True)
 
-                Divide(LHSWorkspace=event_name,
-                       RHSWorkspace='spectra',
-                       OutputWorkspace=event_name,
-                       AllowDifferentNumberSpectra=True)
+                # Divide(LHSWorkspace=event_name,
+                #         RHSWorkspace='spectra',
+                #         OutputWorkspace=event_name,
+                #         AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """
@@ -1555,9 +1565,40 @@ class LaueData(BaseDataModel):
             Load(Filename=filename,
                  OutputWorkspace='bkg')
 
+            ConvertUnits(InputWorkspace='bkg',
+                         OutputWorkspace='bkg',
+                         Target='Momentum')
+
+            CompressEvents(InputWorkspace='bkg',
+                           OutputWorkspace='bkg',
+                           Tolerance=0.0001)
+
+            CropWorkspaceForMDNorm(InputWorkspace='bkg',
+                                   XMin=self.k_min,
+                                   XMax=self.k_max,
+                                   OutputWorkspace='bkg')
+
             if self.grouping is not None:
 
                 self.group_pixels(self.grouping, 'bkg')
+
+            if mtd.doesExist('sa_mask'):
+
+                MaskDetectors(Workspace='bkg',
+                              MaskedWorkspace='sa_mask')
+
+                # RemoveMaskedSpectra(InputWorkspace='bkg',
+                #                     MaskedWorkspace='bkg',
+                #                     OutputWorkspace='bkg')
+
+            if mtd.doesExist('mask'):
+
+                MaskDetectors(Workspace='bkg',
+                              MaskedWorkspace='mask')
+
+                # RemoveMaskedSpectra(InputWorkspace='bkg',
+                #                     MaskedWorkspace='bkg',
+                #                     OutputWorkspace='bkg')
 
             if not mtd['bkg'].run().hasProperty('NormalizationFactor'):
 
@@ -1566,35 +1607,60 @@ class LaueData(BaseDataModel):
 
             if not mtd.doesExist('spectra'):
 
-                Q_min_vals, Q_max_vals = self.get_min_max_values()
+                pc = mtd['bkg'].run().getProperty('gd_prtn_chrg').value
 
-                ConvertToMD(InputWorkspace='bkg',
-                            QDimensions='Q3D',
-                            dEAnalysisMode='Elastic',
-                            Q3DFrames='Q_lab',
-                            LorentzCorrection=False,
-                            MinValues=Q_min_vals,
-                            MaxValues=Q_max_vals,
-                            OutputWorkspace='bkg_mde')
+                CreateSingleValuedWorkspace(DataValue=pc,
+                                            OutputWorkspace='pc_scale')
 
-                DeleteWorkspace(Workspace='bkg')
+                Multiply(LHSWorkspace='bkg',
+                         RHSWorkspace='pc_scale',
+                         OutputWorkspace='bkg')
 
-        if mtd.doesExist('bkg_mde'):
+            else:
 
-            pc = mtd[event_name].run().getProperty('gd_prtn_chrg').value
+                ConvertUnits(InputWorkspace='bkg',
+                             OutputWorkspace='bkg',
+                             Target='Wavelength')
 
-            CreateSingleValuedWorkspace(DataValue=pc,
-                                        OutputWorkspace='pc_scale')
+                # Divide(LHSWorkspace='bkg',
+                #        RHSWorkspace='sa',
+                #        OutputWorkspace='bkg',
+                #        AllowDifferentNumberSpectra=True)
 
-            MultiplyMD(LHSWorkspace='bkg_mde',
-                       RHSWorkspace='pc_scale',
-                       OutputWorkspace='bkg_md')
+                # Divide(LHSWorkspace='bkg',
+                #         RHSWorkspace='spectra',
+                #         OutputWorkspace='bkg',
+                #         AllowDifferentNumberSpectra=True)
 
-            AddSampleLog(Workspace='bkg_md',
-                         LogName='gd_prtn_chrg',
-                         LogText=str(pc),
-                         LogType='Number',
-                         NumberType='Double')
+            Q_min_vals, Q_max_vals = self.get_min_max_values()
+
+            ConvertToMD(InputWorkspace='bkg',
+                        QDimensions='Q3D',
+                        dEAnalysisMode='Elastic',
+                        Q3DFrames='Q_lab',
+                        LorentzCorrection=mtd.doesExist('spectra'),
+                        MinValues=Q_min_vals,
+                        MaxValues=Q_max_vals,
+                        OutputWorkspace='bkg_mde')
+
+            DeleteWorkspace(Workspace='bkg')
+
+        # if mtd.doesExist('bkg_mde'):
+
+        #     pc = mtd[event_name].run().getProperty('gd_prtn_chrg').value
+
+        #     CreateSingleValuedWorkspace(DataValue=pc,
+        #                                 OutputWorkspace='pc_scale')
+
+        #     MultiplyMD(LHSWorkspace='bkg_mde',
+        #                RHSWorkspace='pc_scale',
+        #                OutputWorkspace='bkg_md')
+
+        #     AddSampleLog(Workspace='bkg_md',
+        #                  LogName='gd_prtn_chrg',
+        #                  LogText=str(pc),
+        #                  LogType='Number',
+        #                  NumberType='Double')
 
     def normalize_to_hkl(self, md, projections, extents, bins, symmetry=None):
         """

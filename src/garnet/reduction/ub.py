@@ -16,7 +16,6 @@ from mantid.simpleapi import (SelectCellWithForm,
                               mtd)
 
 from mantid.geometry import PointGroupFactory
-from mantid.utils.logging  import capture_logs
 
 import json
 

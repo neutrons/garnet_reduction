@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import multiprocess as multiprocessing
 multiprocessing.set_start_method('spawn', force=True)
@@ -35,6 +36,10 @@ class ParallelTasks:
 
         pool = multiprocessing.Pool(processes=n_proc)
 
+        def terminate_pool(e):
+            print(e)
+            pool.terminate()
+
         split = [split.tolist() for split in np.array_split(runs, n_proc)]
 
         join_args = [(plan, s, proc) for proc, s in enumerate(split)]
@@ -46,10 +51,17 @@ class ParallelTasks:
         os.environ['OMP_NUM_THREADS'] = '1'
         os.environ['TBB_THREAD_ENABLED'] = '0'
 
-        self.results = pool.starmap(self.safe_function_wrapper, join_args)
-
-        pool.close()
-        pool.join()
+        try:
+            result = pool.starmap_async(self.safe_function_wrapper, 
+                                        join_args,
+                                        error_callback=terminate_pool)
+            self.results = result.get()
+        except Exception as e:
+            print('Exception in pool: {}'.format(e))
+            pool.terminate()
+        finally:
+            pool.close()
+            pool.join()
 
         config['MultiThreaded.MaxCores'] == '4'
         os.environ.pop('OPENBLAS_NUM_THREADS')
@@ -67,6 +79,5 @@ class ParallelTasks:
             return self.function(*args, **kwargs)
         except Exception as e:
             print('Exception in worker function: {}'.format(e))
-            import traceback
             traceback.print_exc()
             raise

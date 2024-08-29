@@ -213,8 +213,14 @@ class PeaksModel:
         peak_radius = mtd[peaks+'_sig/noise_vs_rad/lowest'].extractX().ravel()
         sig_noise = mtd[peaks+'_sig/noise_vs_rad/lowest'].extractY().ravel()
         intens = mtd[peaks+'_intens_vs_rad'].extractY()
+        sig = mtd[peaks+'_intens_vs_rad'].extractE()
+        rad = mtd[peaks+'_intens_vs_rad'].extractX()
+        ol = mtd[peaks].sample().getOrientedLattice()
+        hkls = mtd[peaks+'_intens_vs_rad'].getAxis(1).extractValues()
+        hkls = [np.array(hkl.split(' ')).astype(float) for hkl in hkls]
+        Q = np.array([2*np.pi/ol.d(*hkl) for hkl in hkls])
 
-        return peak_radius, sig_noise, intens
+        return peak_radius, sig_noise, intens, sig, rad, Q
 
     def get_max_d_spacing(self, ws):
         """
@@ -730,7 +736,7 @@ class PeakModel:
 
         return mtd[self.peaks].getNumberPeaks()
 
-    def set_peak_intensity(self, no, intens, sig, bin_count=0):
+    def set_peak_intensity(self, no, intens, sig):
         """
         Update the peak intensity.
 
@@ -742,14 +748,11 @@ class PeakModel:
             Intensity.
         sig : float
             Uncertainty.
-        bin_count : float, optional
-            Total count bin count. Default is 0.
 
         """
 
         mtd[self.peaks].getPeak(no).setIntensity(intens)
         mtd[self.peaks].getPeak(no).setSigmaIntensity(sig)
-        mtd[self.peaks].getPeak(no).setBinCount(bin_count)
 
     def get_wavelength(self, no):
         """
@@ -1042,6 +1045,24 @@ class PeakModel:
 
         return mtd[self.peaks].getPeak(no).getDetectorID()
 
+    def get_d_spacing(self, no):
+        """
+        Obtain the peak d-spacing.
+
+        Parameters
+        ----------
+        no : int
+            Peak index number.
+
+        Returns
+        -------
+        d : float
+            Interplanar spacing.
+
+        """
+
+        return mtd[self.peaks].getPeak(no).getDSpacing()
+
     def set_scale_factor(self, no, scale):
         """
         update the peak normalization scale factor.
@@ -1055,7 +1076,7 @@ class PeakModel:
 
         """
 
-        mtd[self.peaks].getPeak(no).setMonitorCount(scale)
+        mtd[self.peaks].getPeak(no).setBinCount(scale)
 
 
 class PeaksStatisticsModel(PeaksModel):

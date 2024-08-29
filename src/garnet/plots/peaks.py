@@ -1,4 +1,8 @@
 import numpy as np
+
+import matplotlib
+matplotlib.use('agg')
+
 import matplotlib.pyplot as plt
 
 from matplotlib.cm import ScalarMappable
@@ -6,6 +10,7 @@ from matplotlib.colors import Normalize
 from matplotlib.patches import Ellipse
 from matplotlib.transforms import Affine2D
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+from matplotlib.collections import LineCollection
 
 import scipy.special
 
@@ -19,16 +24,16 @@ class RadiusPlot(BasePlot):
 
         plt.close('all')
 
-        self.fig, self.ax = plt.subplots(1,
+        self.fig, self.ax = plt.subplots(2,
                                          1,
-                                         figsize=(6.4, 4.8),
+                                         figsize=(6.4, 9.6),
                                          layout='constrained')
 
         self.add_radius_fit(r, y, y_fit)
 
     def add_radius_fit(self, r, y, y_fit):
 
-        ax = self.ax
+        ax = self.ax[0]
 
         ax.plot(r, y, 'o', color='C0')
         ax.plot(r, y_fit, '.', color='C1')
@@ -37,9 +42,9 @@ class RadiusPlot(BasePlot):
 
     def add_sphere(self, r_cut, A, sigma):
 
-        self.ax.axvline(x=r_cut, color='k', linestyle='--')
+        self.ax[0].axvline(x=r_cut, color='k', linestyle='--')
 
-        xlim = list(self.ax.get_xlim())
+        xlim = list(self.ax[0].get_xlim())
         xlim[0] = 0
 
         x = np.linspace(*xlim, 256)
@@ -49,8 +54,34 @@ class RadiusPlot(BasePlot):
         y = A*(scipy.special.erf(z/np.sqrt(2))-\
                np.sqrt(2/np.pi)*z*np.exp(-0.5*z**2))
 
-        self.ax.plot(x, y, '-', color='C1')
-        self.ax.set_ylabel(r'$I/\sigma$')
+        self.ax[0].plot(x, y, '-', color='C1')
+        self.ax[0].set_ylabel(r'$I/\sigma$')
+
+    def add_d_spacing(self, Q, r, Qs, rs, ks):
+
+        ax = self.ax[1]
+
+        segs = np.zeros((*ks.shape, 2))
+        segs[:,:,0] = Qs
+        segs[:,:,1] = rs
+
+        norm = Normalize(0, 1)
+
+        for i in np.arange(ks.shape[0]):
+            points = np.array([Qs[i,:], rs[i,:]]).T.reshape(-1, 1, 2)
+            segments = np.concatenate([points[:-1], points[1:]], axis=1)
+            lc = LineCollection(segments, cmap='binary_r', norm=norm)
+            lc.set_array(ks[i,:])
+            line = ax.add_collection(lc)
+
+        ax.plot(Q, r, color='r')
+        ax.minorticks_on()
+        ax.set_xlabel(r'$|Q|$ [$\AA^{-1}$]')
+        ax.set_ylabel(r'$r$ [$\AA^{-1}$]')
+        cb = self.fig.colorbar(line, ax=ax)
+        cb.ax.set_ylabel(r'$I/I_0$')
+        cb.ax.minorticks_on()
+
 
 class PeakPlot(BasePlot):
 
