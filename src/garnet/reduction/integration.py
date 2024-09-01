@@ -462,9 +462,9 @@ class Integration(SubPlan):
 
         ro, rc = profile.fit(x, y, e, Q)
 
-        x, y, e, I, r, Q, rQ_min, rQ_max = profile.best_fit()
+        x, y, e, I, rQ_min, rQ_max = profile.best_fit()
 
-        plot.add_profile(x, y, e, I, r, Q, rQ_min, rQ_max)
+        plot.add_profile(x, y, e, I, rQ_min, rQ_max)
 
         plot.save_plot(self.get_plot_file(peaks_name))
 
@@ -756,7 +756,7 @@ class PeakProfile:
         self.params = Parameters()
 
         self.params.add('ro', value=r/2, min=r/10, max=r, vary=True)
-        self.params.add('rc', value=0, min=-r, max=r, vary=True)
+        self.params.add('rc', value=0, min=-r, max=r, vary=False)
 
         self.r = r
 
@@ -783,8 +783,10 @@ class PeakProfile:
 
         w = np.abs(intens/errors)
 
-        mu = np.nansum(x*y, axis=1)/np.nansum(y, axis=1)
-        sigma = np.sqrt(np.nansum((x-mu[:,np.newaxis])**2*y, axis=1)/np.nansum(y, axis=1))
+        weight = np.nansum(y, axis=1)
+
+        mu = np.nansum(x*y, axis=1)/weight
+        sigma = np.sqrt(np.nansum((x-mu[:,np.newaxis])**2*y, axis=1)/weight)
 
         out = Minimizer(self.residual,
                         self.params,
@@ -814,9 +816,9 @@ class PeakProfile:
         rQ_min = self.ro+self.rc*self.Q.min()
         rQ_max = self.ro+self.rc*self.Q.max()
 
-        r = self.ro+self.rc*self.Q
+        # r = self.ro+self.rc*self.Q
 
-        return self.x, self.y, self.e, self.I, r, self.Q, rQ_min, rQ_max
+        return self.x, self.y, self.e, self.I, rQ_min, rQ_max
 
 class PeakEllipsoid:
 

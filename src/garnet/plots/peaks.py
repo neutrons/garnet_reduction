@@ -56,7 +56,7 @@ class RadiusPlot(BasePlot):
         self.ax[0].plot(x, y, '-', color='C1')
         self.ax[0].set_ylabel(r'# $I/\sigma=2$')
 
-    def add_profile(self, x, y, e, I, r, Q, rQ_min, rQ_max):
+    def add_profile(self, x, y, e, I, rQ_min, rQ_max):
 
         ax = self.ax[1]
 
@@ -75,12 +75,12 @@ class RadiusPlot(BasePlot):
         ax.axvline(+rQ_max, linestyle='--', color='r')
         ax.axvline(-rQ_max, linestyle='--', color='r')
 
-        ax_twin = ax.twinx()
-        ax_twin.plot(+r, Q, linestyle='-', color='k')
-        ax_twin.plot(-r, Q, linestyle='-', color='k')
+        # ax_twin = ax.twinx()
+        # ax_twin.plot(+r, Q, linestyle='-', color='k')
+        # ax_twin.plot(-r, Q, linestyle='-', color='k')
 
-        ax_twin.minorticks_on()
-        ax_twin.set_ylabel(r'$|Q|$')
+        # ax_twin.minorticks_on()
+        # ax_twin.set_ylabel(r'$|Q|$')
 
         ax.minorticks_on()
 
