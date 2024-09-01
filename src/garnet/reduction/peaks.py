@@ -9,6 +9,7 @@ from mantid.simpleapi import (FindPeaksMD,
                               DeleteWorkspace,
                               DeleteTableRows,
                               ExtractSingleSpectrum,
+                              Rebin,
                               CombinePeaksWorkspaces,
                               CreatePeaksWorkspace,
                               ConvertPeaksWorkspace,
@@ -100,8 +101,9 @@ class PeaksModel:
     def integrate_peaks(self, md,
                               peaks,
                               peak_radius,
-                              background_inner_fact=1,
-                              background_outer_fact=1.5,
+                              radius_scale=0,
+                              background_inner_fact=1.,
+                              background_outer_fact=1.58,
                               method='sphere',
                               centroid=True):
         """
@@ -116,16 +118,21 @@ class PeaksModel:
             Name of peaks table.
         peak_radius : float
             Integration region radius.
+        radius_scale : float, optional
+            Radius scale factor with |Q|. The default is 0.
         background_inner_fact : float, optional
-            Factor of peak radius for background shell. The default is 1.
+            Factor of peak radius for background shell. The default is 1
         background_outer_fact : float, optional
-            Factor of peak radius for background shell. The default is 1.5.
+            Factor of peak radius for background shell. The default is 1.58.
         method : str, optional
             Integration method. The default is 'sphere'.
         centroid : str, optional
             Shift peak position to centroid. The default is True.
 
         """
+
+        # d = np.array(mtd[peaks].column(8))
+        # r = peak_radius+radius_scale*2*np.pi/d
 
         background_inner_radius = peak_radius*background_inner_fact
         background_outer_radius = peak_radius*background_outer_fact
@@ -138,16 +145,41 @@ class PeaksModel:
                          PeakRadius=peak_radius,
                          BackgroundInnerRadius=background_inner_radius,
                          BackgroundOuterRadius=background_outer_radius,
+                         UseOnePercentBackgroundCorrection=True,
                          Ellipsoid=True if method == 'ellipsoid' else False,
-                         FixQAxis=False,
-                         FixMajorAxisLength=False,
-                         UseCentroid=True,
-                         MaxIterations=3,
+                         FixQAxis=True,
+                         FixMajorAxisLength=True,
+                         UseCentroid=centroid,
+                         MaxIterations=15,
                          ReplaceIntensity=True,
-                         IntegrateIfOnEdge=False,
-                         AdaptiveQBackground=False,
-                         MaskEdgeTubes=False,
+                         IntegrateIfOnEdge=True,
+                         AdaptiveQBackground=True if radius_scale else False,
+                         AdaptiveQMultiplier=radius_scale,
+                         MaskEdgeTubes=True,
                          OutputWorkspace=peaks)
+
+        for peak in mtd[peaks]:
+
+            Q0, Q1, Q2 = peak.getQSampleFrame()
+
+            shape = peak.getPeakShape()
+
+            shape_dict = eval(shape.toJSON())
+
+            if 'translation0' in shape_dict.keys():
+
+                Q0 += shape_dict['translation0']
+                Q1 += shape_dict['translation1']
+                Q2 += shape_dict['translation2']
+
+                R = peak.getGoniometerMatrix()
+
+                Q = np.array([Q0, Q1, Q2])
+                Qx, Qy, Qz = R @ Q
+
+                if -4*np.pi*Qz/np.linalg.norm(Q)**2 > 0:
+
+                    peak.setQSampleFrame(V3D(Q0, Q1, Q2))
 
     def intensity_vs_radius(self, md,
                                   peaks,
@@ -212,15 +244,74 @@ class PeaksModel:
 
         peak_radius = mtd[peaks+'_sig/noise_vs_rad/lowest'].extractX().ravel()
         sig_noise = mtd[peaks+'_sig/noise_vs_rad/lowest'].extractY().ravel()
-        intens = mtd[peaks+'_intens_vs_rad'].extractY()
-        sig = mtd[peaks+'_intens_vs_rad'].extractE()
-        rad = mtd[peaks+'_intens_vs_rad'].extractX()
-        ol = mtd[peaks].sample().getOrientedLattice()
-        hkls = mtd[peaks+'_intens_vs_rad'].getAxis(1).extractValues()
-        hkls = [np.array(hkl.split(' ')).astype(float) for hkl in hkls]
+
+        return peak_radius, sig_noise
+
+    def intensity_Q_profile(self, md,
+                                  peaks,
+                                  peak_radius,
+                                  background_inner_fact=1,
+                                  background_outer_fact=1.5):
+        """
+        Integrate peak intensity as Q profile.
+
+        Parameters
+        ----------
+        md : str
+            Name of Q-sample.
+        peaks : str
+            Name of peaks table.
+        peak_radius : float
+            Integrat region radius cut off.
+        background_inner_fact : float, optional
+            Factor of peak radius for background shell. The default is 1.
+        background_outer_fact : float, optional
+            Factor of peak radius for background shell. The default is 1.5.        
+
+        Returns
+        -------
+
+        radius : list
+            Peak radius.
+        sig_noise : list
+            Peak signal/noise ratio at lowest threshold.
+        intens : list
+            Peak intensity.
+
+        """
+
+        background_inner_radius = peak_radius*background_inner_fact
+        background_outer_radius = peak_radius*background_outer_fact
+
+        length = 4*peak_radius
+
+        IntegratePeaksMD(InputWorkspace=md,
+                         PeakRadius=peak_radius,
+                         BackgroundInnerRadius=background_inner_radius,
+                         BackgroundOuterRadius=background_outer_radius,
+                         UseOnePercentBackgroundCorrection=True,
+                         Cylinder=True, 
+                         CylinderLength=length, 
+                         PercentBackground=15,
+                         ProfileFunction='NoFit',
+                         PeaksWorkspace=peaks,
+                         OutputWorkspace=peaks+'_')
+
+        Rebin(InputWorkspace='ProfilesData',
+              OutputWorkspace='ProfilesData',
+              Params='-1,2,99',
+              PreserveEvents=False)
+
+        ol = mtd['peaks'].sample().getOrientedLattice()
+        hkls = mtd['ProfilesData'].getAxis(1).extractValues()
+        hkls = [np.array(hkl.split('_')[:-1]).astype(float) for hkl in hkls]
         Q = np.array([2*np.pi/ol.d(*hkl) for hkl in hkls])
 
-        return peak_radius, sig_noise, intens, sig, rad, Q
+        y = mtd['ProfilesData'].extractY()
+        e = mtd['ProfilesData'].extractE()
+        x = ((mtd['ProfilesData'].extractX()+1)/100-0.5)*length
+
+        return x, y, e, Q
 
     def get_max_d_spacing(self, ws):
         """
@@ -363,7 +454,7 @@ class PeaksModel:
         DeleteWorkspace(Workspace=sat_peaks)
 
     def predict_satellite_peaks(self, peaks_ws,
-                                      data_ws, 
+                                      data_ws,
                                       lamda_min,
                                       lamda_max,
                                       d_min,
@@ -598,17 +689,17 @@ class PeaksModel:
                                    RHSWorkspace=peaks,
                                    OutputWorkspace=merge)
 
-            merge_run = mtd[merge].run()
-            peaks_run = mtd[peaks].run()
+            # merge_run = mtd[merge].run()
+            # peaks_run = mtd[peaks].run()
 
-            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-                    'bkg', 'bkg_err', 'vol', 'intens', 'sig']
+            # keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
+            #         'bkg', 'bkg_err', 'vol', 'intens', 'sig']
 
-            for key in keys:
-                log = 'peaks_{}'.format(key)
-                peaks_list = np.array(peaks_run.getLogData(log).value).tolist()
-                merge_list = np.array(merge_run.getLogData(log).value).tolist()
-                merge_run[log] = merge_list+peaks_list
+            # for key in keys:
+            #     log = 'peaks_{}'.format(key)
+            #     peaks_list = np.array(peaks_run.getLogData(log).value).tolist()
+            #     merge_list = np.array(merge_run.getLogData(log).value).tolist()
+            #     merge_run[log] = merge_list+peaks_list
 
     def delete_peaks(self, peaks):
         """
@@ -642,6 +733,24 @@ class PeaksModel:
                     OutputWorkspace=peaks,
                     FilterVariable='Signal/Noise',
                     FilterValue=sig_noise,
+                    Operator='>',
+                    Criterion='!=',
+                    BankName='None')
+
+    def remove_unindexed_peaks(self, peaks):
+        """
+        Filter out unindexes peaks.
+
+        Parameters
+        ----------
+        peaks : str
+            Name of peaks table.
+        """
+
+        FilterPeaks(InputWorkspace=peaks,
+                    OutputWorkspace=peaks,
+                    FilterVariable='h^2+k^2+l^2',
+                    FilterValue=0,
                     Operator='>',
                     Criterion='!=',
                     BankName='None')
@@ -818,7 +927,7 @@ class PeakModel:
         az_phi = np.rad2deg(peak.getAzimuthal())
 
         return two_theta, az_phi
-    
+
     def get_goniometer_matrix(self, no):
         """
         Goniometer matrix of the peak.
@@ -834,7 +943,7 @@ class PeakModel:
             Rotation matrix.
 
         """
-        
+
         peak = mtd[self.peaks].getPeak(no)
 
         return peak.getGoniometerMatrix()

@@ -10,7 +10,6 @@ from matplotlib.colors import Normalize
 from matplotlib.patches import Ellipse
 from matplotlib.transforms import Affine2D
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
-from matplotlib.collections import LineCollection
 
 import scipy.special
 
@@ -55,33 +54,35 @@ class RadiusPlot(BasePlot):
                np.sqrt(2/np.pi)*z*np.exp(-0.5*z**2))
 
         self.ax[0].plot(x, y, '-', color='C1')
-        self.ax[0].set_ylabel(r'$I/\sigma$')
+        self.ax[0].set_ylabel(r'# $I/\sigma=2$')
 
-    def add_d_spacing(self, Q, r, Qs, rs, ks):
+    def add_profile(self, x, y, e, I, r, Q, rQ_min, rQ_max):
 
         ax = self.ax[1]
 
-        segs = np.zeros((*ks.shape, 2))
-        segs[:,:,0] = Qs
-        segs[:,:,1] = rs
+        cmap = plt.cm.binary
+        norm = plt.Normalize(vmin=np.min(I), vmax=np.max(I))
 
-        norm = Normalize(0, 1)
+        for i, val in enumerate(I):
+            c = cmap(norm(val))
+            ax.errorbar(x[i], y[i], e[i], fmt='.', linestyle='-', color=c)
 
-        for i in np.arange(ks.shape[0]):
-            points = np.array([Qs[i,:], rs[i,:]]).T.reshape(-1, 1, 2)
-            segments = np.concatenate([points[:-1], points[1:]], axis=1)
-            lc = LineCollection(segments, cmap='binary_r', norm=norm)
-            lc.set_array(ks[i,:])
-            line = ax.add_collection(lc)
+        ax.set_xlabel(r'$\Delta|Q|$')
+        ax.set_ylabel(r'$I$ [arb. unit]')
 
-        ax.plot(Q, r, color='r')
+        ax.axvline(+rQ_min, linestyle='--', color='r')
+        ax.axvline(-rQ_min, linestyle='--', color='r')
+        ax.axvline(+rQ_max, linestyle='--', color='r')
+        ax.axvline(-rQ_max, linestyle='--', color='r')
+
+        ax_twin = ax.twinx()
+        ax_twin.plot(+r, Q, linestyle='-', color='k')
+        ax_twin.plot(-r, Q, linestyle='-', color='k')
+
+        ax_twin.minorticks_on()
+        ax_twin.set_ylabel(r'$|Q|$')
+
         ax.minorticks_on()
-        ax.set_xlabel(r'$|Q|$ [$\AA^{-1}$]')
-        ax.set_ylabel(r'$r$ [$\AA^{-1}$]')
-        cb = self.fig.colorbar(line, ax=ax)
-        cb.ax.set_ylabel(r'$I/I_0$')
-        cb.ax.minorticks_on()
-
 
 class PeakPlot(BasePlot):
 

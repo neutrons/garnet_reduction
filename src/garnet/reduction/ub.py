@@ -333,6 +333,7 @@ class UBModel:
         """
 
         tol_for_sat = sat_tol if sat_tol is not None else tol
+        save_info = True if max_order > 0 else False
 
         indexing = IndexPeaks(PeaksWorkspace=self.peaks,
                               Tolerance=tol,
@@ -344,7 +345,7 @@ class UBModel:
                               ModVector3=mod_vec_3,
                               MaxOrder=max_order,
                               CrossTerms=cross_terms,
-                              SaveModulationInfo=True)
+                              SaveModulationInfo=save_info)
 
         return indexing
 
@@ -368,7 +369,7 @@ class UBModel:
 
         """
 
-        CopySample(InputWorkspace=self.peak,
+        CopySample(InputWorkspace=self.peaks,
                    OutputWorkspace=workspace,
                    CopyName=False,
                    CopyMaterial=False,
@@ -588,7 +589,9 @@ class Optimization:
             x0 += (phi, theta, omega)
             args = (self.hkl, self.Q, fun)
 
-            sol = scipy.optimize.least_squares(self.residual, x0=x0, args=args)
+            sol = scipy.optimize.least_squares(self.residual, 
+                                               x0=x0,
+                                               args=args)
 
             a, b, c, alpha, beta, gamma, phi, theta, omega = fun(sol.x)
 

@@ -8,7 +8,6 @@ from mantid.simpleapi import (Load,
                               LoadParameterFile,
                               LoadIsawDetCal,
                               ApplyCalibration,
-                              Rebin,
                               Multiply,
                               Divide,
                               Minus,
@@ -24,6 +23,7 @@ from mantid.simpleapi import (Load,
                               HB3AAdjustSampleNorm,
                               CorelliCrossCorrelate,
                               NormaliseByCurrent,
+                              NormaliseToUnity,
                               CompressEvents,
                               GroupDetectors,
                               LoadEmptyInstrument,
@@ -751,25 +751,7 @@ class BaseDataModel:
 
             y, e, x0, x1, x2 = self.extract_bin_info(md+'_data')
 
-            if mtd.doesExist('bkg_mde'):
-
-                BinMD(InputWorkspace='bkg_mde',
-                      AxisAligned=False,
-                      BasisVector0='Q_x,Angstrom^-1,{},{},{}'.format(*u0),
-                      BasisVector1='Q_y,Angstrom^-1,{},{},{}'.format(*u1),
-                      BasisVector2='Q_z,Angstrom^-1,{},{},{}'.format(*u2),
-                      OutputExtents=extents,
-                      OutputBins=bins,
-                      OutputWorkspace=md+'_bkg')
-
-                y_bkg, e_bkg, *x = self.extract_bin_info(md+'_bkg')
-
-            else:
-
-                y_bkg = np.zeros_like(y)
-                e_bkg = np.zeros_like(e)
-
-            return y, e, y_bkg, e_bkg, x0, x1, x2
+            return y, e, x0, x1, x2
 
 class MonochromaticData(BaseDataModel):
 
@@ -1433,21 +1415,8 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=spectra_file,
                       OutputWorkspace='spectra')
 
-            lamda_min = mtd['spectra'].getXDimension().getMinimum()
-            lamda_max = mtd['spectra'].getXDimension().getMaximum()
-
-            params = '{},{},{}'.format(lamda_min, lamda_max, lamda_max)
-
-            Rebin(InputWorkspace='spectra',
-                  OutputWorkspace='norm',
-                  Params=params,
-                  PreserveEvents=False)
-
-            # Divide(LHSWorkspace='spectra',
-            #        RHSWorkspace='norm',
-            #        OutputWorkspace='spectra',
-            #        AllowDifferentNumberSpectra=True,
-            #        WarnOnZeroDivide=False)
+            NormaliseToUnity(InputWorkspace='spectra',
+                             OutputWorkspace='spectra')
 
             self.spectra_x = mtd['spectra'].readX(0).copy()
             self.spectra_y = mtd['spectra'].extractY().copy()
@@ -1521,31 +1490,32 @@ class LaueData(BaseDataModel):
                                    XMax=self.k_max,
                                    OutputWorkspace=event_name)
 
-            if mtd.doesExist('spectra'):
+    def normalize_data(self, event_name):
+        """
+        Normalize with detector efficiency and spectrum.
 
-                NormaliseByCurrent(InputWorkspace=event_name,
-                                   OutputWorkspace=event_name)
+        event_name : str
+            Name of raw event data.
 
-                ConvertUnits(InputWorkspace=event_name,
-                             OutputWorkspace=event_name,
-                             Target='Wavelength')
+        """
 
-                # params = [self.lamda_min, self.lamda_bin, self.lamda_max]
+        NormaliseByCurrent(InputWorkspace=event_name,
+                           OutputWorkspace=event_name)
 
-                # Rebin(InputWorkspace=event_name,
-                #       OutputWorkspace=event_name,
-                #       Params=params)
+        Divide(LHSWorkspace=event_name,
+                RHSWorkspace='sa',
+                OutputWorkspace=event_name,
+                WarnOnZeroDivide=False,
+                AllowDifferentNumberSpectra=True)
 
-                # Divide(LHSWorkspace=event_name,
-                #        RHSWorkspace='sa',
-                #        OutputWorkspace=event_name,
-                #        WarnOnZeroDivide=False,
-                #        AllowDifferentNumberSpectra=True)
+        ConvertUnits(InputWorkspace=event_name,
+                     OutputWorkspace=event_name,
+                     Target='Wavelength')
 
-                # Divide(LHSWorkspace=event_name,
-                #         RHSWorkspace='spectra',
-                #         OutputWorkspace=event_name,
-                #         AllowDifferentNumberSpectra=True)
+        Divide(LHSWorkspace=event_name,
+                RHSWorkspace='spectra',
+                OutputWorkspace=event_name,
+                AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """
@@ -1562,48 +1532,59 @@ class LaueData(BaseDataModel):
 
         if not mtd.doesExist('bkg_mde') and filename is not None:
 
-            Load(Filename=filename,
-                 OutputWorkspace='bkg')
+            if not mtd.doesExist('bkg'):
 
-            ConvertUnits(InputWorkspace='bkg',
-                         OutputWorkspace='bkg',
-                         Target='Momentum')
+                Load(Filename=filename,
+                     OutputWorkspace='bkg')
 
-            CompressEvents(InputWorkspace='bkg',
+                ConvertUnits(InputWorkspace='bkg',
+                             OutputWorkspace='bkg',
+                             Target='Momentum')
+
+                CompressEvents(InputWorkspace='bkg',
+                               OutputWorkspace='bkg',
+                               Tolerance=0.0001)
+
+                CropWorkspaceForMDNorm(InputWorkspace='bkg',
+                                       XMin=self.k_min,
+                                       XMax=self.k_max,
+                                       OutputWorkspace='bkg')
+
+                if self.grouping is not None:
+
+                    self.group_pixels(self.grouping, 'bkg')
+
+                if mtd.doesExist('sa_mask'):
+
+                    MaskDetectors(Workspace='bkg',
+                                  MaskedWorkspace='sa_mask')
+
+                if mtd.doesExist('mask'):
+
+                    MaskDetectors(Workspace='bkg',
+                                  MaskedWorkspace='mask')
+
+                if not mtd['bkg'].run().hasProperty('NormalizationFactor'):
+
+                    NormaliseByCurrent(InputWorkspace='bkg',
+                                       OutputWorkspace='bkg')
+
+                if mtd.doesExist('spectra'):
+
+                    Divide(LHSWorkspace='bkg',
+                           RHSWorkspace='sa',
                            OutputWorkspace='bkg',
-                           Tolerance=0.0001)
+                           WarnOnZeroDivide=False,
+                           AllowDifferentNumberSpectra=True)
 
-            CropWorkspaceForMDNorm(InputWorkspace='bkg',
-                                   XMin=self.k_min,
-                                   XMax=self.k_max,
-                                   OutputWorkspace='bkg')
+                    ConvertUnits(InputWorkspace='bkg',
+                                 OutputWorkspace='bkg',
+                                 Target='Wavelength')
 
-            if self.grouping is not None:
-
-                self.group_pixels(self.grouping, 'bkg')
-
-            if mtd.doesExist('sa_mask'):
-
-                MaskDetectors(Workspace='bkg',
-                              MaskedWorkspace='sa_mask')
-
-                # RemoveMaskedSpectra(InputWorkspace='bkg',
-                #                     MaskedWorkspace='bkg',
-                #                     OutputWorkspace='bkg')
-
-            if mtd.doesExist('mask'):
-
-                MaskDetectors(Workspace='bkg',
-                              MaskedWorkspace='mask')
-
-                # RemoveMaskedSpectra(InputWorkspace='bkg',
-                #                     MaskedWorkspace='bkg',
-                #                     OutputWorkspace='bkg')
-
-            if not mtd['bkg'].run().hasProperty('NormalizationFactor'):
-
-                NormaliseByCurrent(InputWorkspace='bkg',
-                                   OutputWorkspace='bkg')
+                    Divide(LHSWorkspace='bkg',
+                            RHSWorkspace='spectra',
+                            OutputWorkspace='bkg',
+                            AllowDifferentNumberSpectra=True)
 
             if not mtd.doesExist('spectra'):
 
@@ -1616,34 +1597,29 @@ class LaueData(BaseDataModel):
                          RHSWorkspace='pc_scale',
                          OutputWorkspace='bkg')
 
+                Q_min_vals, Q_max_vals = self.get_min_max_values()
+
+                ConvertToMD(InputWorkspace='bkg',
+                            QDimensions='Q3D',
+                            dEAnalysisMode='Elastic',
+                            Q3DFrames='Q_lab',
+                            LorentzCorrection=mtd.doesExist('spectra'),
+                            MinValues=Q_min_vals,
+                            MaxValues=Q_max_vals,
+                            OutputWorkspace='bkg_mde')
+
+                DeleteWorkspace(Workspace='bkg')
+
             else:
 
-                ConvertUnits(InputWorkspace='bkg',
-                             OutputWorkspace='bkg',
-                             Target='Wavelength')
+                Minus(LHSWorkspace=event_name,
+                      RHSWorkspace='bkg',
+                      OutputWorkspace=event_name,
+                      AllowDifferentNumberSpectra=True)
 
-                # Divide(LHSWorkspace='bkg',
-                #        RHSWorkspace='sa',
-                #        OutputWorkspace='bkg',
-                #        AllowDifferentNumberSpectra=True)
-
-                # Divide(LHSWorkspace='bkg',
-                #         RHSWorkspace='spectra',
-                #         OutputWorkspace='bkg',
-                #         AllowDifferentNumberSpectra=True)
-
-            Q_min_vals, Q_max_vals = self.get_min_max_values()
-
-            ConvertToMD(InputWorkspace='bkg',
-                        QDimensions='Q3D',
-                        dEAnalysisMode='Elastic',
-                        Q3DFrames='Q_lab',
-                        LorentzCorrection=mtd.doesExist('spectra'),
-                        MinValues=Q_min_vals,
-                        MaxValues=Q_max_vals,
-                        OutputWorkspace='bkg_mde')
-
-            DeleteWorkspace(Workspace='bkg')
+                # CompressEvents(InputWorkspace=event_name,
+                #                OutputWorkspace=event_name,
+                #                Tolerance=0.0001)
 
         # if mtd.doesExist('bkg_mde'):
 
