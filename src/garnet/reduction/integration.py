@@ -987,11 +987,14 @@ class PeakEllipsoid:
         e2d = np.sqrt(np.nansum(e**2, axis=0))#*dx0
         e3d = e.copy()
 
-        # W1 = 1/np.nansum(1/e1d**2)
-        # W2 = 1/np.nansum(1/e2d**2)
-        # W3 = 1/np.nansum(1/e3d**2)
+        if not np.nansum(y1d) > 0 or not np.nansum(e1d) > 0:
+            return None
 
-        # W = W1+W2+W3
+        if not np.nansum(y2d) > 0 or not np.nansum(e2d) > 0:
+            return None
+
+        if not np.nansum(y3d) > 0 or not np.nansum(e3d) > 0:
+            return None
 
         w1d = (1/np.sqrt(e1d.size))/e1d
         w2d = (1/np.sqrt(e2d.size))/e2d
