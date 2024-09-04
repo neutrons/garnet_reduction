@@ -1,7 +1,9 @@
 import numpy as np
 
 import matplotlib
-matplotlib.use('agg')
+
+import matplotlib.style
+matplotlib.style.use('fast')
 
 import matplotlib.pyplot as plt
 

@@ -163,10 +163,8 @@ def test_peak_plot():
     temp = np.copy(data_norm)
     data_norm[i,j,k] = data_norm[ic,jc,kc]
     data_norm[ic,jc,kc] = temp[i,j,k]
-    bkg_norm = np.full_like(data_norm, b)
 
     sig_data = np.sqrt(data_norm)*0.1
-    sig_bkg = bkg_norm.copy()
 
     # mask = np.random.random(data_norm.shape) < 0.5
     # data_norm[mask] = np.nan
@@ -176,7 +174,7 @@ def test_peak_plot():
 
     ellipsoid = PeakEllipsoid(counts)
 
-    ellipsoid.fit(Qx, Qy, Qz, data_norm, sig_data, bkg_norm, sig_bkg, 0.1)
+    ellipsoid.fit(Qx, Qy, Qz, data_norm, sig_data, 0.1, 2.0)
 
     c, S, *fitting = ellipsoid.best_fit
 
@@ -187,7 +185,7 @@ def test_peak_plot():
 
     bin_data = ellipsoid.bin_data
 
-    I, sigma, bin_count = ellipsoid.integrate_norm(bin_data, c, S)
+    I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
 
     plot = PeakPlot()
 

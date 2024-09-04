@@ -8,8 +8,8 @@ import scipy.integrate
 import scipy.special
 import scipy.ndimage
 import scipy.linalg
+import scipy.stats
 
-from sklearn.cluster import DBSCAN
 from lmfit import Minimizer, Parameters
 
 from mantid.simpleapi import mtd
@@ -137,27 +137,23 @@ class Integration(SubPlan):
                                 lamda_min,
                                 lamda_max)
 
-            # if self.params['MaxOrder'] > 0:
+            if self.params['MaxOrder'] > 0:
 
-            #     peaks.predict_satellite_peaks('peaks',
-            #                                   'md',
-            #                                   self.params['MinD'],
-            #                                   lamda_max,
-            #                                   self.params['ModVec1'],
-            #                                   self.params['ModVec2'],
-            #                                   self.params['ModVec3'],
-            #                                   self.params['MaxOrder'],
-            #                                   self.params['CrossTerms'])
+                peaks.predict_satellite_peaks('peaks',
+                                              'md',
+                                              self.params['MinD'],
+                                              lamda_max,
+                                              self.params['ModVec1'],
+                                              self.params['ModVec2'],
+                                              self.params['ModVec3'],
+                                              self.params['MaxOrder'],
+                                              self.params['CrossTerms'])
 
             data.delete_workspace('data')
 
             self.peaks, self.data = peaks, data
 
             r_cut = self.params['Radius']
-
-            # peaks.centroid_peaks('md',
-            #                      'peaks',
-            #                       r_cut)
 
             ro, rc = self.estimate_peak_size('peaks', 'md', r_cut)
 
@@ -470,7 +466,7 @@ class Integration(SubPlan):
 
         return ro, rc
 
-    def fit_peaks(self, peaks_ws, ro, rc):
+    def fit_peaks(self, peaks_ws, ro, rc, make_plot=False):
         """
         Integrate peaks.
 
@@ -489,7 +485,8 @@ class Integration(SubPlan):
 
         n_peak = peak.get_number_peaks()
 
-        plot = PeakPlot()
+        if make_plot:
+            plot = PeakPlot()
 
         for i in range(n_peak):
 
@@ -535,7 +532,7 @@ class Integration(SubPlan):
 
             ellipsoid = PeakEllipsoid(counts)
 
-            params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ)
+            params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ, r_cut)
 
             if params is not None and det_id > 0:
 
@@ -565,21 +562,23 @@ class Integration(SubPlan):
 
                 # peak.set_scale_factor(i, scale)
 
-                peak.add_diagonstic_info(i, ellipsoid.info)
+                # peak.add_diagonstic_info(i, ellipsoid.info)
 
-                plot.add_fitting(*fitting)
+                if make_plot:
 
-                plot.add_ellipsoid(c, S)
+                    plot.add_fitting(*fitting)
 
-                goniometer = peak.get_goniometer_angles(i)
+                    plot.add_ellipsoid(c, S)
 
-                plot.add_peak_info(wavelength, angles, goniometer)
+                    goniometer = peak.get_goniometer_angles(i)
 
-                plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
+                    plot.add_peak_info(wavelength, angles, goniometer)
 
-                peak_name = peak.get_peak_name(i)
+                    plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 
-                plot.save_plot(self.get_plot_file(peak_name))
+                    peak_name = peak.get_peak_name(i)
+
+                    plot.save_plot(self.get_plot_file(peak_name))
 
     def bin_axes(self, c0, c1, c2):
 
@@ -670,7 +669,7 @@ class Integration(SubPlan):
 
         S = np.dot(np.dot(U, V), U.T)
 
-        dQ = 1.2*np.sqrt(np.diag(S))
+        dQ = 1.5*np.sqrt(np.diag(S))
 
         return dQ
 
@@ -811,7 +810,7 @@ class PeakProfile:
 
         return self.ro, self.rc
 
-    def best_fit(self):        
+    def best_fit(self):
 
         rQ_min = self.ro+self.rc*self.Q.min()
         rQ_max = self.ro+self.rc*self.Q.max()
@@ -826,19 +825,248 @@ class PeakEllipsoid:
 
         self.counts = counts.copy()
 
-    def estimate_weights(self, y):
+        self.params = Parameters()
 
-        scale = np.nansum(self.counts)
-        y_sub = y-np.nanpercentile(y, 15)
+    def update_constraints(self, c0, c1, c2, dx, r_cut):
 
-        y_sum = np.nansum(y_sub)
+        dr = 2*r_cut
 
-        if (not y_sum > 0) or (not scale > 0):
+        self.params.add('r0', value=r_cut, min=2*dx, max=dr)
+        self.params.add('r1', value=r_cut, min=2*dx, max=dr)
+        self.params.add('r2', value=r_cut, min=2*dx, max=dr)
+
+        self.params.add('c0', value=c0, min=c0-dr, max=c0+dr)
+        self.params.add('c1', value=c1, min=c1-dr, max=c1+dr)
+        self.params.add('c2', value=c2, min=c2-dr, max=c2+dr)
+
+        self.params.add('phi', value=0, min=-np.pi, max=np.pi)
+        self.params.add('theta', value=np.pi/2, min=0, max=np.pi)
+        self.params.add('omega', value=0, min=-np.pi, max=np.pi)
+
+    def eigenvectors(self, W):
+
+        w = scipy.spatial.transform.Rotation.from_matrix(W).as_rotvec()
+
+        omega = np.linalg.norm(w)
+
+        u0, u1, u2 = (0, 0, 1) if np.isclose(omega, 0) else w/omega
+
+        return u0, u1, u2, omega
+
+    def angles(self, v0, v1, v2):
+
+        W = np.column_stack([v0, v1, v2])
+
+        u0, u1, u2, omega = self.eigenvectors(W)
+
+        theta = np.arccos(u2)
+        phi = np.arctan2(u1, u0)
+
+        return phi, theta, omega
+
+    def scale(self, r0, r1, r2):
+
+        return 0.25*r0, 0.25*r1, 0.25*r2
+
+    def S_matrix(self, sigma0, sigma1, sigma2, phi=0, theta=0, omega=0):
+
+        U = self.U_matrix(phi, theta, omega)
+        V = np.diag([sigma0**2, sigma1**2, sigma2**2])
+
+        S = np.dot(np.dot(U, V), U.T)
+
+        return S
+
+    def inv_S_matrix(self, sigma0, sigma1, sigma2, phi=0, theta=0, omega=0):
+
+        U = self.U_matrix(phi, theta, omega)
+        V = np.diag([1/sigma0**2, 1/sigma1**2, 1/sigma2**2])
+
+        inv_S = np.dot(np.dot(U, V), U.T)
+
+        return inv_S
+
+    def U_matrix(self, phi, theta, omega):
+
+        u0 = np.cos(phi)*np.sin(theta)
+        u1 = np.sin(phi)*np.sin(theta)
+        u2 = np.cos(theta)
+
+        w = omega*np.array([u0, u1, u2])
+
+        U = scipy.spatial.transform.Rotation.from_rotvec(w).as_matrix()
+
+        return U
+
+    def centroid_inverse_covariance(self, c0, c1, c2,
+                                          r0, r1, r2,
+                                          phi, theta, omega):
+
+        sigma0, sigma1, sigma2 = self.scale(r0, r1, r2)
+
+        c = np.array([c0, c1, c2])
+        inv_S = self.inv_S_matrix(sigma0, sigma1, sigma2, phi, theta, omega)
+
+        return c, inv_S
+
+    def residual(self, params, x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d):
+
+        c0 = params['c0']
+        c1 = params['c1']
+        c2 = params['c2']
+
+        r0 = params['r0']
+        r1 = params['r1']
+        r2 = params['r2']
+
+        phi = params['phi']
+        theta = params['theta']
+        omega = params['omega']
+
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    phi, theta, omega)
+
+        A1 = params['A1']
+        A2 = params['A2']
+        A3 = params['A3']
+
+        B1 = params['B1']
+        B2 = params['B2']
+        B3 = params['B3']
+
+        args = x0, x1, x2, A1, B1, c, inv_S
+        y1d_fit = self.func(*args, mode='1d')
+
+        args = x0, x1, x2, A2, B2, c, inv_S
+        y2d_fit = self.func(*args, mode='2d')
+
+        args = x0, x1, x2, A3, B3, c, inv_S
+        y3d_fit = self.func(*args, mode='3d')
+
+        diff = ((y1d-y1d_fit)*w1d).ravel().tolist()\
+             + ((y2d-y2d_fit)*w2d).ravel().tolist()\
+             + ((y3d-y3d_fit)*w3d).ravel().tolist()
+
+        return np.array(diff)
+
+    def func(self, x0, x1, x2, A, B, c, inv_S, mode='3d'):
+
+        c0, c1, c2 = c
+
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
+
+        if mode == '3d':
+            dx = [dx0, dx1, dx2]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_S, dx)
+            # factor = np.sqrt(np.linalg.det(inv_S)/(2*np.pi)**3)
+        elif mode == '2d':
+            dx = [dx1[0,:,:], dx2[0,:,:]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_S[1:,1:], dx)
+            # factor = np.sqrt(np.linalg.det(inv_S[1:,1:])/(2*np.pi)**2)
+        else:
+            dx = dx0[:,0,0]
+            d2 = inv_S[0,0]*dx**2
+            # factor = np.sqrt(inv_S[0,0]**2/(2*np.pi))
+
+        return A*np.exp(-0.5*d2)+B
+
+    def estimate_weights(self, x0, x1, x2, y, e, dx, r_cut):
+
+        c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
+
+        self.update_constraints(c0, c1, c2, dx, r_cut)        
+
+        # dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
+        y1d = np.nansum(y, axis=(1,2))#*dx1*dx2
+        y2d = np.nansum(y, axis=0)#*dx0
+        y3d = y.copy()
+
+        e1d = np.sqrt(np.nansum(e**2, axis=(1,2)))#*dx1*dx2
+        e2d = np.sqrt(np.nansum(e**2, axis=0))#*dx0
+        e3d = e.copy()
+
+        # W1 = 1/np.nansum(1/e1d**2)
+        # W2 = 1/np.nansum(1/e2d**2)
+        # W3 = 1/np.nansum(1/e3d**2)
+
+        # W = W1+W2+W3
+
+        w1d = (1/np.sqrt(e1d.size))/e1d
+        w2d = (1/np.sqrt(e2d.size))/e2d
+        w3d = (1/np.sqrt(e3d.size))/e3d
+
+        # y_int = np.nansum(y)*dx0*dx1*dx2
+
+        # if y_int <= 1e-9:
+        #     return None
+
+        # self.params.add('A', value=y_int, min=0, max=10*y_int)
+
+        y1_max = np.nanmax(y1d)
+        y2_max = np.nanmax(y2d)
+        y3_max = np.nanmax(y3d)
+
+        y1_min = np.nanmin(y1d)
+        y2_min = np.nanmin(y2d)
+        y3_min = np.nanmin(y3d)
+
+        A1 = np.nanpercentile(y1d, 99)
+        A2 = np.nanpercentile(y2d, 99)
+        A3 = np.nanpercentile(y3d, 99)
+
+        B1 = np.nanpercentile(y1d, 15)
+        B2 = np.nanpercentile(y2d, 15)
+        B3 = np.nanpercentile(y3d, 15)
+
+        if np.isclose(y1_min, y1_max) or not np.isfinite(y1_max):
             return None
 
-        weights = y_sub/y_sum*scale
+        if np.isclose(y2_min, y2_max) or not np.isfinite(y2_max):
+            return None
 
-        return weights
+        if np.isclose(y3_min, y3_max) or not np.isfinite(y3_max):
+            return None
+
+        self.params.add('A1', value=A1, min=0, max=2*y1_max)
+        self.params.add('A2', value=A2, min=0, max=2*y2_max)
+        self.params.add('A3', value=A3, min=0, max=2*y3_max)
+
+        self.params.add('B1', value=B1, min=0, max=y1_max)
+        self.params.add('B2', value=B2, min=0, max=y2_max)
+        self.params.add('B3', value=B3, min=0, max=y3_max)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=(x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d),
+                        nan_policy='omit')
+
+        result = out.minimize(method='least_squares', loss='soft_l1')
+
+        self.params = result.params
+
+        c0 = self.params['c0'].value
+        c1 = self.params['c1'].value
+        c2 = self.params['c2'].value
+
+        r0 = self.params['r0'].value
+        r1 = self.params['r1'].value
+        r2 = self.params['r2'].value
+
+        phi = self.params['phi'].value
+        theta = self.params['theta'].value
+        omega = self.params['omega'].value
+
+        # dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
+
+        # dx = [dx0, dx1, dx2]
+
+        c = np.array([c0, c1, c2])
+
+        inv_S = self.inv_S_matrix(r0, r1, r2, phi, theta, omega)
+
+        return c, inv_S
 
     def voxels(self, x0, x1, x2):
 
@@ -848,90 +1076,9 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def min_enclosing_ellipsoid(self, vals, tol=1e-6, max_iter=1000, reg=1e-8):
+    def fit(self, x0, x1, x2, y_norm, e_norm, dx, r_cut):
 
-        n, d = vals.shape
-        Q = np.vstack([vals.T, np.ones(n)])
-
-        u = np.ones(n)/n
-        err = tol+1.0
-
-        i = 0
-        while err > tol and i < max_iter:
-            X = Q @ np.diag(u) @ Q.T+reg*np.eye(d+1)
-            M = np.einsum('ij,ji->i', Q.T, scipy.linalg.solve(X, Q))
-            j = np.argmax(M)
-            maximum = M[j]
-            step_size = (maximum-d-1)/((d+1)*(maximum-1))
-            new_u = (1-step_size)*u
-            new_u[j] += step_size
-            err = np.linalg.norm(new_u-u)
-            u = new_u
-            i += 1
-
-        c = vals.T @ u
-        S = vals.T @ np.diag(u) @ vals-np.outer(c, c)
-        return c, S
-
-    def cluster(self, x0, x1, x2, dx, weights, n_events=30):
-
-        mask = np.isfinite(weights)
-
-        wgt = weights[mask]
-
-        X = np.column_stack([x0[mask], x1[mask], x2[mask]])
-
-        db = DBSCAN(eps=dx*2, min_samples=n_events).fit(X, sample_weight=wgt)
-        labels = db.labels_
-
-        n = len(set(labels))-(1 if -1 in labels else 0)
-
-        return X, labels, n
-
-    def objective(self, params, mu, c, S_inv, x, y, e):
-
-        vol_x, center_x = params
-
-        dx = x-(center_x*mu+(1-center_x)*c).reshape(3, 1)
-
-        ellip = np.einsum('ij,jk,ik->k', S_inv/np.cbrt(vol_x), dx, dx)
-
-        pk = ellip <= 1
-        bkg = (ellip > 1) & (ellip <= np.cbrt(2)**2)
-
-        if bkg.sum() == 0 or pk.sum() == 0:
-            return 1e9
-
-        y_bkg = y[bkg].copy()
-        w_bkg = 1/e[bkg]**2
-
-        b = np.nansum(y_bkg*w_bkg)/np.nansum(w_bkg)
-        b_err = np.sqrt(np.nansum((y_bkg-b)**2*w_bkg)/np.nansum(w_bkg))
-
-        I = np.nansum(y[pk]-b)
-        sigma = np.sqrt(np.nansum(e[pk]**2+b_err**2))
-
-        signal_to_noise = I/sigma if sigma > 0 else -1e9
-
-        return -signal_to_noise
-
-    def maximize_signal_to_noise(self, bins, mu, c, S):
-
-        (x0, x1, x2), y, e = bins
-
-        S_inv = np.linalg.inv(S)
-
-        x = np.array([x0, x1, x2])
-
-        res = scipy.optimize.dual_annealing(self.objective,
-                                            bounds=([0.5, 2], [0, 1]),
-                                            args=(mu, c, S_inv, x, y, e)).x
-
-        return res[1]*mu+(1-res[1])*c, S*np.cbrt(res[0])
-
-    def fit(self, x0, x1, x2, y_norm, e_norm, dx):
-
-        y, e = y_norm.copy(), e_norm.copy()   
+        y, e = y_norm.copy(), e_norm.copy()
 
         mask = e > 0
 
@@ -944,72 +1091,42 @@ class PeakEllipsoid:
             y[~mask] = np.nan
             e[~mask] = np.nan
 
+            # mask = e > 0
+
+            # bins = (x0[mask], x1[mask], x2[mask]), y[mask], e[mask]
+
             if not np.nansum(y) > 0:
+                print('Invalid data')
                 return None
 
-            weights = self.estimate_weights(y)
+            weights = self.estimate_weights(x0, x1, x2, y, e, dx, r_cut)
 
             if weights is None:
+                print('Invalid weight estimate')
                 return None
 
-            if not np.nansum(weights) > 0:
+            c, inv_S = weights
+
+            if not np.linalg.det(inv_S) > 0:
+                print('Improper optimal covariance')
                 return None
 
-            n_events = int(np.nanmax(weights))
+            S = np.linalg.inv(inv_S)
 
-            if n_events < 1 or np.isinf(n_events):
+            c0, c1, c2 = c
+
+            dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
+
+            dxv = [dx0, dx1, dx2]
+
+            threshold = np.einsum('i...,ij,j...->...', dxv, inv_S, dxv) <= 1
+
+            if threshold.sum() < 13:
+                print('Low counts')
                 return None
-
-            n, n_iter = 0, 0
-
-            while n_iter < 10 and n_events > 1:
-
-                X, labels, n = self.cluster(x0, x1, x2, dx, weights, n_events)
-
-                if n > 1:
-                    n_events += 1
-                elif n == 0:
-                    n_events -= 1
-                else:
-                    n_iter = 10
-
-                n_iter += 1
-
-            if n == 0:
-                return None
-
-            signal = labels == 0
-
-            if signal.sum() < 5:
-                return None
-
-            c, S = self.min_enclosing_ellipsoid(X[signal])
 
             peak = y.copy()*np.nan
-            peak[np.isfinite(weights)] = labels+(1 if -1 in labels else 0)
-
-            mask = peak > 0
-
-            if np.sum(weights[mask]) > 0:
-                mu0 = np.average(x0[mask], weights=weights[mask])
-                mu1 = np.average(x1[mask], weights=weights[mask])
-                mu2 = np.average(x2[mask], weights=weights[mask])
-            else:
-                return None
-
-            mu = np.array([mu0, mu1, mu2])
-
-            if not np.linalg.det(S) > 0:
-                return None
-
-            mask = e > 0
-
-            bins = (x0[mask], x1[mask], x2[mask]), y[mask], e[mask]
-
-            c, S = self.maximize_signal_to_noise(bins, mu, c, S)
-
-            if not np.linalg.det(S) > 0:
-                return None
+            peak = threshold*1.0
 
             V, W = np.linalg.eigh(S)
 

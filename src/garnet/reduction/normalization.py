@@ -410,13 +410,14 @@ class Normalization(SubPlan):
 
             for val in vals:
 
-                plot.make_slice(signal, val)
-                pdf.add_plot(plot.fig)
-
                 if np.isclose(np.round(val, 4) % 1, 0):
-                    name = plot.z_label.replace('.','')+'={:.3f}'.format(val)
-                    plot_name = 'slice_{}'.format(name.replace(' ', ''))
-                    plot.save_plot(self.get_plot_file(plot_name))
+
+                    plot.make_slice(signal, val)
+                    pdf.add_plot(plot.fig)
+
+                    # name = plot.z_label.replace('.','')+'={:.3f}'.format(val)
+                    # plot_name = 'slice_{}'.format(name.replace(' ', ''))
+                    # plot.save_plot(self.get_plot_file(plot_name))
 
             pdf.close()
 

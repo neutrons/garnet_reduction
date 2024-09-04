@@ -102,8 +102,8 @@ class PeaksModel:
                               peaks,
                               peak_radius,
                               radius_scale=0,
-                              background_inner_fact=1.,
-                              background_outer_fact=1.58,
+                              background_inner_fact=1,
+                              background_outer_fact=1.5,
                               method='sphere',
                               centroid=True):
         """
@@ -121,9 +121,9 @@ class PeaksModel:
         radius_scale : float, optional
             Radius scale factor with |Q|. The default is 0.
         background_inner_fact : float, optional
-            Factor of peak radius for background shell. The default is 1
+            Factor of peak radius for background shell. The default is 1.
         background_outer_fact : float, optional
-            Factor of peak radius for background shell. The default is 1.58.
+            Factor of peak radius for background shell. The default is 1.5.
         method : str, optional
             Integration method. The default is 'sphere'.
         centroid : str, optional
@@ -136,6 +136,8 @@ class PeaksModel:
 
         background_inner_radius = peak_radius*background_inner_fact
         background_outer_radius = peak_radius*background_outer_fact
+
+        adaptive = True if radius_scale else False
 
         if method == 'sphere' and centroid:
             self.centroid_peaks(md, peaks, peak_radius)
@@ -153,7 +155,7 @@ class PeaksModel:
                          MaxIterations=15,
                          ReplaceIntensity=True,
                          IntegrateIfOnEdge=True,
-                         AdaptiveQBackground=True if radius_scale else False,
+                         AdaptiveQBackground=adaptive,
                          AdaptiveQMultiplier=radius_scale,
                          MaskEdgeTubes=True,
                          OutputWorkspace=peaks)
@@ -181,6 +183,26 @@ class PeaksModel:
 
                     peak.setQSampleFrame(V3D(Q0, Q1, Q2))
 
+        if method == 'ellipsoid':
+
+            IntegratePeaksMD(InputWorkspace=md,
+                             PeaksWorkspace=peaks,
+                             PeakRadius=peak_radius,
+                             BackgroundInnerRadius=background_inner_radius,
+                             BackgroundOuterRadius=background_outer_radius,
+                             UseOnePercentBackgroundCorrection=True,
+                             Ellipsoid=True,
+                             FixQAxis=True,
+                             FixMajorAxisLength=True,
+                             UseCentroid=False,
+                             MaxIterations=15,
+                             ReplaceIntensity=True,
+                             IntegrateIfOnEdge=True,
+                             AdaptiveQBackground=adaptive,
+                             AdaptiveQMultiplier=radius_scale,
+                             MaskEdgeTubes=True,
+                             OutputWorkspace=peaks)
+
     def intensity_vs_radius(self, md,
                                   peaks,
                                   peak_radius,
@@ -200,7 +222,7 @@ class PeaksModel:
         peak_radius : float
             Integrat region radius cut off.
         background_inner_fact : float, optional
-            Factor of peak radius for background shell. The default is 1.
+            Factor of peak radius for background shell. The default is 1
         background_outer_fact : float, optional
             Factor of peak radius for background shell. The default is 1.5.
         steps : int, optional
