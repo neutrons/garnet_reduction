@@ -459,7 +459,7 @@ class Integration(SubPlan):
 
         return Qo, Qc, ro, rc
 
-    def fit_peaks(self, peaks_ws, params, make_plot=True):
+    def fit_peaks(self, peaks_ws, params, make_plot=False):
         """
         Integrate peaks.
 
@@ -1010,14 +1010,6 @@ class PeakEllipsoid:
 
         B = params['B']
 
-        # X0, X1, X2 = self.whitening_transform(x0, x1, x2, 
-        #                                       c0, c1, c2,
-        #                                       r0, r1, r2,
-        #                                       phi, theta, omega)
-
-        # c = np.zeros(3)
-        # inv_S = np.eye(3)
-
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
                                                     phi, theta, omega)
@@ -1031,152 +1023,15 @@ class PeakEllipsoid:
         args = x0, x1, x2, 1, 0, c, inv_S
         y3d_fit = self.func(*args, mode='3d')
 
-        # A1 = self.weighted_median((y1d-B)/y1d_fit, 1/e1d**2)
-        # A2 = self.weighted_median((y2d-B)/y2d_fit, 1/e2d**2)
-        # A3 = self.weighted_median((y3d-B)/y3d_fit, 1/e3d**2)
-
         A1 = np.nansum(y1d_fit*y1d/e1d**2)/np.nansum(y1d_fit**2/e1d**2)
         A2 = np.nansum(y2d_fit*y2d/e2d**2)/np.nansum(y2d_fit**2/e2d**2)
         A3 = np.nansum(y3d_fit*y3d/e3d**2)/np.nansum(y3d_fit**2/e3d**2)
-
-        # A1, B1, A1_err, B1_err = self.scale_background(y1d_fit, y1d, e1d)
-        # A2, B2, A2_err, B2_err = self.scale_background(y2d_fit, y2d, e2d)
-        # A3, B3, A3_err, B3_err = self.scale_background(y3d_fit, y3d, e3d)
 
         diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
              + ((A2*y2d_fit+B-y2d)).ravel().tolist()\
              + ((A3*y3d_fit+B-y3d)).ravel().tolist()
 
         return diff
-
-        #r = np.sqrt(X0**2+X1**2+X2**2)
-
-        # x = np.exp(-0.5*r**2)/np.sqrt((2*np.pi)**3)
-
-        #slope, intercept, low_slope, high_slope = scipy.stats.theilslopes(y, x)
-
-        #A, B, A_err, B_err = self.scale_background(x, y, e)
-
-        # return (A*x+B-y)/e
-
-    # def residual(self, params, x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d):
-
-    #     c0 = params['c0']
-    #     c1 = params['c1']
-    #     c2 = params['c2']
-
-    #     r0 = params['r0']
-    #     r1 = params['r1']
-    #     r2 = params['r2']
-
-    #     phi = params['phi']
-    #     theta = params['theta']
-    #     omega = params['omega']
-
-    #     c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
-    #                                                 r0, r1, r2,
-    #                                                 phi, theta, omega)
-
-    #     args = x0, x1, x2, 1, 0, c, inv_S
-    #     y1d_fit = self.func(*args, mode='1d')
-
-    #     args = x0, x1, x2, 1, 0, c, inv_S
-    #     y2d_fit = self.func(*args, mode='2d')
-
-    #     args = x0, x1, x2, 1, 0, c, inv_S
-    #     y3d_fit = self.func(*args, mode='3d')
-
-    #     A1, B1, A1_err, B1_err = self.scale_background(y1d_fit, y1d, e1d)
-    #     A2, B2, A2_err, B2_err = self.scale_background(y2d_fit, y2d, e2d)
-    #     A3, B3, A3_err, B3_err = self.scale_background(y3d_fit, y3d, e3d)
-
-    #     diff = ((A1*y1d_fit+B1-y1d)/e1d).ravel().tolist()\
-    #          + ((A2*y2d_fit+B2-y2d)/e2d).ravel().tolist()\
-    #          + ((A3*y3d_fit+B3-y3d)/e3d).ravel().tolist()
-
-    #     # diff[~np.isfinite(diff)] = 1e9
-
-    #     # diff = ((A1*y1d_fit+B1-y1d)/np.sqrt(n1d)).ravel().tolist()\
-    #     #       + ((A2*y2d_fit+B2-y2d)/np.sqrt(n2d)).ravel().tolist()\
-    #     #       + ((A3*y3d_fit+B3-y3d)/np.sqrt(n3d)).ravel().tolist()
-
-    #     return np.array(diff)
-
-    # def cost(self, params, x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d):
-
-    #     c0 = params['c0']
-    #     c1 = params['c1']
-    #     c2 = params['c2']
-
-    #     r0 = params['r0']
-    #     r1 = params['r1']
-    #     r2 = params['r2']
-
-    #     phi = params['phi']
-    #     theta = params['theta']
-    #     omega = params['omega']
-
-    #     c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
-    #                                                 r0, r1, r2,
-    #                                                 phi, theta, omega)
-
-
-    #     args = x0, x1, x2, 1, 0, c, inv_S
-    #     y1d_fit = self.func(*args, mode='1d')
-
-    #     args = x0, x1, x2, 1, 0, c, inv_S
-    #     y2d_fit = self.func(*args, mode='2d')
-
-    #     args = x0, x1, x2, 1, 0, c, inv_S
-    #     y3d_fit = self.func(*args, mode='3d')
-
-    #     A1, B1, A1_err, B1_err = self.scale_background(y1d_fit, y1d, e1d)
-    #     A2, B2, A2_err, B2_err = self.scale_background(y2d_fit, y2d, e2d)
-    #     A3, B3, A3_err, B3_err = self.scale_background(y3d_fit, y3d, e3d)
-
-    #     n1 = e1d.size
-    #     n2 = e2d.size
-    #     n3 = e3d.size
-
-    #     sig1 = np.sqrt(np.nansum(e1d**2+n1*B1_err**2))
-    #     sig2 = np.sqrt(np.nansum(e2d**2+n2*B2_err**2))
-    #     sig3 = np.sqrt(np.nansum(e3d**2+n3*B3_err**2))
-
-    #     I1 = np.nansum(y1d-B1)
-    #     I2 = np.nansum(y2d-B2)
-    #     I3 = np.nansum(y3d-B3)
-
-    #     sn1 = I1/sig1 if sig1 > 0 and np.isfinite(sig1) else -1e9
-    #     sn2 = I2/sig2 if sig2 > 0 and np.isfinite(sig2) else -1e9
-    #     sn3 = I3/sig3 if sig3 > 0 and np.isfinite(sig3) else -1e9
-
-    #     return -sn1-sn2-sn3
-
-    # def scale_background(self, x, y, e):
-
-    #     w = 1/e**2
-
-    #     Sw = np.nansum(w)
-
-    #     Sx = np.nansum(w*x)
-    #     Sy = np.nansum(w*y)
-
-    #     Sxx = np.nansum(w*x**2)
-    #     Sxy = np.nansum(w*x*y)
-
-    #     det = Sw*Sxx-Sx**2
-
-    #     A = (Sw*Sxy-Sx*Sy)/det
-    #     B = (Sy-A*Sx)/Sw
-
-    #     r = A*x+B-y
-
-    #     chi = np.sqrt(np.nansum(w*r**2)/(x.size-2))
-
-    #     A_err = chi*np.sqrt(Sw/det)
-    #     B_err = chi*np.sqrt(Sxx/det)
-
-    #     return A, B, A_err, B_err
 
     def func(self, x0, x1, x2, A, B, c, inv_S, mode='3d'):
 
@@ -1253,7 +1108,7 @@ class PeakEllipsoid:
                         fcn_args=(x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d),
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares', loss='soft_l1')
+        result = out.minimize(method='least_squares')
 
         self.params = result.params
 
