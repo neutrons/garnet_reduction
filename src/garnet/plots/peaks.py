@@ -25,9 +25,9 @@ class RadiusPlot(BasePlot):
 
         plt.close('all')
 
-        self.fig, self.ax = plt.subplots(2,
+        self.fig, self.ax = plt.subplots(3,
                                          1,
-                                         figsize=(6.4, 9.6),
+                                         figsize=(6.4, 14.4),
                                          layout='constrained')
 
         self.add_radius_fit(r, y, y_fit)
@@ -58,32 +58,41 @@ class RadiusPlot(BasePlot):
         self.ax[0].plot(x, y, '-', color='C1')
         self.ax[0].set_ylabel(r'# $I/\sigma=2$')
 
-    def add_profile(self, x, y, e, I, rQ_min, rQ_max):
+    def add_profile(self, hist, r_bins, Q_bins, r_lim, Q_lim):
 
         ax = self.ax[1]
 
-        cmap = plt.cm.binary
-        norm = plt.Normalize(vmin=np.min(I), vmax=np.max(I))
+        extent = [r_bins[0], r_bins[-1], Q_bins[0], Q_bins[-1]]
 
-        for i, val in enumerate(I):
-            c = cmap(norm(val))
-            ax.errorbar(x[i], y[i], e[i], fmt='.', linestyle='-', color=c)
+        ax.imshow(hist,
+                  interpolation='nearest',
+                  origin='lower',
+                  extent=extent,
+                  cmap='turbo')
 
-        ax.set_xlabel(r'$\Delta|Q|$')
-        ax.set_ylabel(r'$I$ [arb. unit]')
+        ax.plot(r_lim, Q_lim, color='w')
+        ax.plot(-r_lim, Q_lim, color='w')
+        ax.set_aspect('auto')
+        ax.set_xlabel(r'$|\Delta{Q}|$ [$\AA^{-1}$]')
+        ax.set_ylabel(r'$|Q|$ [$\AA^{-1}$]')
+        ax.minorticks_on()
 
-        ax.axvline(+rQ_min, linestyle='--', color='r')
-        ax.axvline(-rQ_min, linestyle='--', color='r')
-        ax.axvline(+rQ_max, linestyle='--', color='r')
-        ax.axvline(-rQ_max, linestyle='--', color='r')
+    def add_radius(self, hist, r_bins, Q_bins, r_lim, Q_lim):
 
-        # ax_twin = ax.twinx()
-        # ax_twin.plot(+r, Q, linestyle='-', color='k')
-        # ax_twin.plot(-r, Q, linestyle='-', color='k')
+        ax = self.ax[2]
 
-        # ax_twin.minorticks_on()
-        # ax_twin.set_ylabel(r'$|Q|$')
+        extent = [r_bins[0], r_bins[-1], Q_bins[0], Q_bins[-1]]
 
+        ax.imshow(hist,
+                  interpolation='nearest',
+                  origin='lower',
+                  extent=extent,
+                  cmap='turbo')
+
+        ax.set_aspect('auto')
+        ax.plot(r_lim, Q_lim, color='w')
+        ax.set_xlabel(r'$r$ [$\AA^{-1}$]')
+        ax.set_ylabel(r'$|Q|$ [$\AA^{-1}$]')
         ax.minorticks_on()
 
 class PeakPlot(BasePlot):

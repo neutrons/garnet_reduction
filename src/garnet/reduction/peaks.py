@@ -267,7 +267,15 @@ class PeaksModel:
         peak_radius = mtd[peaks+'_sig/noise_vs_rad/lowest'].extractX().ravel()
         sig_noise = mtd[peaks+'_sig/noise_vs_rad/lowest'].extractY().ravel()
 
-        return peak_radius, sig_noise
+        ol = mtd['peaks'].sample().getOrientedLattice()
+        hkls = mtd[peaks+'_intens_vs_rad'].getAxis(1).extractValues()
+        hkls = [np.array(hkl.split(' ')).astype(float) for hkl in hkls]
+        Q = np.array([2*np.pi/ol.d(*hkl) for hkl in hkls])
+
+        y = mtd[peaks+'_intens_vs_rad'].extractY()
+        x = mtd[peaks+'_intens_vs_rad'].extractX()
+
+        return peak_radius, sig_noise, x, y, Q
 
     def intensity_Q_profile(self, md,
                                   peaks,
@@ -319,21 +327,15 @@ class PeaksModel:
                          PeaksWorkspace=peaks,
                          OutputWorkspace=peaks+'_')
 
-        Rebin(InputWorkspace='ProfilesData',
-              OutputWorkspace='ProfilesData',
-              Params='-1,2,99',
-              PreserveEvents=False)
-
         ol = mtd['peaks'].sample().getOrientedLattice()
         hkls = mtd['ProfilesData'].getAxis(1).extractValues()
         hkls = [np.array(hkl.split('_')[:-1]).astype(float) for hkl in hkls]
         Q = np.array([2*np.pi/ol.d(*hkl) for hkl in hkls])
 
-        y = mtd['ProfilesData'].extractY()
-        e = mtd['ProfilesData'].extractE()
         x = ((mtd['ProfilesData'].extractX()+1)/100-0.5)*length
+        y = mtd['ProfilesData'].extractY()
 
-        return x, y, e, Q
+        return x, y, Q
 
     def get_max_d_spacing(self, ws):
         """
@@ -582,7 +584,13 @@ class PeaksModel:
             if (mtd[peaks].getPeak(no).getHKL()-\
                 mtd[peaks].getPeak(no-1).getHKL()).norm2() == 0:
 
-                DeleteTableRows(TableWorkspace=peaks, Rows=no)
+                mtd[peaks].getPeak(no).setRunNumber(-1)
+
+        FilterPeaks(InputWorkspace=peaks,
+                    OutputWorkspace=peaks,
+                    FilterVariable='RunNumber',
+                    FilterValue=-1,
+                    Operator='!=')
 
     def get_all_goniometer_matrices(self, ws):
         """
@@ -759,6 +767,36 @@ class PeaksModel:
                     Criterion='!=',
                     BankName='None')
 
+    def remove_peaks_by_d_tolerance(self, peaks, tol=0.05):
+        """
+        Filter out peaks based on d-spacing tolerance. 
+
+        Parameters
+        ----------
+        peaks : str
+            Name of peaks table.
+        tol : float, optional
+            d-spacing tolerance. The default is 0.05.
+
+        """
+
+        if HasUB(Workspace=peaks):
+
+            ol = mtd[peaks].sample().getOrientedLattice()
+
+            for no in range(mtd[peaks].getNumberPeaks()):
+                peak = mtd[peaks].getPeak(no)
+                d = peak.getDspacing()
+                d0 = ol.d(*peak.peak.getHKL())
+                if np.abs(d/d0-1) < tol:
+                    peak.setRunNumber(-1)
+
+            FilterPeaks(InputWorkspace=peaks,
+                        OutputWorkspace=peaks,
+                        FilterVariable='RunNumber',
+                        FilterValue=-1,
+                        Operator='!=')
+
     def remove_unindexed_peaks(self, peaks):
         """
         Filter out unindexes peaks.
@@ -767,6 +805,7 @@ class PeaksModel:
         ----------
         peaks : str
             Name of peaks table.
+
         """
 
         FilterPeaks(InputWorkspace=peaks,

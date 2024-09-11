@@ -95,18 +95,18 @@ def test_peak_plot():
 
     nx, ny, nz = 21, 24, 31
 
-    Qx_min, Qx_max = 0, 2
+    Qx_min, Qx_max = 1, 3
     Qy_min, Qy_max = -0.9, 3.1
     Qz_min, Qz_max = -3.2, 0.8
 
-    Q0_x, Q0_y, Q0_z = 1.1, 1.0, -1.2
+    Q0_x, Q0_y, Q0_z = 2.1, 1.0, -1.2
 
     sigma_x, sigma_y, sigma_z = 0.15, 0.25, 0.2
     rho_yz, rho_xz, rho_xy = 0.5, -0.1, -0.12
 
     a = 0.3
     b = 0.2
-    c = 16.4
+    c = 0.6
 
     sigma_yz = sigma_y*sigma_z
     sigma_xz = sigma_x*sigma_z
@@ -118,7 +118,7 @@ def test_peak_plot():
 
     Q0 = np.array([Q0_x, Q0_y, Q0_z])
 
-    signal = np.random.multivariate_normal(Q0, cov, size=10000)
+    signal = np.random.multivariate_normal(Q0, cov, size=1000)
 
     data_norm, bins = np.histogramdd(signal,
                                      density=False,
@@ -128,6 +128,10 @@ def test_peak_plot():
                                             (Qz_min, Qz_max)])
 
     counts = data_norm.copy()
+
+    sig_data = np.sqrt(counts)+0.001
+    sig_data /= np.max(data_norm)
+    sig_data /= np.sqrt(np.linalg.det(2*np.pi*cov))
 
     data_norm /= np.max(data_norm)
     data_norm /= np.sqrt(np.linalg.det(2*np.pi*cov))
@@ -140,6 +144,8 @@ def test_peak_plot():
 
     data_norm *= c
     data_norm += b+a*(2*np.random.random(data_norm.shape)-1)
+
+    sig_data *= c
 
     m = 1
 
@@ -163,8 +169,6 @@ def test_peak_plot():
     temp = np.copy(data_norm)
     data_norm[i,j,k] = data_norm[ic,jc,kc]
     data_norm[ic,jc,kc] = temp[i,j,k]
-
-    sig_data = np.sqrt(data_norm)*0.1
 
     # mask = np.random.random(data_norm.shape) < 0.5
     # data_norm[mask] = np.nan

@@ -1,4 +1,5 @@
 import os
+import sys
 import traceback
 
 import multiprocess as multiprocessing
@@ -58,10 +59,12 @@ class ParallelTasks:
             self.results = result.get()
         except Exception as e:
             print('Exception in pool: {}'.format(e))
+            traceback.print_exc()
             pool.terminate()
-        finally:
-            pool.close()
-            pool.join()
+            sys.exit()
+
+        pool.close()
+        pool.join()
 
         config['MultiThreaded.MaxCores'] == '4'
         os.environ.pop('OPENBLAS_NUM_THREADS')
