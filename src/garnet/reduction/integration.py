@@ -977,11 +977,11 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def whitening_transform(self, x0, x1, x2, 
+    def whitening_transform(self, x0, x1, x2,
                                   c0, c1, c2,
                                   r0, r1, r2,
                                   phi, theta, omega):
-        
+
         U = self.U_matrix(phi, theta, omega)
 
         sigma0, sigma1, sigma2 = self.scale(r0, r1, r2)
@@ -1008,7 +1008,11 @@ class PeakEllipsoid:
         theta = params['theta']
         omega = params['omega']
 
-        B = params['B']
+        # A1 = params['A1']
+        # A2 = params['A2']
+        # A3 = params['A3']
+
+        # B = params['B']
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1023,13 +1027,23 @@ class PeakEllipsoid:
         args = x0, x1, x2, 1, 0, c, inv_S
         y3d_fit = self.func(*args, mode='3d')
 
-        A1 = np.nansum(y1d_fit*y1d/e1d**2)/np.nansum(y1d_fit**2/e1d**2)
-        A2 = np.nansum(y2d_fit*y2d/e2d**2)/np.nansum(y2d_fit**2/e2d**2)
-        A3 = np.nansum(y3d_fit*y3d/e3d**2)/np.nansum(y3d_fit**2/e3d**2)
+        # A1 = np.nansum(y1d_fit*y1d/e1d**2)/np.nansum(y1d_fit**2/e1d**2)
+        # A2 = np.nansum(y2d_fit*y2d/e2d**2)/np.nansum(y2d_fit**2/e2d**2)
+        # A3 = np.nansum(y3d_fit*y3d/e3d**2)/np.nansum(y3d_fit**2/e3d**2)
 
-        diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
-             + ((A2*y2d_fit+B-y2d)).ravel().tolist()\
-             + ((A3*y3d_fit+B-y3d)).ravel().tolist()
+        A1, A2, A3, B = self.scale_background(y1d_fit, y2d_fit, y3d_fit,
+                                              y1d, y2d, y3d,
+                                              1/e1d**2, 1/e2d**2, 1/e3d**2)
+
+        n1d, n2d, n3d = e1d.size, e2d.size, e3d.size
+
+        diff = ((A1*y1d_fit+B-y1d)/np.sqrt(n1d)).ravel().tolist()\
+             + ((A2*y2d_fit+B-y2d)/np.sqrt(n2d)).ravel().tolist()\
+             + ((A3*y3d_fit+B-y3d)/np.sqrt(n3d)).ravel().tolist()
+
+        # diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
+        #      + ((A2*y2d_fit+B-y2d)).ravel().tolist()\
+        #      + ((A3*y3d_fit+B-y3d)).ravel().tolist()
 
         return diff
 
@@ -1053,6 +1067,63 @@ class PeakEllipsoid:
             factor = np.sqrt(inv_S[0,0]/(2*np.pi))
 
         return A*np.exp(-0.5*d2)*factor+B
+
+    # def scale_background(self, x, y, e):
+
+    #     w = 1/e**2
+
+    #     Sw = np.nansum(w)
+
+    #     Sx = np.nansum(w*x)
+    #     Sy = np.nansum(w*y)
+
+    #     Sxx = np.nansum(w*x**2)
+    #     Sxy = np.nansum(w*x*y)
+
+    #     det = Sw*Sxx-Sx**2
+
+    #     A = (Sw*Sxy-Sx*Sy)/det
+    #     B = (Sy-A*Sx)/Sw
+
+    #     r = A*x+B-y
+
+    #     chi = np.sqrt(np.nansum(w*r**2)/(x.size-2))
+
+    #     A_err = chi*np.sqrt(Sw/det)
+    #     B_err = chi*np.sqrt(Sxx/det)
+
+    #     return A, B, A_err, B_err
+
+    def scale_background(self, x, y, z, X, Y, Z, U, V, W):
+
+        A1 = np.nansum(x**2*U)
+        A2 = np.nansum(x*U)
+        A3 = np.nansum(X*x*U)
+        A4 = np.nansum(U)
+        A5 = np.nansum(X*U)
+
+        B1 = np.nansum(y**2*V)
+        B2 = np.nansum(y*V)
+        B3 = np.nansum(Y*y*V)
+        B4 = np.nansum(V)
+        B5 = np.nansum(Y*V)
+
+        C1 = np.nansum(z**2*W)
+        C2 = np.nansum(z*W)
+        C3 = np.nansum(Z*z*W)
+        C4 = np.nansum(W)
+        C5 = np.nansum(Z*W)
+
+        num = A5+B5+C5-(A3*A2/A1+B3*B2/B1+C3*C2/C1)
+        den = (A4+B4+C4)-(A2**2/A1+B2**2/B1+C2**2/C1)
+
+        k = num/den
+
+        a = (A3-k*A2)/A1
+        b = (B3-k*B2)/B1
+        c = (C3-k*C2)/C1
+
+        return a, b, c, k
 
     def estimate_weights(self, x0, x1, x2, y, e, dx, r_cut):
 
@@ -1095,91 +1166,23 @@ class PeakEllipsoid:
         if np.isclose(y3_min, y3_max) or not np.isfinite(y3_max):
             return None
 
-        y_min = np.nanmin(y)
-        y_max = np.nanmax(y)
+        # y_min = np.nanmin(y)
+        # y_med = np.nanmedian(y)
 
-        # y_int = np.nansum(y-y_min)*d3x
+        # self.params.add('A1', value=y1_min, min=0, max=y1_max, vary=True)
+        # self.params.add('A2', value=y2_min, min=0, max=y2_max, vary=True)
+        # self.params.add('A3', value=y3_min, min=0, max=y3_max, vary=True)
 
-        # self.params.add('A', value=y_int, min=0, max=y_int*100, vary=True)
-        self.params.add('B', value=y_min, min=0, max=y_max, vary=True)
+        # self.params.add('B', value=y_min, min=0, max=y_med, vary=True)
 
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=(x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d),
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares')
+        result = out.minimize(method='least_squares', loss='soft_l1')
 
         self.params = result.params
-
-        # cost = self.cost(self.params, x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d)
-
-        # if not np.isfinite(cost):
-        #     return None
-
-        # c0 = self.params['c0'].value
-        # c1 = self.params['c1'].value
-        # c2 = self.params['c2'].value
-
-        # r0 = self.params['r0'].value
-        # r1 = self.params['r1'].value
-        # r2 = self.params['r2'].value
-
-        # r = np.max([r0, r1, r2])
-
-        # self.params['c0'].set(value=c0, min=c0-r, max=c0+r)
-        # self.params['c1'].set(value=c1, min=c1-r, max=c1+r)
-        # self.params['c2'].set(value=c2, min=c2-r, max=c2+r)
-
-        # self.params['r0'].set(value=r0, min=0.25*r0, max=1.25*r0)
-        # self.params['r1'].set(expr='{}*r0'.format(r1/r0))
-        # self.params['r2'].set(expr='{}*r0'.format(r2/r0))
-
-        # self.params['phi'].set(vary=False)
-        # self.params['theta'].set(vary=False)
-        # self.params['omega'].set(vary=False)
-
-        # out = Minimizer(self.cost,
-        #                 self.params,
-        #                 fcn_args=(x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d))
-
-        # result = out.minimize(method='powell')
-
-        # self.params = result.params
-
-        # cost = self.cost(self.params, x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d)
-
-        # if not np.isfinite(cost):
-        #     return None
-
-        # c0 = self.params['c0'].set(vary=False)
-        # c1 = self.params['c1'].set(vary=False)
-        # c2 = self.params['c2'].set(vary=False)
-
-        # r0 = self.params['r0'].value
-        # r1 = self.params['r1'].value
-        # r2 = self.params['r2'].value
-
-        # self.params['r0'].set(expr=None, value=r0, min=0.5*r0, max=1.25*r0)
-        # self.params['r1'].set(expr=None, value=r1, min=0.5*r1, max=1.25*r1)
-        # self.params['r2'].set(expr=None, value=r2, min=0.5*r2, max=1.25*r2)
-
-        # self.params['phi'].set(vary=False)
-        # self.params['theta'].set(vary=False)
-        # self.params['omega'].set(vary=False)
-
-        # out = Minimizer(self.cost,
-        #                 self.params,
-        #                 fcn_args=(x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d))
-
-        # result = out.minimize(method='powell')
-
-        # self.params = result.params
-
-        # cost = self.cost(self.params, x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d)
-
-        # if not np.isfinite(cost):
-        #     return None
 
         c0 = self.params['c0'].value
         c1 = self.params['c1'].value
@@ -1367,7 +1370,7 @@ class PeakEllipsoid:
 
     def weighted_median(self, y, w):
 
-        mask = np.logical_and(np.isfinite(y), np.isfinite(w))        
+        mask = np.logical_and(np.isfinite(y), np.isfinite(w))
 
         y_mask = y[mask].copy()
         w_mask = w[mask].copy()
