@@ -367,6 +367,31 @@ class PeaksModel:
 
             return max([ol.a(), ol.b(), ol.c()])
 
+    def get_UB(self, ws):
+        """
+        Obtain UB from the oriented lattice.
+
+        Parameters
+        ----------
+        ws : str
+            Workspace with UB defined on oriented lattice.
+
+        Returns
+        -------
+        UB : 2d-array
+            UB matrix.
+
+        """
+
+        if HasUB(Workspace=ws):
+
+            if hasattr(mtd[ws], 'sample'):
+                ol = mtd[ws].sample().getOrientedLattice()
+            else:
+                ol = mtd[ws].getExperimentInfo(0).sample().getOrientedLattice()
+
+            return ol.getUB().copy()
+
     def predict_peaks(self, ws, peaks, centering, d_min, lamda_min, lamda_max):
         """
         Predict peak Q-sample locations with UB and lattice centering.
@@ -1106,6 +1131,20 @@ class PeakModel:
         name = 'peak_d={:.4f}_({:d},{:d},{:d})'+\
                             '_({:d},{:d},{:d})_lambda={:.4f}_run#{:d}'
         return name.format(d,*hkl,*mnp,lamda,run)
+
+    def get_hkl(self, no):
+        """
+        Miller indices.
+
+        Parameters
+        ----------
+        no : int
+            Peak index number.
+
+        """
+
+        peak = mtd[self.peaks].getPeak(no)
+        return peak.getHKL()
 
     def get_peak_shape(self, no, r_cut=np.inf):
         """

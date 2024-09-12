@@ -459,7 +459,7 @@ class Integration(SubPlan):
 
         return Qo, Qc, ro, rc
 
-    def fit_peaks(self, peaks_ws, params, make_plot=False):
+    def fit_peaks(self, peaks_ws, params, make_plot=True):
         """
         Integrate peaks.
 
@@ -479,7 +479,11 @@ class Integration(SubPlan):
         n_peak = peak.get_number_peaks()
 
         if make_plot:
+
             plot = PeakPlot()
+
+        UB = self.peaks.get_UB(peaks_ws)
+        UB_inv = np.linalg.inv(UB)/(2*np.pi)
 
         Qo, Qc, ro, rc = params
 
@@ -492,6 +496,7 @@ class Integration(SubPlan):
             print(proc+' '+iters+' '+comp)
 
             d = peak.get_d_spacing(i)
+            h, k, l = peak.get_hkl(i)
 
             Q = 2*np.pi/d
 
@@ -527,6 +532,19 @@ class Integration(SubPlan):
             data_norm = data.normalize_in_Q('md', extents, bins, projections)
 
             y, e, Q0, Q1, Q2 = data_norm
+
+            Qx, Qy, Qz = self.trasform_Q(Q0, Q1, Q2, projections)
+
+            h_bin, k_bin, l_bin = np.einsum('ij,j...->i...',
+                                            UB_inv,
+                                            [Qx, Qy, Qz])
+
+            mask = (np.abs(h_bin-h) > 0.75)\
+                 | (np.abs(k_bin-k) > 0.75)\
+                 | (np.abs(l_bin-l) > 0.75)
+
+            y[mask] = 0
+            e[mask] = 0
 
             counts = data.extract_counts('md_data')
 
@@ -620,7 +638,7 @@ class Integration(SubPlan):
 
         W = np.column_stack(projections)
 
-        return np.einsum('ij,jk->ik', W, [Q0, Q1, Q2])
+        return np.einsum('ij,j...->i...', W, [Q0, Q1, Q2])
 
     def bin_extent(self, Q0, Q1, Q2,
                          r0, r1, r2,
@@ -895,21 +913,61 @@ class PeakEllipsoid:
 
         self.params = Parameters()
 
-    def update_constraints(self, c0, c1, c2, dx, r_cut):
+    def update_constraints(self, x0, x1, x2, y, dx, r_cut):
 
         dr = 2*r_cut
 
-        self.params.add('r0', value=r_cut, min=2*dx, max=dr)
-        self.params.add('r1', value=r_cut, min=2*dx, max=dr)
-        self.params.add('r2', value=r_cut, min=2*dx, max=dr)
+        r0 = r1 = r2 = r_cut
+        c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
+        phi = omega = 0
+        theta = np.pi/2
+
+        b = np.nanpercentile(y, 30)
+        w = y-b
+        w_sum = np.nansum(w)
+
+        if w_sum > 0:
+
+            c0 = np.nansum(x0*w)/w_sum
+            c1 = np.nansum(x1*w)/w_sum
+            c2 = np.nansum(x2*w)/w_sum
+
+            s0 = np.nansum((x0-c0)**2*w)/w_sum
+            s1 = np.nansum((x1-c1)**2*w)/w_sum
+            s2 = np.nansum((x2-c2)**2*w)/w_sum
+
+            s01 = np.nansum((x0-c0)*(x1-c1)*w)/w_sum
+            s02 = np.nansum((x0-c0)*(x2-c2)*w)/w_sum
+            s12 = np.nansum((x1-c1)*(x2-c2)*w)/w_sum
+
+            s = np.array([[s0, s01, s02], [s01, s1, s12], [s02, s12, s2]])
+
+            if np.linalg.det(s) > 0:
+
+                V, W = np.linalg.eig(s)
+
+                r = 4*np.sqrt(V)
+
+                r[r > r_cut] = r_cut
+
+                r0, r1, r2 = r
+
+                u0, u1, u2, omega = self.eigenvectors(W)
+
+                theta = np.arccos(u2)
+                phi = np.arctan2(u1, u0)
+
+        self.params.add('r0', value=r0, min=2*dx, max=dr)
+        self.params.add('r1', value=r1, min=2*dx, max=dr)
+        self.params.add('r2', value=r2, min=2*dx, max=dr)
 
         self.params.add('c0', value=c0, min=c0-dr, max=c0+dr)
         self.params.add('c1', value=c1, min=c1-dr, max=c1+dr)
         self.params.add('c2', value=c2, min=c2-dr, max=c2+dr)
 
-        self.params.add('phi', value=0, min=-np.pi, max=np.pi)
-        self.params.add('theta', value=np.pi/2, min=0, max=np.pi)
-        self.params.add('omega', value=0, min=-np.pi, max=np.pi)
+        self.params.add('phi', value=phi, min=-np.pi, max=np.pi)
+        self.params.add('theta', value=theta, min=0, max=np.pi)
+        self.params.add('omega', value=omega, min=-np.pi, max=np.pi)
 
     def eigenvectors(self, W):
 
@@ -1129,9 +1187,9 @@ class PeakEllipsoid:
 
     def estimate_weights(self, x0, x1, x2, y, e, dx, r_cut):
 
-        c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
+        #c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
 
-        self.update_constraints(c0, c1, c2, dx, r_cut)
+        self.update_constraints(x0, x1, x2, y, dx, r_cut)
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
@@ -1167,15 +1225,6 @@ class PeakEllipsoid:
 
         if np.isclose(y3_min, y3_max) or not np.isfinite(y3_max):
             return None
-
-        # y_min = np.nanmin(y)
-        # y_med = np.nanmedian(y)
-
-        # self.params.add('A1', value=y1_min, min=0, max=y1_max, vary=True)
-        # self.params.add('A2', value=y2_min, min=0, max=y2_max, vary=True)
-        # self.params.add('A3', value=y3_min, min=0, max=y3_max, vary=True)
-
-        # self.params.add('B', value=y_min, min=0, max=y_med, vary=True)
 
         w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
 

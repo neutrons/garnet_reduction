@@ -24,6 +24,7 @@ from mantid.simpleapi import (Load,
                               CorelliCrossCorrelate,
                               NormaliseByCurrent,
                               NormaliseToUnity,
+                              Rebin,
                               CompressEvents,
                               GroupDetectors,
                               LoadEmptyInstrument,
@@ -297,7 +298,7 @@ class BaseDataModel:
             Minimum bin center.
         xmax : float
             Maximum bin center.
-        bins : TYPE
+        bins : int
             Number of bins.
 
         Returns
@@ -1415,15 +1416,24 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=spectra_file,
                       OutputWorkspace='spectra')
 
-            NormaliseToUnity(InputWorkspace='spectra',
-                             OutputWorkspace='spectra')
-
             self.spectra_x = mtd['spectra'].readX(0).copy()
             self.spectra_y = mtd['spectra'].extractY().copy()
 
             self.lamda_min = mtd['spectra'].getXDimension().getMinimum()
             self.lamda_max = mtd['spectra'].getXDimension().getMaximum()
             self.lamda_bin = mtd['spectra'].getXDimension().getBinWidth()
+
+            Rebin(InputWorkspace='spectra',
+                  Params=[self.lamda_min, self.lamda_max, self.lamda_max],
+                  OutputWorkspace='norm')
+
+            Divide(LHSWorkspace='spectra',
+                   RHSWorkspace='norm',
+                   OutputWorkspace='spectra',
+                   AllowDifferentNumberSpectra=True)
+
+            NormaliseToUnity(InputWorkspace='spectra',
+                             OutputWorkspace='spectra')
 
             self.wavelength_band = [self.lamda_min, self.lamda_max]
 
@@ -1503,19 +1513,19 @@ class LaueData(BaseDataModel):
                            OutputWorkspace=event_name)
 
         Divide(LHSWorkspace=event_name,
-                RHSWorkspace='sa',
-                OutputWorkspace=event_name,
-                WarnOnZeroDivide=False,
-                AllowDifferentNumberSpectra=True)
+               RHSWorkspace='sa',
+               OutputWorkspace=event_name,
+               WarnOnZeroDivide=False,
+               AllowDifferentNumberSpectra=True)
 
         ConvertUnits(InputWorkspace=event_name,
                      OutputWorkspace=event_name,
                      Target='Wavelength')
 
-        # Divide(LHSWorkspace=event_name,
-        #         RHSWorkspace='spectra',
-        #         OutputWorkspace=event_name,
-        #         AllowDifferentNumberSpectra=True)
+        Divide(LHSWorkspace=event_name,
+               RHSWorkspace='spectra',
+               OutputWorkspace=event_name,
+               AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """
