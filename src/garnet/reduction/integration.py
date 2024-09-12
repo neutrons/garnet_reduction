@@ -645,7 +645,7 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array(dQ)/20
+        bin_sizes = np.array(dQ)/10
         bin_sizes[bin_sizes < bin_size/2] = bin_size/2
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
@@ -994,7 +994,7 @@ class PeakEllipsoid:
 
         return X0, X1, X1
 
-    def residual(self, params, x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d):
+    def residual(self, params, x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d):
 
         c0 = params['c0']
         c1 = params['c1']
@@ -1033,9 +1033,11 @@ class PeakEllipsoid:
 
         A1, A2, A3, B = self.scale_background(y1d_fit, y2d_fit, y3d_fit,
                                               y1d, y2d, y3d,
-                                              1/e1d**2, 1/e2d**2, 1/e3d**2)
+                                              w1d, w2d, w3d)
 
-        n1d, n2d, n3d = e1d.size, e2d.size, e3d.size
+        n1d, n2d, n3d = w1d.size, w2d.size, w3d.size
+
+        #w = np.nansum(w1d)+np.nansum(w2d)+np.nansum(w3d)
 
         diff = ((A1*y1d_fit+B-y1d)/np.sqrt(n1d)).ravel().tolist()\
              + ((A2*y2d_fit+B-y2d)/np.sqrt(n2d)).ravel().tolist()\
@@ -1175,9 +1177,11 @@ class PeakEllipsoid:
 
         # self.params.add('B', value=y_min, min=0, max=y_med, vary=True)
 
+        w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
+
         out = Minimizer(self.residual,
                         self.params,
-                        fcn_args=(x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d),
+                        fcn_args=(x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d),
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares', loss='soft_l1')
@@ -1314,7 +1318,7 @@ class PeakEllipsoid:
         y_bkg = y[bkg].copy()
         e_bkg = e[bkg].copy()
 
-        # w_bkg = 1/e_bkg**2
+        #w_bkg = 1/e_bkg**2
 
         # if len(w_bkg) > 2:
         #     b = self.weighted_median(y_bkg, w_bkg)
@@ -1328,11 +1332,14 @@ class PeakEllipsoid:
         # intens = np.nansum(y[pk]-b)*scale
         # sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))*scale
 
-        n_pk = np.sum(pk)
+        # n_pk = np.sum(pk)
         n_bkg = np.sum(bkg)
 
+        #b = self.weighted_median(y_bkg, w_bkg)
+        #b_err = self.jackknife_uncertainty(y_bkg, w_bkg)
+
         b = np.nansum(y_bkg)/n_bkg
-        b_err = np.sqrt(np.nansum(e_bkg**2))/n_bkg
+        b_err = np.nansum(e_bkg**2)/n_bkg
 
         self.info = [scale, scale]
 
@@ -1340,7 +1347,7 @@ class PeakEllipsoid:
         # b_err *= n_pk
 
         intens = np.nansum(y[pk]-b)*scale
-        sig = np.sqrt(np.nansum(e[pk]**2+n_pk*b_err**2))
+        sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))*scale
 
         #if not norm:
         self.weights = (x0[pk], x1[pk], x2[pk]), self.counts[pk]
@@ -1380,28 +1387,67 @@ class PeakEllipsoid:
         w_mask = w_mask[sort]
 
         cum_wgt = np.cumsum(w_mask)
-        tot_wgt = np.sum(w_mask)
+        tot_wgt_half = np.sum(w_mask)/2
 
-        ind = np.where(cum_wgt >= tot_wgt/2)[0][0]
+        ind = np.searchsorted(cum_wgt, tot_wgt_half)
 
         return y_mask[ind]
 
     def jackknife_uncertainty(self, y, w):
 
-        n = len(y)
-        med = np.zeros(n)
+        mask = np.logical_and(np.isfinite(y), np.isfinite(w))
 
-        sort = np.argsort(y)
-        y = y[sort]
-        w = w[sort]
+        y_mask = y[mask].copy()
+        w_mask = w[mask].copy()
 
-        for i in range(n):
-            jk_y = np.delete(y, i)
-            jk_w = np.delete(w, i)
-            med[i] = self.weighted_median(jk_y, jk_w)
+        n = len(y_mask)
 
-        wgt_med = self.weighted_median(y, w)
+        sort = np.argsort(y_mask)
+        y_mask = y_mask[sort]
+        w_mask = w_mask[sort]
+
+        cum_wgt = np.cumsum(w_mask)
+
+        wgt_med = self.weighted_median(y_mask, w_mask)
+
+        cum_wgt = np.cumsum(w_mask)
+        rev_cum_wgt = np.cumsum(w_mask[::-1])[::-1]
+
+        w_left = np.concatenate(([0], cum_wgt[:-1]))
+        w_right = np.concatenate((rev_cum_wgt[1:], [0]))
+
+        total_weight_excl = w_left+w_right
+        half_weight_excl = total_weight_excl/2
+
+        median_indices = np.where(w_left >= half_weight_excl,
+                                  np.searchsorted(cum_wgt,
+                                                  half_weight_excl,
+                                                  side='left'),
+                                  np.searchsorted(rev_cum_wgt[::-1],
+                                                  half_weight_excl[::-1],
+                                                  side='right'))
+
+        med = y_mask[median_indices]
 
         dev = med-wgt_med
+        return np.sqrt((n-1)*np.sum(dev**2) /n)
 
-        return np.sqrt((n-1)*np.sum(dev**2)/n)
+    # def jackknife_uncertainty(self, y, w):
+
+    #     n = len(y)
+    #     med = np.zeros(n)
+
+    #     sort = np.argsort(y)
+    #     y = y[sort]
+    #     w = w[sort]
+
+    #     for i in range(n):
+    #         jk_y = np.delete(y, i)
+    #         jk_w = np.delete(w, i)
+    #         med[i] = self.weighted_median(jk_y, jk_w)
+
+    #     wgt_med = self.weighted_median(y, w)
+
+    #     dev = med-wgt_med
+
+    #     return np.sqrt((n-1)*np.sum(dev**2)/n)
