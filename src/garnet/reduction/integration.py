@@ -459,7 +459,7 @@ class Integration(SubPlan):
 
         return Qo, Qc, ro, rc
 
-    def fit_peaks(self, peaks_ws, params, make_plot=True):
+    def fit_peaks(self, peaks_ws, params, make_plot=False):
         """
         Integrate peaks.
 
@@ -949,6 +949,7 @@ class PeakEllipsoid:
                 r = 4*np.sqrt(V)
 
                 r[r > r_cut] = r_cut
+                r[r < 2*dx] = 2*dx
 
                 r0, r1, r2 = r
 
