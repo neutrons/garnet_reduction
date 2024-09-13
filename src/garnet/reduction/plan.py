@@ -1,4 +1,5 @@
 import os
+import sys
 import yaml
 import shutil
 import concurrent.futures
@@ -152,11 +153,28 @@ class SubPlan:
                             self.output,
                             'diagnostics')
 
+
 class ReductionPlan:
 
     def __init__(self):
 
         self.plan = None
+
+    def validate_file(self, fname, ext):
+
+        try:
+            assert os.path.exists(fname)
+        except AssertionError:
+            print('{} does not exist!'.format(fname))
+            sys.exit(1)
+        try:
+            if type(ext) is list:
+                assert os.path.splitext(fname)[1].lower() in ext
+            else:
+                assert os.path.splitext(fname)[1].lower() == ext
+        except AssertionError:
+            print('{} not valid!'.format(fname))
+            sys.exit(1)
 
     def validate_plan(self):
 
@@ -164,8 +182,7 @@ class ReductionPlan:
 
         if self.plan.get('UBFile') is not None:
             UB = self.plan['UBFile']
-            assert os.path.exists(UB)
-            assert os.path.splitext(UB)[1] == '.mat'
+            self.validate_file(UB, '.mat')
 
         nxs_items = ['VanadiumFile',
                      'FluxFile',
@@ -175,18 +192,16 @@ class ReductionPlan:
         for item in nxs_items:
             if self.plan.get(item) is not None:
                 fname = self.plan[item]
-                assert os.path.exists(fname)
-                assert os.path.splitext(fname)[1] in ['.nxs', '.h5']
+                self.validate_file(fname, ['.nxs', '.h5'])
 
         if self.plan.get('MaskFile') is not None:
             mask = self.plan['MaskFile']
-            assert os.path.exists(mask)
+            self.validate_file(mask, '.xml')
             assert os.path.splitext(mask)[1] == '.xml'
 
         if self.plan.get('DetectorCalibration') is not None:
             detcal = self.plan['DetectorCalibration']
-            assert os.path.exists(detcal)
-            assert os.path.splitext(detcal)[1].lower() in ['.xml', '.detcal']
+            self.validate_file(detcal, ['.xml', '.detcal'])
 
     def set_output(self, filename):
         """
