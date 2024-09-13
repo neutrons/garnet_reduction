@@ -917,50 +917,14 @@ class PeakEllipsoid:
 
         dr = 2*r_cut
 
-        r0 = (x0[:,0,0][1]-x0[:,0,0][0])/2
-        r1 = (x1[0,:,0][1]-x1[0,:,0][0])/2
-        r2 = (x2[0,0,:][1]-x2[0,0,:][0])/2
+        r0 = (x0[:,0,0][-1]-x0[:,0,0][0])/4
+        r1 = (x1[0,:,0][-1]-x1[0,:,0][0])/4
+        r2 = (x2[0,0,:][-1]-x2[0,0,:][0])/4
 
         c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
 
         phi = omega = 0
         theta = np.pi/2
-
-        # b = np.nanpercentile(y, 30)
-        # w = y-b
-        # w_sum = np.nansum(w)
-
-        # if w_sum > 0:
-
-        #     c0 = np.nansum(x0*w)/w_sum
-        #     c1 = np.nansum(x1*w)/w_sum
-        #     c2 = np.nansum(x2*w)/w_sum
-
-        #     s0 = np.nansum((x0-c0)**2*w)/w_sum
-        #     s1 = np.nansum((x1-c1)**2*w)/w_sum
-        #     s2 = np.nansum((x2-c2)**2*w)/w_sum
-
-        #     s01 = np.nansum((x0-c0)*(x1-c1)*w)/w_sum
-        #     s02 = np.nansum((x0-c0)*(x2-c2)*w)/w_sum
-        #     s12 = np.nansum((x1-c1)*(x2-c2)*w)/w_sum
-
-        #     s = np.array([[s0, s01, s02], [s01, s1, s12], [s02, s12, s2]])
-
-        #     if np.linalg.det(s) > 0:
-
-        #         V, W = np.linalg.eig(s)
-
-        #         r = 4*np.sqrt(V)
-
-        #         r[r > r_cut] = r_cut
-        #         r[r < 2*dx] = 2*dx
-
-        #         r0, r1, r2 = r
-
-        #         u0, u1, u2, omega = self.eigenvectors(W)
-
-        #         theta = np.arccos(u2)
-        #         phi = np.arctan2(u1, u0)
 
         self.params.add('r0', value=r0, min=2*dx, max=dr)
         self.params.add('r1', value=r1, min=2*dx, max=dr)
@@ -1071,12 +1035,6 @@ class PeakEllipsoid:
         theta = params['theta']
         omega = params['omega']
 
-        # A1 = params['A1']
-        # A2 = params['A2']
-        # A3 = params['A3']
-
-        # B = params['B']
-
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
                                                     phi, theta, omega)
@@ -1090,21 +1048,17 @@ class PeakEllipsoid:
         args = x0, x1, x2, 1, 0, c, inv_S
         y3d_fit = self.func(*args, mode='3d')
 
-        # A1 = np.nansum(y1d_fit*y1d/e1d**2)/np.nansum(y1d_fit**2/e1d**2)
-        # A2 = np.nansum(y2d_fit*y2d/e2d**2)/np.nansum(y2d_fit**2/e2d**2)
-        # A3 = np.nansum(y3d_fit*y3d/e3d**2)/np.nansum(y3d_fit**2/e3d**2)
-
         A1, A2, A3, B = self.scale_background(y1d_fit, y2d_fit, y3d_fit,
                                               y1d, y2d, y3d,
                                               w1d, w2d, w3d)
 
-        n1d, n2d, n3d = w1d.size, w2d.size, w3d.size
+        # n1d, n2d, n3d = w1d.size, w2d.size, w3d.size
 
         #w = np.nansum(w1d)+np.nansum(w2d)+np.nansum(w3d)
 
-        diff = ((A1*y1d_fit+B-y1d)/np.sqrt(n1d)).ravel().tolist()\
-             + ((A2*y2d_fit+B-y2d)/np.sqrt(n2d)).ravel().tolist()\
-             + ((A3*y3d_fit+B-y3d)/np.sqrt(n3d)).ravel().tolist()
+        diff = ((A1*y1d_fit+B-y1d)*np.sqrt(w1d)).ravel().tolist()\
+             + ((A2*y2d_fit+B-y2d)*np.sqrt(w2d)).ravel().tolist()\
+             + ((A3*y3d_fit+B-y3d)*np.sqrt(w3d)).ravel().tolist()
 
         # diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
         #      + ((A2*y2d_fit+B-y2d)).ravel().tolist()\
@@ -1218,7 +1172,6 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        reduce_fcn='negentropy',
                         nan_policy='omit')
 
         result = out.minimize()
@@ -1240,7 +1193,6 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        reduce_fcn='negentropy',
                         nan_policy='omit')
 
         result = out.minimize()
@@ -1262,7 +1214,27 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        reduce_fcn='negentropy',
+                        nan_policy='omit')
+
+        result = out.minimize()
+
+        self.params = result.params
+
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
+
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
+
+        self.params['phi'].set(vary=False)
+        self.params['theta'].set(vary=False)
+        self.params['omega'].set(vary=False)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
                         nan_policy='omit')
 
         result = out.minimize()
