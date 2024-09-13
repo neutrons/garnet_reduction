@@ -917,46 +917,50 @@ class PeakEllipsoid:
 
         dr = 2*r_cut
 
-        r0 = r1 = r2 = r_cut
+        r0 = (x0[:,0,0][1]-x0[:,0,0][0])/2
+        r1 = (x1[0,:,0][1]-x1[0,:,0][0])/2
+        r2 = (x2[0,0,:][1]-x2[0,0,:][0])/2
+
         c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
+
         phi = omega = 0
         theta = np.pi/2
 
-        b = np.nanpercentile(y, 30)
-        w = y-b
-        w_sum = np.nansum(w)
+        # b = np.nanpercentile(y, 30)
+        # w = y-b
+        # w_sum = np.nansum(w)
 
-        if w_sum > 0:
+        # if w_sum > 0:
 
-            c0 = np.nansum(x0*w)/w_sum
-            c1 = np.nansum(x1*w)/w_sum
-            c2 = np.nansum(x2*w)/w_sum
+        #     c0 = np.nansum(x0*w)/w_sum
+        #     c1 = np.nansum(x1*w)/w_sum
+        #     c2 = np.nansum(x2*w)/w_sum
 
-            s0 = np.nansum((x0-c0)**2*w)/w_sum
-            s1 = np.nansum((x1-c1)**2*w)/w_sum
-            s2 = np.nansum((x2-c2)**2*w)/w_sum
+        #     s0 = np.nansum((x0-c0)**2*w)/w_sum
+        #     s1 = np.nansum((x1-c1)**2*w)/w_sum
+        #     s2 = np.nansum((x2-c2)**2*w)/w_sum
 
-            s01 = np.nansum((x0-c0)*(x1-c1)*w)/w_sum
-            s02 = np.nansum((x0-c0)*(x2-c2)*w)/w_sum
-            s12 = np.nansum((x1-c1)*(x2-c2)*w)/w_sum
+        #     s01 = np.nansum((x0-c0)*(x1-c1)*w)/w_sum
+        #     s02 = np.nansum((x0-c0)*(x2-c2)*w)/w_sum
+        #     s12 = np.nansum((x1-c1)*(x2-c2)*w)/w_sum
 
-            s = np.array([[s0, s01, s02], [s01, s1, s12], [s02, s12, s2]])
+        #     s = np.array([[s0, s01, s02], [s01, s1, s12], [s02, s12, s2]])
 
-            if np.linalg.det(s) > 0:
+        #     if np.linalg.det(s) > 0:
 
-                V, W = np.linalg.eig(s)
+        #         V, W = np.linalg.eig(s)
 
-                r = 4*np.sqrt(V)
+        #         r = 4*np.sqrt(V)
 
-                r[r > r_cut] = r_cut
-                r[r < 2*dx] = 2*dx
+        #         r[r > r_cut] = r_cut
+        #         r[r < 2*dx] = 2*dx
 
-                r0, r1, r2 = r
+        #         r0, r1, r2 = r
 
-                u0, u1, u2, omega = self.eigenvectors(W)
+        #         u0, u1, u2, omega = self.eigenvectors(W)
 
-                theta = np.arccos(u2)
-                phi = np.arctan2(u1, u0)
+        #         theta = np.arccos(u2)
+        #         phi = np.arctan2(u1, u0)
 
         self.params.add('r0', value=r0, min=2*dx, max=dr)
         self.params.add('r1', value=r1, min=2*dx, max=dr)
@@ -1129,32 +1133,6 @@ class PeakEllipsoid:
 
         return A*np.exp(-0.5*d2)*factor+B
 
-    # def scale_background(self, x, y, e):
-
-    #     w = 1/e**2
-
-    #     Sw = np.nansum(w)
-
-    #     Sx = np.nansum(w*x)
-    #     Sy = np.nansum(w*y)
-
-    #     Sxx = np.nansum(w*x**2)
-    #     Sxy = np.nansum(w*x*y)
-
-    #     det = Sw*Sxx-Sx**2
-
-    #     A = (Sw*Sxy-Sx*Sy)/det
-    #     B = (Sy-A*Sx)/Sw
-
-    #     r = A*x+B-y
-
-    #     chi = np.sqrt(np.nansum(w*r**2)/(x.size-2))
-
-    #     A_err = chi*np.sqrt(Sw/det)
-    #     B_err = chi*np.sqrt(Sxx/det)
-
-    #     return A, B, A_err, B_err
-
     def scale_background(self, x, y, z, X, Y, Z, U, V, W):
 
         A1 = np.nansum(x**2*U)
@@ -1188,13 +1166,9 @@ class PeakEllipsoid:
 
     def estimate_weights(self, x0, x1, x2, y, e, dx, r_cut):
 
-        #c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
-
         self.update_constraints(x0, x1, x2, y, dx, r_cut)
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
-
-        # d3x = self.voxel_volume(x0, x1, x2)
 
         y1d = np.nansum(y/e**2, axis=(1,2))/np.nansum(1/e**2, axis=(1,2))
         e1d = 1/np.sqrt(np.nansum(1/e**2, axis=(1,2)))
@@ -1229,14 +1203,49 @@ class PeakEllipsoid:
 
         w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
 
+        args = (x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d)
+
+        # ---
+
+        self.params['r0'].set(vary=False)
+        self.params['r1'].set(vary=False)
+        self.params['r2'].set(vary=False)
+
+        self.params['phi'].set(vary=False)
+        self.params['theta'].set(vary=False)
+        self.params['omega'].set(vary=False)
+
         out = Minimizer(self.residual,
                         self.params,
-                        fcn_args=(x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d),
+                        fcn_args=args,
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares', loss='soft_l1')
 
         self.params = result.params
+
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
+
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
+
+        self.params['phi'].set(vary=True)
+        self.params['theta'].set(vary=True)
+        self.params['omega'].set(vary=True)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        nan_policy='omit')
+
+        result = out.minimize(method='least_squares', loss='soft_l1')
+
+        self.params = result.params
+
+        # ---
 
         c0 = self.params['c0'].value
         c1 = self.params['c1'].value
