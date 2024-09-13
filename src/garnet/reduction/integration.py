@@ -1133,28 +1133,28 @@ class PeakEllipsoid:
 
         return A*np.exp(-0.5*d2)*factor+B
 
-    def scale_background(self, x, y, z, X, Y, Z, U, V, W):
+    def scale_background(self, x, y, z, X, Y, Z, U, V, W, eps=1e-8):
 
-        A1 = np.nansum(x**2*U)
+        A1 = np.nansum(x**2*U)+eps
         A2 = np.nansum(x*U)
         A3 = np.nansum(X*x*U)
         A4 = np.nansum(U)
         A5 = np.nansum(X*U)
 
-        B1 = np.nansum(y**2*V)
+        B1 = np.nansum(y**2*V)+eps
         B2 = np.nansum(y*V)
         B3 = np.nansum(Y*y*V)
         B4 = np.nansum(V)
         B5 = np.nansum(Y*V)
 
-        C1 = np.nansum(z**2*W)
+        C1 = np.nansum(z**2*W)+eps
         C2 = np.nansum(z*W)
         C3 = np.nansum(Z*z*W)
         C4 = np.nansum(W)
         C5 = np.nansum(Z*W)
 
         num = A5+B5+C5-(A3*A2/A1+B3*B2/B1+C3*C2/C1)
-        den = (A4+B4+C4)-(A2**2/A1+B2**2/B1+C2**2/C1)+1e-8
+        den = (A4+B4+C4)-(A2**2/A1+B2**2/B1+C2**2/C1)
 
         k = num/den
 
