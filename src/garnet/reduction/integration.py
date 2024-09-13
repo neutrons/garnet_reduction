@@ -1247,6 +1247,28 @@ class PeakEllipsoid:
 
         self.params = result.params
 
+        self.params['c0'].set(vary=True)
+        self.params['c1'].set(vary=True)
+        self.params['c2'].set(vary=True)
+
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
+
+        self.params['phi'].set(vary=False)
+        self.params['theta'].set(vary=False)
+        self.params['omega'].set(vary=False)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        reduce_fcn='negentropy',
+                        nan_policy='omit')
+
+        result = out.minimize()
+
+        self.params = result.params
+
         # ---
 
         c0 = self.params['c0'].value
