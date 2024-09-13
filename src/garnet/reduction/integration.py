@@ -1154,7 +1154,7 @@ class PeakEllipsoid:
         C5 = np.nansum(Z*W)
 
         num = A5+B5+C5-(A3*A2/A1+B3*B2/B1+C3*C2/C1)
-        den = (A4+B4+C4)-(A2**2/A1+B2**2/B1+C2**2/C1)
+        den = (A4+B4+C4)-(A2**2/A1+B2**2/B1+C2**2/C1)+1e-8
 
         k = num/den
 
