@@ -739,10 +739,9 @@ class PeakSphere:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=(x, y),
-                        reduce_fcn='negentropy',
                         nan_policy='omit')
 
-        result = out.minimize()
+        result = out.minimize(method='least_squares', loss='soft_l1')
 
         self.params = result.params
 
@@ -1219,9 +1218,10 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
+                        reduce_fcn='negentropy',
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares', loss='soft_l1')
+        result = out.minimize()
 
         self.params = result.params
 
@@ -1240,9 +1240,10 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
+                        reduce_fcn='negentropy',
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares', loss='soft_l1')
+        result = out.minimize()
 
         self.params = result.params
 
