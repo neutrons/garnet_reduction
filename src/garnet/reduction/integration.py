@@ -1023,7 +1023,7 @@ class PeakEllipsoid:
 
     def residual(self, params, x0, x1, x2,
                        y1d, y2d, y3d,
-                       w1d, w2d, w3d, weight):
+                       w1d, w2d, w3d):
 
         c0 = params['c0']
         c1 = params['c1']
@@ -1058,8 +1058,8 @@ class PeakEllipsoid:
 
         #w = np.nansum(w1d)+np.nansum(w2d)+np.nansum(w3d)
 
-        diff = ((A1*y1d_fit+B-y1d)*np.sqrt(w1d)*weight).ravel().tolist()\
-             + ((A2*y2d_fit+B-y2d)*np.sqrt(w2d)*weight).ravel().tolist()\
+        diff = ((A1*y1d_fit+B-y1d)*np.sqrt(w1d)).ravel().tolist()\
+             + ((A2*y2d_fit+B-y2d)*np.sqrt(w2d)).ravel().tolist()\
              + ((A3*y3d_fit+B-y3d)*np.sqrt(w3d)).ravel().tolist()
 
         # diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
@@ -1157,9 +1157,9 @@ class PeakEllipsoid:
         if np.isclose(y3_min, y3_max) or not np.isfinite(y3_max):
             return None
 
-        w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
+        w1d, w2d, w3d = 1+0/e1d**2, 1+0/e2d**2, 1+0/e3d**2
 
-        args = [x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d, 1]
+        args = [x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d]
 
         # ---
 
@@ -1222,8 +1222,6 @@ class PeakEllipsoid:
 
         self.params = result.params
 
-        args[-1] = 0
-
         self.params['c0'].set(vary=False)
         self.params['c1'].set(vary=False)
         self.params['c2'].set(vary=False)
@@ -1263,7 +1261,7 @@ class PeakEllipsoid:
 
         inv_S = self.inv_S_matrix(r0, r1, r2, phi, theta, omega)
 
-        return c, inv_S
+        return c, inv_S, y1d, y2d, y3d, e1d, e2d, e3d
 
     def voxels(self, x0, x1, x2):
 
@@ -1302,7 +1300,7 @@ class PeakEllipsoid:
                 print('Invalid weight estimate')
                 return None
 
-            c, inv_S = weights
+            c, inv_S, y1d, y2d, y3d, e1d, e2d, e3d = weights
 
             if not np.linalg.det(inv_S) > 0:
                 print('Improper optimal covariance')
@@ -1332,8 +1330,27 @@ class PeakEllipsoid:
                 print('Low counts')
                 return None
 
-            peak = y.copy()*np.nan
-            peak = threshold*1.0
+            #peak = y.copy()*np.nan
+            #peak = threshold*1.0
+
+            w1d, w2d, w3d = 1+0/e1d**2, 1+0/e2d**2, 1+0/e3d**2
+
+            args = x0, x1, x2, 1, 0, c, inv_S*16
+            y1d_fit = self.func(*args, mode='1d')
+
+            args = x0, x1, x2, 1, 0, c, inv_S*16
+            y2d_fit = self.func(*args, mode='2d')
+
+            args = x0, x1, x2, 1, 0, c, inv_S*16
+            y3d_fit = self.func(*args, mode='3d')
+
+            A1, A2, A3, B = self.scale_background(y1d_fit, y2d_fit, y3d_fit,
+                                                  y1d, y2d, y3d,
+                                                  w1d, w2d, w3d)
+
+            profile = A1*y1d_fit+B
+            projection = A2*y2d_fit+B
+            peak = A3*y3d_fit+B
 
             V, W = np.linalg.eigh(S)
 
