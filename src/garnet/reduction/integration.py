@@ -1021,7 +1021,9 @@ class PeakEllipsoid:
 
         return X0, X1, X1
 
-    def residual(self, params, x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d):
+    def residual(self, params, x0, x1, x2,
+                       y1d, y2d, y3d,
+                       w1d, w2d, w3d, weight):
 
         c0 = params['c0']
         c1 = params['c1']
@@ -1056,8 +1058,8 @@ class PeakEllipsoid:
 
         #w = np.nansum(w1d)+np.nansum(w2d)+np.nansum(w3d)
 
-        diff = ((A1*y1d_fit+B-y1d)*np.sqrt(w1d)).ravel().tolist()\
-             + ((A2*y2d_fit+B-y2d)*np.sqrt(w2d)).ravel().tolist()\
+        diff = ((A1*y1d_fit+B-y1d)*np.sqrt(w1d)*weight).ravel().tolist()\
+             + ((A2*y2d_fit+B-y2d)*np.sqrt(w2d)*weight).ravel().tolist()\
              + ((A3*y3d_fit+B-y3d)*np.sqrt(w3d)).ravel().tolist()
 
         # diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
@@ -1157,7 +1159,7 @@ class PeakEllipsoid:
 
         w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
 
-        args = (x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d)
+        args = [x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d, 1]
 
         # ---
 
@@ -1219,6 +1221,8 @@ class PeakEllipsoid:
         result = out.minimize()
 
         self.params = result.params
+
+        args[-1] = 0
 
         self.params['c0'].set(vary=False)
         self.params['c1'].set(vary=False)
