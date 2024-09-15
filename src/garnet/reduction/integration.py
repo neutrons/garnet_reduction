@@ -1044,9 +1044,9 @@ class PeakEllipsoid:
 
         #w = np.nansum(w1d)+np.nansum(w2d)+np.nansum(w3d)
 
-        diff = ((A1*y1d_fit+B-y1d)/np.sqrt(n1d)).ravel().tolist()\
-             + ((A2*y2d_fit+B-y2d)/np.sqrt(n2d)).ravel().tolist()\
-             + ((A3*y3d_fit+B-y3d)/np.sqrt(n3d)).ravel().tolist()
+        diff = ((np.arcsinh(A1*y1d_fit+B)-np.arcsinh(y1d))/np.sqrt(n1d)).ravel().tolist()\
+             + ((np.arcsinh(A2*y2d_fit+B)-np.arcsinh(y2d))/np.sqrt(n2d)).ravel().tolist()\
+             + ((np.arcsinh(A3*y3d_fit+B)-np.arcsinh(y3d))/np.sqrt(n3d)).ravel().tolist()
 
         # diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
         #      + ((A2*y2d_fit+B-y2d)).ravel().tolist()\
