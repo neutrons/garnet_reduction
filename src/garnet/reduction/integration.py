@@ -663,8 +663,8 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array(dQ)/10
-        bin_sizes[bin_sizes < bin_size/2] = bin_size/2
+        bin_sizes = np.array(dQ)/20
+        bin_sizes[bin_sizes < bin_size/4] = bin_size/4
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
@@ -1370,10 +1370,15 @@ class PeakEllipsoid:
 
         scale = d3x if norm else 1
 
+        y_pk = y[pk].copy()
+        e_pk = e[pk].copy()
+
+        # w_pk = 1/e_pk**2
+
         y_bkg = y[bkg].copy()
         e_bkg = e[bkg].copy()
 
-        #w_bkg = 1/e_bkg**2
+        w_bkg = 1/e_bkg**2
 
         # if len(w_bkg) > 2:
         #     b = self.weighted_median(y_bkg, w_bkg)
@@ -1388,21 +1393,27 @@ class PeakEllipsoid:
         # sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))*scale
 
         # n_pk = np.sum(pk)
-        n_bkg = np.sum(bkg)
+        # n_bkg = np.sum(bkg)
 
         #b = self.weighted_median(y_bkg, w_bkg)
         #b_err = self.jackknife_uncertainty(y_bkg, w_bkg)
 
-        b = np.nansum(y_bkg)/n_bkg
-        b_err = np.nansum(e_bkg**2)/n_bkg
+        #b = np.nansum(y_bkg)/n_bkg
+        #b_err = np.nansum(e_bkg**2)/n_bkg
+
+        b = np.nansum(w_bkg*y_bkg)/np.nansum(w_bkg)
+        b_err = 1/np.sqrt(np.nansum(w_bkg))
 
         self.info = [scale, scale]
 
         # b *= n_pk
         # b_err *= n_pk
 
-        intens = np.nansum(y[pk]-b)*scale
-        sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))*scale
+        # intens = np.nansum(w_pk*(y_pk-b))/np.nansum(w_pk)
+        # sig = np.sqrt(np.nansum(w_pk*(e_pk**2+b_err**2))/np.nansum(w_pk))
+
+        intens = np.nansum(y_pk-b)*scale
+        sig = np.sqrt(np.nansum(e_pk**2+b_err**2))*scale
 
         #if not norm:
         self.weights = (x0[pk], x1[pk], x2[pk]), self.counts[pk]
