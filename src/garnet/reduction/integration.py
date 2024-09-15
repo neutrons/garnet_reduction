@@ -566,21 +566,7 @@ class Integration(SubPlan):
 
                 I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
 
-                # scale = 1
-
-                # if data.laue:
-
-                #     (Q0, Q1, Q2), weights = ellipsoid.weights
-
-                #     Q0, Q1, Q2 = self.trasform_Q(Q0, Q1, Q2, projections)
-
-                #     scale = data.calculate_norm(det_id, Q0, Q1, Q2, weights)
-
                 peak.set_peak_intensity(i, I, sigma)
-
-                # peak.set_scale_factor(i, scale)
-
-                # peak.add_diagonstic_info(i, ellipsoid.info)
 
                 if make_plot:
 
@@ -663,7 +649,7 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array(dQ)/20
+        bin_sizes = np.array(dQ)/10
         bin_sizes[bin_sizes < bin_size/4] = bin_size/4
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
@@ -1054,13 +1040,13 @@ class PeakEllipsoid:
                                               y1d, y2d, y3d,
                                               w1d, w2d, w3d)
 
-        # n1d, n2d, n3d = w1d.size, w2d.size, w3d.size
+        n1d, n2d, n3d = w1d.size, w2d.size, w3d.size
 
         #w = np.nansum(w1d)+np.nansum(w2d)+np.nansum(w3d)
 
-        diff = ((A1*y1d_fit+B-y1d)*np.sqrt(w1d)).ravel().tolist()\
-             + ((A2*y2d_fit+B-y2d)*np.sqrt(w2d)).ravel().tolist()\
-             + ((A3*y3d_fit+B-y3d)*np.sqrt(w3d)).ravel().tolist()
+        diff = ((A1*y1d_fit+B-y1d)/np.sqrt(n1d)).ravel().tolist()\
+             + ((A2*y2d_fit+B-y2d)/np.sqrt(n2d)).ravel().tolist()\
+             + ((A3*y3d_fit+B-y3d)/np.sqrt(n3d)).ravel().tolist()
 
         # diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
         #      + ((A2*y2d_fit+B-y2d)).ravel().tolist()\
@@ -1157,7 +1143,7 @@ class PeakEllipsoid:
         if np.isclose(y3_min, y3_max) or not np.isfinite(y3_max):
             return None
 
-        w1d, w2d, w3d = 1+0/e1d**2, 1+0/e2d**2, 1+0/e3d**2
+        w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
 
         args = [x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d]
 
@@ -1333,7 +1319,7 @@ class PeakEllipsoid:
             #peak = y.copy()*np.nan
             #peak = threshold*1.0
 
-            w1d, w2d, w3d = 1+0/e1d**2, 1+0/e2d**2, 1+0/e3d**2
+            w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
 
             args = x0, x1, x2, 1, 0, c, inv_S*16
             y1d_fit = self.func(*args, mode='1d')
@@ -1348,9 +1334,9 @@ class PeakEllipsoid:
                                                   y1d, y2d, y3d,
                                                   w1d, w2d, w3d)
 
-            profile = A1*y1d_fit+B
-            projection = A2*y2d_fit+B
-            peak = A3*y3d_fit+B
+            # profile = A1*y1d_fit+B
+            # projection = A2*y2d_fit+B
+            labels = A3*y3d_fit+B
 
             V, W = np.linalg.eigh(S)
 
@@ -1362,7 +1348,7 @@ class PeakEllipsoid:
 
             binning = (x0, x1, x2), y, e
 
-            fitting = binning, peak
+            fitting = binning, labels
 
             self.best_fit = c, S, *fitting
 
