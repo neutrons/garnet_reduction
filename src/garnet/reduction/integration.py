@@ -1040,17 +1040,15 @@ class PeakEllipsoid:
                                               y1d, y2d, y3d,
                                               w1d, w2d, w3d)
 
-        n1d, n2d, n3d = w1d.size, w2d.size, w3d.size
+        # n1d, n2d, n3d = w1d.size, w2d.size, w3d.size
 
-        #w = np.nansum(w1d)+np.nansum(w2d)+np.nansum(w3d)
+        res_1d = (np.arcsinh(A1*y1d_fit+B)-np.arcsinh(y1d))*np.sqrt(w1d)*np.sqrt(y1d**2+1)
+        res_2d = (np.arcsinh(A2*y2d_fit+B)-np.arcsinh(y2d))*np.sqrt(w2d)*np.sqrt(y2d**2+1)
+        res_3d = (np.arcsinh(A3*y3d_fit+B)-np.arcsinh(y3d))*np.sqrt(w3d)*np.sqrt(y3d**2+1)
 
-        diff = ((np.arcsinh(A1*y1d_fit+B)-np.arcsinh(y1d))/np.sqrt(n1d)).ravel().tolist()\
-             + ((np.arcsinh(A2*y2d_fit+B)-np.arcsinh(y2d))/np.sqrt(n2d)).ravel().tolist()\
-             + ((np.arcsinh(A3*y3d_fit+B)-np.arcsinh(y3d))/np.sqrt(n3d)).ravel().tolist()
-
-        # diff = ((A1*y1d_fit+B-y1d)).ravel().tolist()\
-        #      + ((A2*y2d_fit+B-y2d)).ravel().tolist()\
-        #      + ((A3*y3d_fit+B-y3d)).ravel().tolist()
+        diff = res_1d.ravel().tolist()\
+             + res_2d.ravel().tolist()\
+             + res_3d.ravel().tolist()
 
         return diff
 
