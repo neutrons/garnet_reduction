@@ -1363,7 +1363,7 @@ class PeakEllipsoid:
 
         d3x = dx0*dx1*dx2
 
-        scale = d3x if norm else self.counts[pk].sum()
+        scale = d3x if norm else  1#self.counts[pk].sum()
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
