@@ -515,8 +515,6 @@ class Integration(SubPlan):
 
             two_theta, az_phi = angles
 
-            # R = peak.get_goniometer_matrix(i)
-
             T = np.eye(3)
 
             dQ = data.get_resolution_in_Q(wavelength, two_theta)
@@ -526,8 +524,6 @@ class Integration(SubPlan):
             bin_params = Q_cut, r_cut, dQ
 
             bins, extents, projections = self.bin_extent(*params, *bin_params)
-
-            # params = self.project_ellipsoid_parameters(params, projections)
 
             data_norm = data.normalize_in_Q('md', extents, bins, projections)
 
@@ -571,6 +567,8 @@ class Integration(SubPlan):
                 if make_plot:
 
                     plot.add_fitting(*fitting)
+
+                    plot.add_profile_fit(*ellipsoid.best_profile)
 
                     plot.add_ellipsoid(c, S)
 
@@ -909,6 +907,9 @@ class PeakEllipsoid:
 
         c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
 
+        c0_min, c1_min, c2_min = x0[0,0,0], x1[0,0,0], x2[0,0,0]
+        c0_max, c1_max, c2_max = x0[-1,0,0], x1[0,-1,0], x2[0,0,-1]
+
         phi = omega = 0
         theta = np.pi/2
 
@@ -916,9 +917,9 @@ class PeakEllipsoid:
         self.params.add('r1', value=r1, min=2*dx, max=dr)
         self.params.add('r2', value=r2, min=2*dx, max=dr)
 
-        self.params.add('c0', value=c0, min=c0-dr, max=c0+dr)
-        self.params.add('c1', value=c1, min=c1-dr, max=c1+dr)
-        self.params.add('c2', value=c2, min=c2-dr, max=c2+dr)
+        self.params.add('c0', value=c0, min=c0_min, max=c0_max)
+        self.params.add('c1', value=c1, min=c1_min, max=c1_max)
+        self.params.add('c2', value=c2, min=c2_min, max=c2_max)
 
         self.params.add('phi', value=phi, min=-np.pi, max=np.pi)
         self.params.add('theta', value=theta, min=0, max=np.pi)
@@ -990,26 +991,9 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def whitening_transform(self, x0, x1, x2,
-                                  c0, c1, c2,
-                                  r0, r1, r2,
-                                  phi, theta, omega):
+    def residual(self, params, x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d):
 
-        U = self.U_matrix(phi, theta, omega)
-
-        sigma0, sigma1, sigma2 = self.scale(r0, r1, r2)
-
-        W = np.dot(np.diag([1/sigma0, 1/sigma1, 1/sigma2]), U.T)
-
-        X0, X1, X2 = np.einsum('ij,j...->i...', W, [x0-c0, x1-c1, x2-c2])
-
-        #r = np.sqrt(X0**2+X1**2+X2**2)
-
-        return X0, X1, X1
-
-    def residual(self, params, x0, x1, x2,
-                       y1d, y2d, y3d,
-                       w1d, w2d, w3d):
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         c0 = params['c0']
         c1 = params['c1']
@@ -1036,15 +1020,13 @@ class PeakEllipsoid:
         args = x0, x1, x2, 1, 0, c, inv_S
         y3d_fit = self.func(*args, mode='3d')
 
-        A1, A2, A3, B = self.scale_background(y1d_fit, y2d_fit, y3d_fit,
-                                              y1d, y2d, y3d,
-                                              w1d, w2d, w3d)
+        A1, B1 = self.intensity_background(y1d_fit, y1d, e1d)
+        A2, B2 = self.intensity_background(y2d_fit, y2d, e2d)
+        A3, B3 = self.intensity_background(y3d_fit, y3d, e3d)
 
-        # n1d, n2d, n3d = w1d.size, w2d.size, w3d.size
-
-        res_1d = (np.arcsinh(A1*y1d_fit+B)-np.arcsinh(y1d))*np.sqrt(w1d)*np.sqrt(y1d**2+1)
-        res_2d = (np.arcsinh(A2*y2d_fit+B)-np.arcsinh(y2d))*np.sqrt(w2d)*np.sqrt(y2d**2+1)
-        res_3d = (np.arcsinh(A3*y3d_fit+B)-np.arcsinh(y3d))*np.sqrt(w3d)*np.sqrt(y3d**2+1)
+        res_1d = (np.arcsinh(A1*y1d_fit+B1)-np.arcsinh(y1d))/e1d*np.sqrt(y1d**2+1)
+        res_2d = (np.arcsinh(A2*y2d_fit+B2)-np.arcsinh(y2d))/e2d*np.sqrt(y2d**2+1)
+        res_3d = (np.arcsinh(A3*y3d_fit+B3)-np.arcsinh(y3d))/e3d*np.sqrt(y3d**2+1)
 
         diff = res_1d.ravel().tolist()\
              + res_2d.ravel().tolist()\
@@ -1066,43 +1048,44 @@ class PeakEllipsoid:
             dx = [dx1[0,:,:], dx2[0,:,:]]
             d2 = np.einsum('i...,ij,j...->...', dx, inv_S[1:,1:], dx)
             factor = np.sqrt(np.linalg.det(inv_S[1:,1:])/(2*np.pi)**2)
-        else:
+        else: # mode == '1d'
             dx = dx0[:,0,0]
             d2 = inv_S[0,0]*dx**2
             factor = np.sqrt(inv_S[0,0]/(2*np.pi))
 
         return A*np.exp(-0.5*d2)*factor+B
 
-    def scale_background(self, x, y, z, X, Y, Z, U, V, W, eps=1e-8):
+    def grad(self, x0, x1, x2, A, B, c, inv_S, mode='3d'):
 
-        A1 = np.nansum(x**2*U)+eps
-        A2 = np.nansum(x*U)
-        A3 = np.nansum(X*x*U)
-        A4 = np.nansum(U)
-        A5 = np.nansum(X*U)
+        c0, c1, c2 = c
 
-        B1 = np.nansum(y**2*V)+eps
-        B2 = np.nansum(y*V)
-        B3 = np.nansum(Y*y*V)
-        B4 = np.nansum(V)
-        B5 = np.nansum(Y*V)
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
 
-        C1 = np.nansum(z**2*W)+eps
-        C2 = np.nansum(z*W)
-        C3 = np.nansum(Z*z*W)
-        C4 = np.nansum(W)
-        C5 = np.nansum(Z*W)
+        f = self.func(x0, x1, x2, A, 0, c, inv_S, mode)
 
-        num = A5+B5+C5-(A3*A2/A1+B3*B2/B1+C3*C2/C1)
-        den = (A4+B4+C4)-(A2**2/A1+B2**2/B1+C2**2/C1)
+        if mode == '3d':
+            dx = np.array([dx0, dx1, dx2])
+            param = np.einsum('ij,j...->i...', inv_S, dx)
+        elif mode == '2d':
+            dx = np.array([dx1, dx2])
+            param = np.einsum('ij,j...->i...', inv_S[1:, 1:], dx)
+        else: # mode == '1d'
+            dx = dx0[:,0,0]
+            param = inv_S[0, 0]*dx
 
-        k = num/den
+        return -A*f*param
 
-        a = (A3-k*A2)/A1
-        b = (B3-k*B2)/B1
-        c = (C3-k*C2)/C1
+    def intensity_background(self, x, y, e):
 
-        return a, b, c, k
+        mask = (y > 0) & (e > 0)        
+
+        A = np.vstack((x[mask]/e[mask], np.ones_like(x[mask])/e[mask])).T
+
+        b = y[mask]/e[mask]
+
+        result, _ = scipy.optimize.nnls(A, b)
+
+        return result
 
     def estimate_weights(self, x0, x1, x2, y, e, dx, r_cut):
 
@@ -1110,11 +1093,14 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        y1d = np.nansum(y/e**2, axis=(1,2))/np.nansum(1/e**2, axis=(1,2))
-        e1d = 1/np.sqrt(np.nansum(1/e**2, axis=(1,2)))
+        n1d = np.nansum(y/e**2, axis=(1,2))
+        n2d = np.nansum(y/e**2, axis=0)
 
-        y2d = np.nansum(y/e**2, axis=0)/np.nansum(1/e**2, axis=0)
-        e2d = 1/np.sqrt(np.nansum(1/e**2, axis=0))
+        y1d = np.nansum(y**2/e**2, axis=(1,2))/n1d
+        e1d = np.sqrt(np.nansum(y**2/e**2, axis=(1,2)))/n1d
+
+        y2d = np.nansum(y**2/e**2, axis=0)/n2d
+        e2d = np.sqrt(np.nansum(y**2/e**2, axis=0))/n2d
 
         y3d = y.copy()
         e3d = e.copy()
@@ -1141,9 +1127,7 @@ class PeakEllipsoid:
         if np.isclose(y3_min, y3_max) or not np.isfinite(y3_max):
             return None
 
-        w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
-
-        args = [x0, x1, x2, y1d, y2d, y3d, w1d, w2d, w3d]
+        args = [x0, x1, x2, y1d, y2d, y3d, e1d, e2d, e3d]
 
         # ---
 
@@ -1255,24 +1239,31 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def fit(self, x0, x1, x2, y_norm, e_norm, dx, r_cut):
+    def fit(self, x0, x1, x2, y, e, dx, r_cut):
 
-        y, e = y_norm.copy(), e_norm.copy()
+        mask = (e > 0) & (y > 0)
 
-        mask = e > 0
+        coords = np.argwhere(mask)
+        
+        i0, i1, i2 = coords.min(axis=0)
+        j0, j1, j2 = coords.max(axis=0)+1
+
+        y[~mask] = np.nan
+        e[~mask] = np.nan
+
+        y, e = y[i0:j0,i1:j1,i2:j2].copy(), e[i0:j0,i1:j1,i2:j2].copy()
+
+        x0 = x0[i0:j0,i1:j1,i2:j2].copy()
+        x1 = x1[i0:j0,i1:j1,i2:j2].copy()
+        x2 = x2[i0:j0,i1:j1,i2:j2].copy()
+
+        self.counts = self.counts[i0:j0,i1:j1,i2:j2].copy()
 
         y_max = np.nanmax(y)
 
         if mask.sum() > 21 and (np.array(mask.shape) >= 5).all() and y_max > 0:
 
             dx0, dx1, dx2 = self.voxels(x0, x1, x2)
-
-            y[~mask] = np.nan
-            e[~mask] = np.nan
-
-            # mask = e > 0
-
-            # bins = (x0[mask], x1[mask], x2[mask]), y[mask], e[mask]
 
             if not np.nansum(y) > 0:
                 print('Invalid data')
@@ -1317,24 +1308,22 @@ class PeakEllipsoid:
             #peak = y.copy()*np.nan
             #peak = threshold*1.0
 
-            w1d, w2d, w3d = 1/e1d**2, 1/e2d**2, 1/e3d**2
-
             args = x0, x1, x2, 1, 0, c, inv_S*16
             y1d_fit = self.func(*args, mode='1d')
 
-            args = x0, x1, x2, 1, 0, c, inv_S*16
-            y2d_fit = self.func(*args, mode='2d')
+            # args = x0, x1, x2, 1, 0, c, inv_S*16
+            # y2d_fit = self.func(*args, mode='2d')
 
             args = x0, x1, x2, 1, 0, c, inv_S*16
             y3d_fit = self.func(*args, mode='3d')
 
-            A1, A2, A3, B = self.scale_background(y1d_fit, y2d_fit, y3d_fit,
-                                                  y1d, y2d, y3d,
-                                                  w1d, w2d, w3d)
+            A1, B1 = self.intensity_background(y1d_fit, y1d, e1d)
+            # A2, B2 = self.intensity_background(y2d_fit, y2d, e2d)
+            A3, B3 = self.intensity_background(y3d_fit, y3d, e3d)
 
-            # profile = A1*y1d_fit+B
+            profile = A1*y1d_fit+B1
             # projection = A2*y2d_fit+B
-            labels = A3*y3d_fit+B
+            labels = A3*y3d_fit+B3
 
             V, W = np.linalg.eigh(S)
 
@@ -1349,6 +1338,7 @@ class PeakEllipsoid:
             fitting = binning, labels
 
             self.best_fit = c, S, *fitting
+            self.best_profile = (x0[:,0,0], y1d, e1d), profile
 
             self.bin_data = (x0, x1, x2), (dx0, dx1, dx2), y, e
 
@@ -1373,7 +1363,7 @@ class PeakEllipsoid:
 
         d3x = dx0*dx1*dx2
 
-        scale = d3x if norm else 1
+        scale = d3x if norm else self.counts[pk].sum()
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()

@@ -103,9 +103,9 @@ class PeakPlot(BasePlot):
 
         plt.close('all')
 
-        self.fig = plt.figure(figsize=(6.4, 9.6), layout='constrained')
+        self.fig = plt.figure(figsize=(6.4, 12), layout='constrained')
 
-        sp = GridSpec(2, 1, figure=self.fig, height_ratios=[1,1])
+        sp = GridSpec(3, 1, figure=self.fig, height_ratios=[1,1,0.5])
 
         self.gs = []
 
@@ -118,14 +118,23 @@ class PeakPlot(BasePlot):
         self.gs.append(gs)
 
         gs = GridSpecFromSubplotSpec(1,
-                                     3,
+                                     1,
                                      height_ratios=[1],
-                                     width_ratios=[1,1,1],
+                                     width_ratios=[1],
                                      subplot_spec=sp[1])
 
         self.gs.append(gs)
 
+        gs = GridSpecFromSubplotSpec(1,
+                                     3,
+                                     height_ratios=[1],
+                                     width_ratios=[1,1,1],
+                                     subplot_spec=sp[2])
+
+        self.gs.append(gs)
+
         self.__init_ellipsoid()
+        self.__init_profile()
         self.__init_norm()
 
     def __init_ellipsoid(self):
@@ -285,6 +294,24 @@ class PeakPlot(BasePlot):
         self.cb_el.formatter.set_powerlimits((0, 0))
         self.cb_el.formatter.set_useMathText(True)
 
+    def __init_profile(self):
+        
+        gs = self.gs[1]
+
+        ax = self.fig.add_subplot(gs[0])
+
+        ax.minorticks_on()
+        ax.set_xlabel(r'$|Q|$ [$\AA^{-1}$]')
+
+        x = np.arange(10)-5
+        y = -2*x**2+50
+        e = np.sqrt(np.abs(y))
+
+        self.error_cont = ax.errorbar(x, y, e, fmt='o', color='C0')
+        self.step_line = ax.step(x, y, where='mid', color='C1')
+
+        self.profile = ax
+
     def __init_norm(self):
 
         self.norm = []
@@ -295,7 +322,7 @@ class PeakPlot(BasePlot):
         y = np.arange(6)
         z = y+y.size*x[:,np.newaxis]
 
-        gs = self.gs[1]
+        gs = self.gs[2]
 
         ax = self.fig.add_subplot(gs[0,0])
 
@@ -369,6 +396,29 @@ class PeakPlot(BasePlot):
         self.cb_norm.ax.minorticks_on()
         self.cb_norm.formatter.set_powerlimits((0, 0))
         self.cb_norm.formatter.set_useMathText(True)
+
+    def add_profile_fit(self, xye, y_fit):
+
+        x, y, e = xye
+
+        lines, caps, bars = self.error_cont
+        lines.set_data(x, y)
+
+        barsy, = bars
+
+        yb, yt = y-e, y+e
+
+        n = len(x)
+
+        segments = [np.array([[x[i], yt[i]],
+                              [x[i], yb[i]]]) for i in range(n)]
+
+        barsy.set_segments(segments)
+
+        self.step_line[0].set_data(x, y_fit)
+        
+        self.profile.relim()
+        self.profile.autoscale_view()
 
     def add_data_norm_fit(self, xye, params):
 

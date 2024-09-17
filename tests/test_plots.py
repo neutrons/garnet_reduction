@@ -170,10 +170,6 @@ def test_peak_plot():
     data_norm[i,j,k] = data_norm[ic,jc,kc]
     data_norm[ic,jc,kc] = temp[i,j,k]
 
-    # mask = np.random.random(data_norm.shape) < 0.5
-    # data_norm[mask] = np.nan
-    # bkg_norm[mask] = np.nan
-
     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing='ij')
 
     ellipsoid = PeakEllipsoid(counts)
@@ -194,6 +190,7 @@ def test_peak_plot():
     plot = PeakPlot()
 
     plot.add_fitting(*fitting)
+    plot.add_profile_fit(*ellipsoid.best_profile)
     plot.add_ellipsoid(c, S)
     plot.add_peak_info(wavelength, angles, goniometer)
     plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
