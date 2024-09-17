@@ -714,9 +714,10 @@ class BaseDataModel:
 
         """
 
-        dQ = 4*np.pi/lamda*np.cos(np.deg2rad(two_theta)*0.5)*self.dt
+        dQ_dt = 4*np.pi/lamda*np.cos(np.deg2rad(two_theta)*0.5)*self.dt
+        dQ_dl = 4*np.pi/lamda**2*np.sin(np.deg2rad(two_theta)*0.5)*0.01
 
-        return dQ
+        return np.min([dQ_dl, dQ_dt])
 
     def normalize_in_Q(self, md, extents, bins, projections):
         """
