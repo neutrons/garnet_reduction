@@ -1024,9 +1024,13 @@ class PeakEllipsoid:
         A2, B2 = self.intensity_background(y2d_fit, y2d, e2d)
         A3, B3 = self.intensity_background(y3d_fit, y3d, e3d)
 
-        res_1d = (np.arcsinh(A1*y1d_fit+B1)-np.arcsinh(y1d))/e1d*np.sqrt(y1d**2+1)
-        res_2d = (np.arcsinh(A2*y2d_fit+B2)-np.arcsinh(y2d))/e2d*np.sqrt(y2d**2+1)
-        res_3d = (np.arcsinh(A3*y3d_fit+B3)-np.arcsinh(y3d))/e3d*np.sqrt(y3d**2+1)
+        # res_1d = (np.arcsinh(A1*y1d_fit+B1)-np.arcsinh(y1d))/e1d*np.sqrt(y1d**2+1)
+        # res_2d = (np.arcsinh(A2*y2d_fit+B2)-np.arcsinh(y2d))/e2d*np.sqrt(y2d**2+1)
+        # res_3d = (np.arcsinh(A3*y3d_fit+B3)-np.arcsinh(y3d))/e3d*np.sqrt(y3d**2+1)
+
+        res_1d = (A1*y1d_fit+B1-y1d)/e1d
+        res_2d = (A2*y2d_fit+B2-y2d)/e2d
+        res_3d = (A3*y3d_fit+B3-y3d)/e3d
 
         diff = res_1d.ravel().tolist()\
              + res_2d.ravel().tolist()\
