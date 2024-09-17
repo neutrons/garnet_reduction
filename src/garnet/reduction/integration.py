@@ -935,12 +935,16 @@ class PeakEllipsoid:
         r1_max = (x1[0,:,0][-1]-x1[0,:,0][0])/2
         r2_max = (x2[0,0,:][-1]-x2[0,0,:][0])/2
 
-        c1_0_max = y1_max/r0_max
-        c2_1_max = y2_max/r1_max
-        c2_2_max = y2_max/r2_max
-        c3_0_max = y3_max/r0_max
-        c3_1_max = y3_max/r1_max
-        c3_2_max = y3_max/r2_max
+        d0 = x0[:,0,0][-1]-x0[:,0,0][0]
+        d1 = x0[:,0,0][-1]-x0[:,0,0][0]
+        d2 = x0[:,0,0][-1]-x0[:,0,0][0]
+
+        c1_0_max = y1_max/d0
+        c2_1_max = y2_max/d1
+        c2_2_max = y2_max/d2
+        c3_0_max = y3_max/d0
+        c3_1_max = y3_max/d1
+        c3_2_max = y3_max/d2
 
         self.params.add('C1_0', value=0, min=-c1_0_max, max=c1_0_max)
         self.params.add('C2_1', value=0, min=-c2_1_max, max=c2_1_max)
@@ -1067,9 +1071,9 @@ class PeakEllipsoid:
         C2 = [params['C2_1'], params['C2_2']]
         C3 = [params['C3_0'], params['C3_1'], params['C3_2']]
 
-        b1d = self.bkg(x0, x1, x2, B1, C1, mode='1d')
-        b2d = self.bkg(x0, x1, x2, B2, C2, mode='2d')
-        b3d = self.bkg(x0, x1, x2, B3, C3, mode='3d')
+        b1d = self.bkg(x0, x1, x2, c, B1, C1, mode='1d')
+        b2d = self.bkg(x0, x1, x2, c, B2, C2, mode='2d')
+        b3d = self.bkg(x0, x1, x2, c, B3, C3, mode='3d')
 
         args = x0, x1, x2, A1, b1d, c, inv_S
         y1d_fit = self.func(*args, '1d')
@@ -1111,16 +1115,20 @@ class PeakEllipsoid:
 
         return A*np.exp(-0.5*d2)*factor+B
 
-    def bkg(self, x0, x1, x2, B, params, mode='3d'):
+    def bkg(self, x0, x1, x2, c, B, params, mode='3d'):
+
+        c0, c1, c2 = c
+
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2        
 
         if mode == '3d':
-            x = [x0, x1, x2]
+            dx = [dx0, dx1, dx2]
         elif mode == '2d':
-            x = [x1[0,:,:], x2[0,:,:]]
+            dx = [dx1[0,:,:], dx2[0,:,:]]
         else: # mode == '1d'
-            x = [x0[:,0,0]]
+            dx = [dx0[:,0,0]]
 
-        return B+np.einsum('i...,i->...', x, params)
+        return B+np.einsum('i...,i->...', dx, params)
 
     def estimate_weights(self, x0, x1, x2, y, e, dx, r_cut):
 
@@ -1166,6 +1174,29 @@ class PeakEllipsoid:
 
         # ---
 
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
+
+        self.params['r0'].set(vary=False)
+        self.params['r1'].set(vary=False)
+        self.params['r2'].set(vary=False)
+
+        self.params['phi'].set(vary=False)
+        self.params['theta'].set(vary=False)
+        self.params['omega'].set(vary=False)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        nan_policy='omit')
+
+        result = out.minimize()
+
+        self.params = result.params
+
+        # ---
+
         self.params['c0'].set(vary=True)
         self.params['c1'].set(vary=True)
         self.params['c2'].set(vary=True)
@@ -1181,7 +1212,6 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        reduce_fcn=np.abs,
                         nan_policy='omit')
 
         result = out.minimize()
@@ -1203,7 +1233,6 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        reduce_fcn=np.abs,
                         nan_policy='omit')
 
         result = out.minimize()
@@ -1225,7 +1254,6 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        reduce_fcn=np.abs,
                         nan_policy='omit')
 
         result = out.minimize()
@@ -1247,34 +1275,32 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        reduce_fcn=np.abs,
                         nan_policy='omit')
 
         result = out.minimize()
 
         self.params = result.params
 
-        self.params['c0'].set(vary=True)
-        self.params['c1'].set(vary=True)
-        self.params['c2'].set(vary=True)
+        # self.params['c0'].set(vary=True)
+        # self.params['c1'].set(vary=True)
+        # self.params['c2'].set(vary=True)
 
-        self.params['r0'].set(vary=True)
-        self.params['r1'].set(vary=True)
-        self.params['r2'].set(vary=True)
+        # self.params['r0'].set(vary=True)
+        # self.params['r1'].set(vary=True)
+        # self.params['r2'].set(vary=True)
 
-        self.params['phi'].set(vary=True)
-        self.params['theta'].set(vary=True)
-        self.params['omega'].set(vary=True)
+        # self.params['phi'].set(vary=True)
+        # self.params['theta'].set(vary=True)
+        # self.params['omega'].set(vary=True)
 
-        out = Minimizer(self.residual,
-                        self.params,
-                        fcn_args=args,
-                        reduce_fcn=np.abs,
-                        nan_policy='omit')
+        # out = Minimizer(self.residual,
+        #                 self.params,
+        #                 fcn_args=args,
+        #                 nan_policy='omit')
 
-        result = out.minimize()
+        # result = out.minimize()
 
-        self.params = result.params
+        # self.params = result.params
 
         # ---
 
@@ -1305,9 +1331,11 @@ class PeakEllipsoid:
               self.params['C3_1'].value,
               self.params['C3_2'].value]
 
-        b1d = self.bkg(x0, x1, x2, B1, C1, mode='1d')
-        b2d = self.bkg(x0, x1, x2, B2, C2, mode='2d')
-        b3d = self.bkg(x0, x1, x2, B3, C3, mode='3d')
+        c = np.array([c0, c1, c2])
+
+        b1d = self.bkg(x0, x1, x2, c, B1, C1, mode='1d')
+        b2d = self.bkg(x0, x1, x2, c, B2, C2, mode='2d')
+        b3d = self.bkg(x0, x1, x2, c, B3, C3, mode='3d')
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1321,8 +1349,6 @@ class PeakEllipsoid:
 
         args = x0, x1, x2, A3, b3d, c, inv_S
         y3d_fit = self.func(*args, '3d')
-
-        c = np.array([c0, c1, c2])
 
         inv_S = self.inv_S_matrix(r0, r1, r2, phi, theta, omega)
 
