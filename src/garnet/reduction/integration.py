@@ -1300,8 +1300,13 @@ class PeakEllipsoid:
 
         mask = (e > 0) & (y > 0)
 
+        y_max = np.nanmax(y)
+
+        if mask.sum() > 21 and (np.array(mask.shape) >= 5).all() and y_max > 0:
+            return None
+
         coords = np.argwhere(mask)
-        
+
         i0, i1, i2 = coords.min(axis=0)
         j0, j1, j2 = coords.max(axis=0)+1
 
@@ -1316,80 +1321,76 @@ class PeakEllipsoid:
 
         self.counts = self.counts[i0:j0,i1:j1,i2:j2].copy()
 
-        y_max = np.nanmax(y)
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        if mask.sum() > 21 and (np.array(mask.shape) >= 5).all() and y_max > 0:
+        if not np.nansum(y) > 0:
+            print('Invalid data')
+            return None
 
-            dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+        weights = self.estimate_weights(x0, x1, x2, y, e, dx, r_cut)
 
-            if not np.nansum(y) > 0:
-                print('Invalid data')
-                return None
+        if weights is None:
+            print('Invalid weight estimate')
+            return None
 
-            weights = self.estimate_weights(x0, x1, x2, y, e, dx, r_cut)
+        c, inv_S, y1d, y2d, y3d, e1d, e2d, e3d = weights
 
-            if weights is None:
-                print('Invalid weight estimate')
-                return None
+        if not np.linalg.det(inv_S) > 0:
+            print('Improper optimal covariance')
+            return None
 
-            c, inv_S, y1d, y2d, y3d, e1d, e2d, e3d = weights
+        S = np.linalg.inv(inv_S)
 
-            if not np.linalg.det(inv_S) > 0:
-                print('Improper optimal covariance')
-                return None
+        c0, c1, c2 = c
 
-            S = np.linalg.inv(inv_S)
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
 
-            c0, c1, c2 = c
+        dxv = [dx0, dx1, dx2]
 
-            dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
+        threshold = np.einsum('i...,ij,j...->...', dxv, inv_S, dxv) <= 1
 
-            dxv = [dx0, dx1, dx2]
+        if threshold.sum() < 13:
+            print('Low counts')
+            return None
 
-            threshold = np.einsum('i...,ij,j...->...', dxv, inv_S, dxv) <= 1
+        #peak = y.copy()*np.nan
+        #peak = threshold*1.0
 
-            if threshold.sum() < 13:
-                print('Low counts')
-                return None
+        args = x0, x1, x2, 1, 0, c, inv_S*16
+        y1d_fit = self.func(*args, mode='1d')
 
-            #peak = y.copy()*np.nan
-            #peak = threshold*1.0
+        # args = x0, x1, x2, 1, 0, c, inv_S*16
+        # y2d_fit = self.func(*args, mode='2d')
 
-            args = x0, x1, x2, 1, 0, c, inv_S*16
-            y1d_fit = self.func(*args, mode='1d')
+        args = x0, x1, x2, 1, 0, c, inv_S*16
+        y3d_fit = self.func(*args, mode='3d')
 
-            # args = x0, x1, x2, 1, 0, c, inv_S*16
-            # y2d_fit = self.func(*args, mode='2d')
+        A1, B1 = self.intensity_background(x0, x1, x2, y1d_fit, y1d, e1d, '1d')
+        # A2, B2 = self.intensity_background(x0, x1, x2, y2d_fit, y2d, e2d, '2d')
+        A3, B3 = self.intensity_background(x0, x1, x2, y3d_fit, y3d, e3d, '3d')
 
-            args = x0, x1, x2, 1, 0, c, inv_S*16
-            y3d_fit = self.func(*args, mode='3d')
+        profile = A1*y1d_fit+B1
+        # projection = A2*y2d_fit+B
+        labels = A3*y3d_fit+B3
 
-            A1, B1 = self.intensity_background(x0, x1, x2, y1d_fit, y1d, e1d, '1d')
-            # A2, B2 = self.intensity_background(x0, x1, x2, y2d_fit, y2d, e2d, '2d')
-            A3, B3 = self.intensity_background(x0, x1, x2, y3d_fit, y3d, e3d, '3d')
+        V, W = np.linalg.eigh(S)
 
-            profile = A1*y1d_fit+B1
-            # projection = A2*y2d_fit+B
-            labels = A3*y3d_fit+B3
+        c0, c1, c2 = c
 
-            V, W = np.linalg.eigh(S)
+        r0, r1, r2 = np.sqrt(V)
 
-            c0, c1, c2 = c
+        v0, v1, v2 = W.T
 
-            r0, r1, r2 = np.sqrt(V)
+        binning = (x0, x1, x2), y, e
 
-            v0, v1, v2 = W.T
+        fitting = binning, labels
 
-            binning = (x0, x1, x2), y, e
+        self.best_fit = c, S, *fitting
+        self.best_profile = (x0[:,0,0], y1d, e1d), profile
 
-            fitting = binning, labels
+        self.bin_data = (x0, x1, x2), (dx0, dx1, dx2), y, e
 
-            self.best_fit = c, S, *fitting
-            self.best_profile = (x0[:,0,0], y1d, e1d), profile
-
-            self.bin_data = (x0, x1, x2), (dx0, dx1, dx2), y, e
-
-            return c0, c1, c2, r0, r1, r2, v0, v1, v2
+        return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
     def integrate_norm(self, bins, c, S, norm=False):
 
