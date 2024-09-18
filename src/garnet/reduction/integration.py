@@ -1302,7 +1302,7 @@ class PeakEllipsoid:
 
         y_max = np.nanmax(y)
 
-        if mask.sum() > 21 and (np.array(mask.shape) >= 5).all() and y_max > 0:
+        if mask.sum() < 20 or (np.array(mask.shape) <= 5).any() or y_max <= 0:
             return None
 
         coords = np.argwhere(mask)
@@ -1314,6 +1314,9 @@ class PeakEllipsoid:
         e[~mask] = np.nan
 
         y, e = y[i0:j0,i1:j1,i2:j2].copy(), e[i0:j0,i1:j1,i2:j2].copy()
+
+        if (np.array(y.shape) <= 5).all():
+            return None
 
         x0 = x0[i0:j0,i1:j1,i2:j2].copy()
         x1 = x1[i0:j0,i1:j1,i2:j2].copy()
