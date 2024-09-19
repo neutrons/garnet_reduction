@@ -995,7 +995,7 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def residual(self, params, x0, x1, x2, obs, modes):
+    def residual(self, params, x0, x1, x2, y, e):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
@@ -1017,21 +1017,84 @@ class PeakEllipsoid:
 
         diff = []
 
-        ys, es = obs[0::2], obs[1::2]
+        args = x0, x1, x2, 1, 0, c, inv_S
 
-        for (y, e, mode) in zip(ys, es, modes):
+        y1_fit = self.func(*args, '1d')
+        y2_fit = self.func(*args, '2d')
+        y3_fit = self.func(*args, '3d')
 
-            args = x0, x1, x2, 1, 0, c, inv_S
-            y_fit = self.func(*args, mode)
+        args = x0, x1, x2, 1, 0, c, inv_S
 
-            A, B = self.intensity_background(x0, x1, x2, y_fit, y, e, mode)
+        A, B = self.intensity_background(x0, x1, x2, y3_fit, y, e, '3d')
 
-            #n = e.size
-            res = (A*y_fit+B-y)/e#/np.sqrt(n)            
+        res = (A*y3_fit+B-y)/e
 
-            diff += res.flatten().tolist()
+        diff += res.flatten().tolist()
+
+        y_int, e_int = self.integrate(y, e, '2d')
+
+        A, B = self.intensity_background(x0, x1, x2, y2_fit, y_int, e_int, '2d')
+
+        res = (A*y2_fit+B-y_int)/e_int
+
+        diff += res.flatten().tolist()
+
+        y_int, e_int = self.integrate(y, e, '1d')
+
+        A, B = self.intensity_background(x0, x1, x2, y1_fit, y_int, e_int, '1d')
+
+        res = (A*y1_fit+B-y_int)/e_int
+
+        diff += res.flatten().tolist()
 
         return diff
+
+    def integrate(self, y, e, mode='1d'):
+
+        if mode == '1d':
+            #weights = weights[:,np.newaxis,np.newaxis]
+            n = np.nansum(y/e**2, axis=(1,2))
+            y_int = np.nansum(y**2/e**2, axis=(1,2))/n
+            e_int = np.sqrt(np.nansum(y**2/e**2, axis=(1,2)))/n
+        else:
+            #weights = weights[np.newaxis,:,:]
+            n = np.nansum(y/e**2, axis=0)
+            y_int = np.nansum(y**2/e**2, axis=0)/n
+            e_int = np.sqrt(np.nansum(y**2/e**2, axis=0))/n
+
+        return y_int, e_int
+
+    def wgts(self, x0, x1, x2, c, inv_S, mode='1d'):
+
+        c0, c1, c2 = c
+
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
+
+        if mode == '1d':
+            dx = dx0[:,0,0]
+            inv_var = inv_S[0,0]/(2*np.log(2))
+            d2 = inv_var*dx**2
+            weights = 1/(1+d2)**((1+1)/2)
+        else:
+            dx = [dx1[0,:,:], dx2[0,:,:]]
+            mat = inv_S[1:,1:]/(2*np.log(2))
+            d2 = np.einsum('i...,ij,j...->...', dx, mat, dx)
+            weights = 1/(1+d2)**((1+2)/2)
+
+        # if mode == '1d':
+        #     dx = dx0[:,0,0]
+        #     inv_var = inv_S[0,0]*0.25
+        #     d2 = inv_var*dx**2
+        #     weights = np.exp(-0.5*d2)*0+1
+        # else:
+        #     dx = [dx1[0,:,:], dx2[0,:,:]]
+        #     mat = inv_S[1:,1:]*0.25
+        #     d2 = np.einsum('i...,ij,j...->...', dx, mat, dx)
+        #     weights = np.exp(-0.5*d2)*0+1
+
+        weights /= weights.sum()
+
+        return weights
 
     def func(self, x0, x1, x2, A, B, c, inv_S, mode='3d'):
 
@@ -1043,55 +1106,31 @@ class PeakEllipsoid:
             dx = [dx0, dx1, dx2]
             d2 = np.einsum('i...,ij,j...->...', dx, inv_S, dx)
             factor = np.sqrt(np.linalg.det(inv_S)/(2*np.pi)**3)
-        elif '2d' in mode:
-            if mode.endswith('1'):
-                dx = [dx0[:,0,:], dx2[:,0,:]]
-                mat = inv_S[::2,::2]
-            elif mode.endswith('2'):
-                dx = [dx0[:,:,0], dx1[:,:,0]]
-                mat = inv_S[:2,:2]
-            else:
-                dx = [dx1[0,:,:], dx2[0,:,:]]
-                mat = inv_S[1:,1:]
+        elif mode == '2d':
+            dx = [dx1[0,:,:], dx2[0,:,:]]
+            mat = inv_S[1:,1:]
             d2 = np.einsum('i...,ij,j...->...', dx, mat, dx)
             factor = np.sqrt(np.linalg.det(mat)/(2*np.pi)**2)
         else: # mode == '1d'
-            if mode.endswith('1'):
-                dx = dx1[0,:,0]
-                var = inv_S[1,1]
-            elif mode.endswith('2'):
-                dx = dx2[0,0,:]
-                var = inv_S[2,2]
-            else:
-                dx = dx0[:,0,0]
-                var = inv_S[0,0]
-            d2 = var*dx**2
-            factor = np.sqrt(var/(2*np.pi))
+            dx = dx0[:,0,0]
+            inv_var = inv_S[0,0]
+            d2 = inv_var*dx**2
+            factor = np.sqrt(inv_var/(2*np.pi))
 
-        return A*np.exp(-0.5*d2)+B
+        return A*np.exp(-0.5*d2)*factor+B
 
     def intensity_background(self, x0, x1, x2, y_fit, y, e, mode='3d'):
 
-        mask = (y > 0) & (e > 0)        
+        mask = (y > 0) & (e > 0)
 
         if mode == '3d':
             x = [x0, x1, x2]
-        elif '2d' in mode:
-            if mode.endswith('1'):
-                x = [x0[:,0,:], x2[:,0,:]]
-            elif mode.endswith('2'):
-                x = [x0[:,:,0], x1[:,:,0]]
-            else:
-                x = [x1[0,:,:], x2[0,:,:]]
-        else:
-            if mode.endswith('1'):
-                x = [x1[0,:,0]]
-            elif mode.endswith('2'):
-                x = [x2[0,0,:]]
-            else:
-                x = [x0[:,0,0]]
+        elif mode == '2d':
+            x = [x1[0,:,:], x2[0,:,:]]
+        else: # mode == '1d'
+            x = [x0[:,0,0]]
 
-        d = [xv[mask] for xv in x]
+        d = [xd[mask] for xd in x]
 
         A = (np.vstack([y_fit[mask], np.ones_like(y_fit[mask]), *d])/e[mask]).T
 
@@ -1111,142 +1150,55 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        n1_0 = np.nansum(y/e**2, axis=(1,2))
-        # n1_1 = np.nansum(y/e**2, axis=(0,2))
-        # n1_2 = np.nansum(y/e**2, axis=(0,1))
-
-        n2_0 = np.nansum(y/e**2, axis=0)
-        # n2_1 = np.nansum(y/e**2, axis=1)
-        # n2_2 = np.nansum(y/e**2, axis=2)
-
-        y1_0 = np.nansum(y**2/e**2, axis=(1,2))/n1_0
-        # y1_1 = np.nansum(y**2/e**2, axis=(0,2))/n1_1
-        # y1_2 = np.nansum(y**2/e**2, axis=(0,1))/n1_2
-
-        e1_0 = np.sqrt(np.nansum(y**2/e**2, axis=(1,2)))/n1_0
-        # e1_1 = np.sqrt(np.nansum(y**2/e**2, axis=(0,2)))/n1_1
-        # e1_2 = np.sqrt(np.nansum(y**2/e**2, axis=(0,1)))/n1_2
-
-        y2_0 = np.nansum(y**2/e**2, axis=0)/n2_0
-        # y2_1 = np.nansum(y**2/e**2, axis=1)/n2_1
-        # y2_2 = np.nansum(y**2/e**2, axis=2)/n2_2
-
-        e2_0 = np.sqrt(np.nansum(y**2/e**2, axis=0))/n2_0
-        # e2_1 = np.sqrt(np.nansum(y**2/e**2, axis=1))/n2_1
-        # e2_2 = np.sqrt(np.nansum(y**2/e**2, axis=2))/n2_2
-
-        y3 = y.copy()
-        e3 = e.copy()
-
-        # obs = [y1_0, e1_0, y1_1, e1_1, y1_2, e1_2,
-        #        y2_0, e2_0, y2_1, e2_1, y2_2, e2_2, y3, e3]
-
-        # modes = ['1d0', '1d1', '1d2', '2d0', '2d1', '2d2', '3d']
-
-        obs = [y1_0, e1_0, y2_0, e2_0, y3, e3]
-
-        modes = ['1d', '2d', '3d']
-
-        for arr in obs:
-            arr[np.isclose(arr, 0)] = np.nan
-            if not np.nansum(np.isfinite(arr)) > 5:
-                return None
-            arr_min = np.nanmin(arr)
-            arr_max = np.nanmax(arr)
-            if np.isclose(arr_min, arr_max) or not np.isfinite(arr_max):
-                return None
-
-        args = (x0, x1, x2, obs, modes)
+        args = (x0, x1, x2, y, e)
 
         # ---
-
-        # self.params['c0'].set(vary=False)
-        # self.params['c1'].set(vary=False)
-        # self.params['c2'].set(vary=False)
-
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=False, expr='r0')
-        # self.params['r2'].set(vary=False, expr='r0')
-
-        # self.params['phi'].set(vary=False)
-        # self.params['theta'].set(vary=False)
-        # self.params['omega'].set(vary=False)
-
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args,
-        #                 nan_policy='omit')
-
-        # result = out.minimize(method='least_squares')
-
-        # self.params = result.params
-
-        # self.params['c0'].set(vary=True)
-        # self.params['c1'].set(vary=True)
-        # self.params['c2'].set(vary=True)
-
-        # self.params['r0'].set(vary=False)
-        # self.params['r1'].set(vary=False)
-        # self.params['r2'].set(vary=False)
-
-        # self.params['phi'].set(vary=True)
-        # self.params['theta'].set(vary=True)
-        # self.params['omega'].set(vary=True)
-
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args,
-        #                 nan_policy='omit')
-
-        # result = out.minimize(method='least_squares')
-
-        # self.params = result.params
-
-        # self.params['c0'].set(vary=True)
-        # self.params['c1'].set(vary=True)
-        # self.params['c2'].set(vary=True)
-
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=True, expr=None)
-        # self.params['r2'].set(vary=True, expr=None)
-
-        # self.params['phi'].set(vary=False)
-        # self.params['theta'].set(vary=False)
-        # self.params['omega'].set(vary=False)
-
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args,
-        #                 nan_policy='omit')
-
-        # result = out.minimize(method='least_squares')
-
-        # self.params = result.params
-
-        # self.params['c0'].set(vary=False)
-        # self.params['c1'].set(vary=False)
-        # self.params['c2'].set(vary=False)
-
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=True)
-        # self.params['r2'].set(vary=True)
-
-        # self.params['phi'].set(vary=True)
-        # self.params['theta'].set(vary=True)
-        # self.params['omega'].set(vary=True)
-
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args,
-        #                 nan_policy='omit')
-
-        # result = out.minimize(method='least_squares')
-
-        # self.params = result.params
 
         self.params['c0'].set(vary=True)
         self.params['c1'].set(vary=True)
         self.params['c2'].set(vary=True)
+
+        self.params['r0'].set(vary=False)
+        self.params['r1'].set(vary=False)
+        self.params['r2'].set(vary=False)
+
+        self.params['phi'].set(vary=False)
+        self.params['theta'].set(vary=False)
+        self.params['omega'].set(vary=False)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        nan_policy='omit')
+
+        result = out.minimize(method='least_squares')
+
+        self.params = result.params
+
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
+
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
+
+        self.params['phi'].set(vary=False)
+        self.params['theta'].set(vary=False)
+        self.params['omega'].set(vary=False)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        nan_policy='omit')
+
+        result = out.minimize(method='least_squares')
+
+        self.params = result.params
+
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
 
         self.params['r0'].set(vary=True)
         self.params['r1'].set(vary=True)
@@ -1262,6 +1214,27 @@ class PeakEllipsoid:
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares')
+
+        self.params = result.params
+
+        # self.params['c0'].set(vary=True)
+        # self.params['c1'].set(vary=True)
+        # self.params['c2'].set(vary=True)
+
+        # self.params['r0'].set(vary=True)
+        # self.params['r1'].set(vary=True)
+        # self.params['r2'].set(vary=True)
+
+        # self.params['phi'].set(vary=True)
+        # self.params['theta'].set(vary=True)
+        # self.params['omega'].set(vary=True)
+
+        # out = Minimizer(self.residual,
+        #                 self.params,
+        #                 fcn_args=args,
+        #                 nan_policy='omit')
+
+        # result = out.minimize(method='least_squares')
 
         self.params = result.params
 
@@ -1285,18 +1258,21 @@ class PeakEllipsoid:
 
         args = x0, x1, x2, 1, 0, c, inv_S
 
-        y1_0_fit = self.func(*args, '1d')
+        y1_fit = self.func(*args, '1d')
         y3_fit = self.func(*args, '3d')
 
-        A1, B1 = self.intensity_background(x0, x1, x2, y1_0_fit, y1_0, e1_0, '1d')
+        y1, e1 = self.integrate(y, e, mode='1d')
+        y3, e3 = y.copy(), e.copy()
+
+        A1, B1 = self.intensity_background(x0, x1, x2, y1_fit, y1, e1, '1d')
         A3, B3 = self.intensity_background(x0, x1, x2, y3_fit, y3, e3, '3d')
 
-        y1_0_fit = A1*y1_0_fit+B1
-        y3_fit = A1*y3_fit+B3    
+        y1_fit = A1*y1_fit+B1
+        y3_fit = A3*y3_fit+B3
 
         inv_S = self.inv_S_matrix(r0, r1, r2, phi, theta, omega)
 
-        return c, inv_S, (y1_0_fit, y1_0, e1_0), (y3_fit, y3, e3)
+        return c, inv_S, (y1_fit, y1, e1), (y3_fit, y3, e3)
 
     def voxels(self, x0, x1, x2):
 

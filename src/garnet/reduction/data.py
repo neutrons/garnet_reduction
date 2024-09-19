@@ -1621,12 +1621,12 @@ class LaueData(BaseDataModel):
 
                 DeleteWorkspace(Workspace='bkg')
 
-            else:
+            # else:
 
-                Minus(LHSWorkspace=event_name,
-                      RHSWorkspace='bkg',
-                      OutputWorkspace=event_name,
-                      AllowDifferentNumberSpectra=True)
+            #     Minus(LHSWorkspace=event_name,
+            #           RHSWorkspace='bkg',
+            #           OutputWorkspace=event_name,
+            #           AllowDifferentNumberSpectra=True)
 
                 # CompressEvents(InputWorkspace=event_name,
                 #                OutputWorkspace=event_name,
