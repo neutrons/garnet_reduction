@@ -1144,9 +1144,7 @@ class PeakEllipsoid:
 
         return A, B
 
-    def estimate_weights(self, x0, x1, x2, y, e, dx, r_cut):
-
-        self.update_constraints(x0, x1, x2, y, dx, r_cut)
+    def estimate_weights(self, x0, x1, x2, y, e):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
@@ -1284,6 +1282,8 @@ class PeakEllipsoid:
 
     def fit(self, x0, x1, x2, y, e, dx, r_cut):
 
+        self.update_constraints(x0, x1, x2, y, dx, r_cut)        
+
         mask = (e > 0) & (y > 0)
 
         y_max = np.nanmax(y)
@@ -1316,7 +1316,7 @@ class PeakEllipsoid:
             print('Invalid data')
             return None
 
-        weights = self.estimate_weights(x0, x1, x2, y, e, dx, r_cut)
+        weights = self.estimate_weights(x0, x1, x2, y, e)
 
         if weights is None:
             print('Invalid weight estimate')
