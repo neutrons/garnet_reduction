@@ -1301,7 +1301,7 @@ class PeakEllipsoid:
 
         y, e = y[i0:j0,i1:j1,i2:j2].copy(), e[i0:j0,i1:j1,i2:j2].copy()
 
-        if (np.array(y.shape) <= 5).all():
+        if (np.array(y.shape) <= 3).any():
             return None
 
         x0 = x0[i0:j0,i1:j1,i2:j2].copy()
