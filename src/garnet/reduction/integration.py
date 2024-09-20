@@ -137,6 +137,19 @@ class Integration(SubPlan):
                                 lamda_min,
                                 lamda_max)
 
+            r_cut = self.params['Radius']
+
+            peaks.integrate_peaks('md', 'peaks', r_cut)
+
+            peaks.remove_weak_peaks('peaks', 10)
+
+            peaks.predict_peaks('data',
+                                'peaks',
+                                self.params['Centering'],
+                                self.params['MinD'],
+                                lamda_min,
+                                lamda_max)
+
             if self.params['MaxOrder'] > 0:
 
                 peaks.predict_satellite_peaks('peaks',
@@ -152,8 +165,6 @@ class Integration(SubPlan):
             data.delete_workspace('data')
 
             self.peaks, self.data = peaks, data
-
-            r_cut = self.params['Radius']
 
             params = self.estimate_peak_size('peaks', 'md', r_cut)
 
@@ -412,14 +423,14 @@ class Integration(SubPlan):
 
         Returns
         -------
-        Qo : float
+        lo : float
             Nominal profile radius.
-        Qc : float
-            Scale profile radius with Q.
-        ro : float
+        lc : float
+            Scale profile radius.
+        to : float
             Nominal projection radius.
-        rc : float
-            Scale projection radius with Q.
+        tc : float
+            Scale projection radius.
 
         """
 
@@ -441,23 +452,25 @@ class Integration(SubPlan):
 
         plot.add_sphere(r_cut, *vals)
 
-        radius = PeakRadius(r_cut)
-
-        ro, rc, hist, r_bins, Q_bins, r_lim, Q_lim = radius.fit(x, y, Q)
-
-        plot.add_radius(hist, r_bins, Q_bins, r_lim, Q_lim)
-
         profile = PeakProfile(r_cut)
 
-        x, y, Q = peaks.intensity_Q_profile(data_ws, peaks_ws, r_cut)
+        x, y, lamda = peaks.intensity_profile(data_ws, peaks_ws, r_cut)
 
-        Qo, Qc, hist, r_bins, Q_bins, r_lim, Q_lim = profile.fit(x, y, Q)
+        lo, lc, hist, r_bins, l_bins = profile.fit(x, y, lamda)
 
-        plot.add_profile(hist, r_bins, Q_bins, r_lim, Q_lim)
+        plot.add_profile(hist, r_bins, l_bins)
+
+        projection = PeakProjection(r_cut)
+
+        x, y, theta = peaks.intensity_projection(data_ws, peaks_ws, r_cut)
+
+        to, tc, hist, r_bins, t_bins = projection.fit(x, y, theta)
+
+        plot.add_projection(hist, r_bins, t_bins)
 
         plot.save_plot(self.get_plot_file(peaks_name))
 
-        return Qo, Qc, ro, rc
+        return lo, lc, to, tc
 
     def fit_peaks(self, peaks_ws, params, make_plot=True):
         """
@@ -467,8 +480,8 @@ class Integration(SubPlan):
         ----------
         peaks_ws : str
             Peaks table.
-        r_cut : float
-            Cutoff radius.
+        params : list
+            Cutoff radius parameters.
 
         """
 
@@ -483,9 +496,8 @@ class Integration(SubPlan):
             plot = PeakPlot()
 
         UB = self.peaks.get_UB(peaks_ws)
-        UB_inv = np.linalg.inv(UB)/(2*np.pi)
 
-        Qo, Qc, ro, rc = params
+        lo, lc, to, tc = params
 
         for i in range(n_peak):
 
@@ -495,33 +507,31 @@ class Integration(SubPlan):
 
             print(proc+' '+iters+' '+comp)
 
-            d = peak.get_d_spacing(i)
+            # d = peak.get_d_spacing(i)
             h, k, l = peak.get_hkl(i)
-
-            Q = 2*np.pi/d
-
-            Q_cut = Qo+Qc*Q
-            r_cut = ro+rc*Q
-
-            params = peak.get_peak_shape(i, r_cut)
-
-            peak.set_peak_intensity(i, 0, 0)
 
             wavelength = peak.get_wavelength(i)
 
             angles = peak.get_angles(i)
 
-            det_id = peak.get_detector_id(i)
-
             two_theta, az_phi = angles
 
-            T = np.eye(3)
+            l_cut = lo+lc*wavelength
+            t_cut = to+tc*two_theta/2
+
+            params = peak.get_peak_shape(i, l_cut)
+
+            peak.set_peak_intensity(i, 0, 0)
+
+            det_id = peak.get_detector_id(i)
 
             dQ = data.get_resolution_in_Q(wavelength, two_theta)
 
+            T = np.eye(3)
+
             params = self.project_ellipsoid_parameters(params, T)
 
-            bin_params = Q_cut, r_cut, dQ
+            bin_params = l_cut, t_cut, dQ, UB
 
             bins, extents, projections = self.bin_extent(*params, *bin_params)
 
@@ -529,24 +539,11 @@ class Integration(SubPlan):
 
             y, e, Q0, Q1, Q2 = data_norm
 
-            Qx, Qy, Qz = self.trasform_Q(Q0, Q1, Q2, projections)
-
-            h_bin, k_bin, l_bin = np.einsum('ij,j...->i...',
-                                            UB_inv,
-                                            [Qx, Qy, Qz])
-
-            mask = (np.abs(h_bin-h) > 0.75)\
-                 | (np.abs(k_bin-k) > 0.75)\
-                 | (np.abs(l_bin-l) > 0.75)
-
-            y[mask] = 0
-            e[mask] = 0
-
             counts = data.extract_counts('md_data')
 
             ellipsoid = PeakEllipsoid(counts)
 
-            params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ, r_cut)
+            params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ, l_cut, t_cut)
 
             if params is not None and det_id > 0:
 
@@ -626,7 +623,7 @@ class Integration(SubPlan):
 
     def bin_extent(self, Q0, Q1, Q2,
                          r0, r1, r2,
-                         v0, v1, v2, Q_cut, r_cut, bin_size=0.01):
+                         v0, v1, v2, l_cut, t_cut, bin_size, UB):
 
         n, u, v = self.bin_axes(Q0, Q1, Q2)
 
@@ -638,9 +635,31 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2, r0, r1, r2, v0, v1, v2 = params
 
-        dQ = 2*np.array([Q_cut, r_cut, r_cut])
+        dQ = 2*np.array([l_cut, t_cut, t_cut])
+
+        W = np.column_stack(projections)
+
+        am = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [-0.3, 0, 0]))
+        bm = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, -0.3, 0]))
+        cm = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0, -0.3]))
+
+        ap = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0.3, 0, 0]))
+        bp = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0.3, 0]))
+        cp = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0, 0.3]))
+
+        Q0_min = np.min([am[0], bm[0], cm[0], ap[0], bp[0], cp[0]])
+        Q1_min = np.min([am[1], bm[1], cm[1], ap[1], bp[1], cp[1]])
+        Q2_min = np.min([am[2], bm[2], cm[2], ap[2], bp[2], cp[2]])
+
+        Q0_max = np.max([am[0], bm[0], cm[0], ap[0], bp[0], cp[0]])
+        Q1_max = np.max([am[1], bm[1], cm[1], ap[1], bp[1], cp[1]])
+        Q2_max = np.max([am[2], bm[2], cm[2], ap[2], bp[2], cp[2]])
 
         dQ0, dQ1, dQ2 = dQ
+
+        dQ0 = np.min(np.abs([dQ0, Q0-Q0_min, Q0_max-Q0]))
+        dQ1 = np.min(np.abs([dQ1, Q1-Q1_min, Q1_max-Q1]))
+        dQ2 = np.min(np.abs([dQ2, Q2-Q2_min, Q2_max-Q2]))
 
         extents = np.array([[Q0-dQ0, Q0+dQ0],
                             [Q1-dQ1, Q1+dQ1],
@@ -741,36 +760,35 @@ class PeakSphere:
 
 class PeakProfile:
 
-    def __init__(self, r):
+    def __init__(self, r_cut):
 
         self.params = Parameters()
 
-        self.params.add('ro', value=r/2, min=r/10, max=r, vary=True)
-        self.params.add('rc', value=0, min=-r, max=r, vary=False)
+        self.params.add('ro', value=r_cut/2, min=r_cut/8, max=r_cut, vary=True)
+        self.params.add('rc', value=0, min=-r_cut, max=r_cut, vary=True)
 
-        self.r = r
+        self.r_cut = r_cut
 
-    def residual(self, params, r, Q):
+    def residual(self, params, r, l):
 
         ro = params['ro'].value
         rc = params['rc'].value
 
-        r_fit = ro+rc*Q
+        r_fit = ro+rc*l
 
         diff = r_fit-r
 
         return diff.flatten()
 
-    def fit(self, x, y, Q):
+    def fit(self, x, y, l):
 
-        y[y < 0] = 0
+        w = y.copy()
+        w -= np.nanmin(w, axis=1)[:,np.newaxis]
 
-        c = np.nansum(x*y, axis=1)/np.nansum(y, axis=1)
+        c = np.nansum(x*w, axis=1)/np.nansum(w, axis=1)
         x -= c[:,np.newaxis]
 
-        w = y.copy() #/np.nansum(y, axis=1)[:,np.newaxis]
-
-        Q = np.repeat(Q, x.shape[1]).reshape(*x.shape)
+        l = np.repeat(l, x.shape[1]).reshape(*x.shape)
 
         r = x[0]
 
@@ -780,26 +798,29 @@ class PeakProfile:
                                  0.5*(r[1:]+r[:-1]),
                                  [r[-1]+0.5*dr]))
 
-        r, w, Q = [array.flatten() for array in [x, w, Q]]
+        r, w, l = [array.flatten() for array in [x, w, l]]
 
-        Q_bins = np.histogram_bin_edges(Q, bins='auto')
+        l_bins = np.arange(np.min(l), np.max(l), 0.25)
 
-        hist, _, _ = np.histogram2d(r, Q, bins=[r_bins, Q_bins], weights=w)
-
-        r = 0.5*(r_bins[:-1]+r_bins[1:])
-        Q = 0.5*(Q_bins[:-1]+Q_bins[1:])
-
-        # hist[np.abs(r) > 2*self.r] = np.nan
+        hist, _, _ = np.histogram2d(r, l, bins=[r_bins, l_bins], weights=w)
         hist = hist.T
 
-        r = np.sqrt(np.nansum(hist*r**2, axis=1)/np.nansum(hist, axis=1))*2
+        r = 0.5*(r_bins[:-1]+r_bins[1:])
+        l = 0.5*(l_bins[:-1]+l_bins[1:])
+
+        hist.T[np.abs(r) > self.r_cut] = np.nan
+
+        hist -= np.nanmin(hist, axis=1)[:,np.newaxis]
 
         hist /= np.nansum(hist, axis=1)[:,np.newaxis]
         hist[hist == 0] = np.nan
 
+        c = np.nansum(hist*r, axis=1)
+        s = np.sqrt(np.nansum(hist*(r-c[:,np.newaxis])**2, axis=1))*2
+
         out = Minimizer(self.residual,
                         self.params,
-                        fcn_args=(r, Q),
+                        fcn_args=(s, l),
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares', loss='soft_l1')
@@ -807,87 +828,62 @@ class PeakProfile:
         ro = result.params['ro'].value
         rc = result.params['rc'].value
 
-        Q_min, Q_max = np.min(Q), np.max(Q)
-
-        r_lim = np.array([ro+rc*Q_min, ro+rc*Q_max])
-        Q_lim = np.array([Q_min, Q_max])
-
-        return ro, rc, hist, r_bins, Q_bins, r_lim, Q_lim
+        return ro, rc, hist, r, l
 
 
-class PeakRadius:
+class PeakProjection:
 
-    def __init__(self, r):
+    def __init__(self, r_cut):
 
         self.params = Parameters()
 
-        self.params.add('ro', value=r/2, min=r/10, max=r, vary=True)
-        self.params.add('rc', value=0, min=-r, max=r, vary=False)
+        self.params.add('ro', value=r_cut/2, min=r_cut/8, max=r_cut, vary=True)
+        self.params.add('rc', value=0, min=-r_cut, max=r_cut, vary=True)
 
-        self.r = r
+        self.r_cut = r_cut
 
-    def residual(self, params, r, Q):
+    def residual(self, params, r, t):
 
         ro = params['ro'].value
         rc = params['rc'].value
 
-        r_fit = ro+rc*Q
+        r_fit = ro+rc*t
 
         diff = r_fit-r
 
         return diff.flatten()
 
-    def fit(self, x, y, Q):
+    def fit(self, x, y, t):
 
-        y[y < 0] = 0
+        w = y.copy()
 
-        w = y.copy()# /np.nansum(y, axis=1)[:,np.newaxis]
+        r_bins = np.histogram_bin_edges(x, bins='auto')
+        t_bins = np.arange(np.min(t), np.max(t), 20)
 
-        Q = np.repeat(Q, x.shape[1]).reshape(*x.shape)
-
-        r = x[0]
-
-        dr = np.diff(r).mean()
-
-        r_bins = np.concatenate(([r[0]-0.5*dr],
-                                 0.5*(r[1:]+r[:-1]),
-                                 [r[-1]+0.5*dr]))
-
-        r, w, Q = [array.flatten() for array in [x, w, Q]]
-
-        Q_bins = np.histogram_bin_edges(Q, bins='auto')
-
-        hist, _, _ = np.histogram2d(r, Q, bins=[r_bins, Q_bins], weights=w)
-
-        r = 0.5*(r_bins[:-1]+r_bins[1:])
-        Q = 0.5*(Q_bins[:-1]+Q_bins[1:])
-
-        # hist[r > 2*self.r] = np.nan
+        hist, _, _ = np.histogram2d(x, t, bins=[r_bins, t_bins], weights=w)
         hist = hist.T
 
-        hist /= np.nanmax(hist, axis=1)[:,np.newaxis]
-        mask = np.nanargmax(hist >= 0.95, axis=1)
+        r = 0.5*(r_bins[:-1]+r_bins[1:])
+        t = 0.5*(t_bins[:-1]+t_bins[1:])
 
-        r = r[mask]
+        hist -= np.nanmin(hist, axis=1)[:,np.newaxis]
 
-        r[r == 0] = np.nan
+        hist /= np.nansum(hist, axis=1)[:,np.newaxis]
+
+        s = np.nansum(hist*r, axis=1)
 
         out = Minimizer(self.residual,
                         self.params,
-                        fcn_args=(r, Q),
+                        fcn_args=(s, t),
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares', loss='soft_l1')
-
+ 
         ro = result.params['ro'].value
         rc = result.params['rc'].value
 
-        Q_min, Q_max = np.min(Q), np.max(Q)
+        return ro, rc, hist, r, t
 
-        r_lim = np.array([ro+rc*Q_min, ro+rc*Q_max])
-        Q_lim = np.array([Q_min, Q_max])
-
-        return ro, rc, hist, r_bins, Q_bins, r_lim, Q_lim
 
 class PeakEllipsoid:
 
@@ -897,9 +893,7 @@ class PeakEllipsoid:
 
         self.params = Parameters()
 
-    def update_constraints(self, x0, x1, x2, y, dx, r_cut):
-
-        #dr = r_cut
+    def update_constraints(self, x0, x1, x2, y, dx, l_cut, t_cut):
 
         r0 = (x0[:,0,0][-1]-x0[:,0,0][0])/4
         r1 = (x1[0,:,0][-1]-x1[0,:,0][0])/4
@@ -1025,25 +1019,25 @@ class PeakEllipsoid:
 
         args = x0, x1, x2, 1, 0, c, inv_S
 
-        A, B = self.intensity_background(x0, x1, x2, y3_fit, y, e, '3d')
+        A, A_err, B = self.intensity_background(x0, x1, x2, y3_fit, y, e, '3d')
 
-        res = (A*y3_fit+B-y)/e
+        res = (A*y3_fit+B-y)/e/np.sqrt(e.size)
 
         diff += res.flatten().tolist()
 
         y_int, e_int = self.integrate(y, e, '2d')
 
-        A, B = self.intensity_background(x0, x1, x2, y2_fit, y_int, e_int, '2d')
+        A, A_err, B = self.intensity_background(x0, x1, x2, y2_fit, y_int, e_int, '2d')
 
-        res = (A*y2_fit+B-y_int)/e_int
+        res = (A*y2_fit+B-y_int)/e_int/np.sqrt(e_int.size)
 
         diff += res.flatten().tolist()
 
         y_int, e_int = self.integrate(y, e, '1d')
 
-        A, B = self.intensity_background(x0, x1, x2, y1_fit, y_int, e_int, '1d')
+        A, A_err, B = self.intensity_background(x0, x1, x2, y1_fit, y_int, e_int, '1d')
 
-        res = (A*y1_fit+B-y_int)/e_int
+        res = (A*y1_fit+B-y_int)/e_int/np.sqrt(e_int.size)
 
         diff += res.flatten().tolist()
 
@@ -1136,13 +1130,21 @@ class PeakEllipsoid:
 
         b = y[mask]/e[mask]
 
-        result, *_ = np.linalg.lstsq(A, b)
+        result, residuals, *_ = np.linalg.lstsq(A, b, rcond=None)
 
-        A, B, *params = result
+        I, B, *params = result
 
         B += np.einsum('i...,i->...', x, params)
 
-        return A, B
+        if len(residuals) > 0:
+            dof = b.size-len(result)
+            res_var = residuals/dof
+            cov_matrix = np.linalg.inv(np.dot(A.T, A))*res_var
+            I_err = np.sqrt(cov_matrix[0, 0]) 
+        else:
+            I_err = np.nan
+
+        return I, I_err, B
 
     def estimate_weights(self, x0, x1, x2, y, e):
 
@@ -1262,8 +1264,8 @@ class PeakEllipsoid:
         y1, e1 = self.integrate(y, e, mode='1d')
         y3, e3 = y.copy(), e.copy()
 
-        A1, B1 = self.intensity_background(x0, x1, x2, y1_fit, y1, e1, '1d')
-        A3, B3 = self.intensity_background(x0, x1, x2, y3_fit, y3, e3, '3d')
+        A1, A1_err, B1 = self.intensity_background(x0, x1, x2, y1_fit, y1, e1, '1d')
+        A3, A3_err, B3 = self.intensity_background(x0, x1, x2, y3_fit, y3, e3, '3d')
 
         y1_fit = A1*y1_fit+B1
         y3_fit = A3*y3_fit+B3
@@ -1280,9 +1282,9 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def fit(self, x0, x1, x2, y, e, dx, r_cut):
+    def fit(self, x0, x1, x2, y, e, dx, l_cut, t_cut):
 
-        self.update_constraints(x0, x1, x2, y, dx, r_cut)        
+        self.update_constraints(x0, x1, x2, y, dx, l_cut, t_cut)        
 
         mask = (e > 0) & (y > 0)
 

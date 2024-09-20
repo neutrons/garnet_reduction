@@ -28,7 +28,7 @@ data.load_histograms(data_ws, 'md')
 peaks = PeaksModel()
 peaks.load_peaks(peaks_ws, 'peaks')
 
-params = [0.1, 0, 0.1, 0]
+params = [0.06, 0, 0.1, 0]
 
 integrate = Integration(rp.plan)
 integrate.data = data

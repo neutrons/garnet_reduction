@@ -25,9 +25,9 @@ class RadiusPlot(BasePlot):
 
         plt.close('all')
 
-        self.fig, self.ax = plt.subplots(3,
-                                         1,
-                                         figsize=(6.4, 14.4),
+        self.fig, self.ax = plt.subplots(1,
+                                         3,
+                                         figsize=(6.4*3, 4.8),
                                          layout='constrained')
 
         self.add_radius_fit(r, y, y_fit)
@@ -58,42 +58,46 @@ class RadiusPlot(BasePlot):
         self.ax[0].plot(x, y, '-', color='C1')
         self.ax[0].set_ylabel(r'# $I/\sigma=2$')
 
-    def add_profile(self, hist, r_bins, Q_bins, r_lim, Q_lim):
+    def add_profile(self, hist, r, l):
 
         ax = self.ax[1]
 
-        extent = [r_bins[0], r_bins[-1], Q_bins[0], Q_bins[-1]]
+        cmap = plt.get_cmap('turbo')
 
-        ax.imshow(hist,
-                  interpolation='nearest',
-                  origin='lower',
-                  extent=extent,
-                  cmap='turbo')
+        norm = plt.Normalize(vmin=np.min(l), vmax=np.max(l))
 
-        ax.plot(r_lim, Q_lim, color='w')
-        ax.plot(-r_lim, Q_lim, color='w')
-        ax.set_aspect('auto')
+        for i, vals in enumerate(hist):
+            ax.plot(r, vals, 'o-', color=cmap(norm(l[i])))
+
         ax.set_xlabel(r'$|\Delta{Q}|$ [$\AA^{-1}$]')
-        ax.set_ylabel(r'$|Q|$ [$\AA^{-1}$]')
         ax.minorticks_on()
 
-    def add_radius(self, hist, r_bins, Q_bins, r_lim, Q_lim):
+        im = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+        cb = self.fig.colorbar(im, ax=ax)
+        cb.ax.set_ylabel(r'$\lambda$ [$\AA$]')
+        cb.ax.minorticks_on()
+
+    def add_projection(self, hist, r, t):
 
         ax = self.ax[2]
 
-        extent = [r_bins[0], r_bins[-1], Q_bins[0], Q_bins[-1]]
+        cmap = plt.get_cmap('copper')
 
-        ax.imshow(hist,
-                  interpolation='nearest',
-                  origin='lower',
-                  extent=extent,
-                  cmap='turbo')
+        norm = plt.Normalize(vmin=np.min(t), vmax=np.max(t))
 
-        ax.set_aspect('auto')
-        ax.plot(r_lim, Q_lim, color='w')
-        ax.set_xlabel(r'$r$ [$\AA^{-1}$]')
-        ax.set_ylabel(r'$|Q|$ [$\AA^{-1}$]')
+        for i, vals in enumerate(hist):
+            ax.plot(r, vals, 'o', color=cmap(norm(t[i])))
+            ax.step(r, vals, where='mid', color=cmap(norm(t[i])))
+
+        ax.set_xlabel(r'$|\Delta{Q}|$ [$\AA^{-1}$]')
         ax.minorticks_on()
+
+        im = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+        cb = self.fig.colorbar(im, ax=ax)
+        cb.ax.set_ylabel(r'$\theta$')
+        cb.ax.minorticks_on()
+        tick_labels = ['${:.1f}^\circ$'.format(t) for t in cb.get_ticks()]
+        cb.set_ticklabels(tick_labels)
 
 class PeakPlot(BasePlot):
 
@@ -295,7 +299,7 @@ class PeakPlot(BasePlot):
         self.cb_el.formatter.set_useMathText(True)
 
     def __init_profile(self):
-        
+
         gs = self.gs[1]
 
         ax = self.fig.add_subplot(gs[0])
@@ -349,7 +353,7 @@ class PeakPlot(BasePlot):
 
         self.norm.append(ax)
 
-        im = ax.imshow(z.T, 
+        im = ax.imshow(z.T,
                        extent=(0, 5, 0, 6),
                        origin='lower',
                        interpolation='nearest')
@@ -390,7 +394,7 @@ class PeakPlot(BasePlot):
         norm = Normalize(0, 29)
         im = ScalarMappable(norm=norm)
 
-        self.cb_norm = self.fig.colorbar(im, 
+        self.cb_norm = self.fig.colorbar(im,
                                          ax=self.norm,
                                          orientation='vertical')
         self.cb_norm.ax.minorticks_on()
@@ -416,7 +420,7 @@ class PeakPlot(BasePlot):
         barsy.set_segments(segments)
 
         self.step_line[0].set_data(x, y_fit)
-        
+
         self.profile.relim()
         self.profile.autoscale_view()
 
@@ -436,7 +440,7 @@ class PeakPlot(BasePlot):
 
         if mask.sum() == 0:
             mask = np.ones_like(mask, dtype=bool)
-            
+
         s0 = 0.5*(x0[1,0,0]-x0[0,0,0])
         s1 = 0.5*(x1[0,1,0]-x1[0,0,0])
         s2 = 0.5*(x2[0,0,1]-x2[0,0,0])
@@ -506,7 +510,7 @@ class PeakPlot(BasePlot):
         ----------
         y : array-like
             Data array.
- 
+
         Returns
         -------
         vmin, vmax : float

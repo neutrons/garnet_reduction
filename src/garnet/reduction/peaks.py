@@ -277,13 +277,13 @@ class PeaksModel:
 
         return peak_radius, sig_noise, x, y, Q
 
-    def intensity_Q_profile(self, md,
-                                  peaks,
-                                  peak_radius,
-                                  background_inner_fact=1,
-                                  background_outer_fact=1.5):
+    def intensity_profile(self, md,
+                                peaks,
+                                peak_radius,
+                                background_inner_fact=1,
+                                background_outer_fact=1.5):
         """
-        Integrate peak intensity as Q profile.
+        Integrate peak intensity as profile.
 
         Parameters
         ----------
@@ -296,17 +296,17 @@ class PeaksModel:
         background_inner_fact : float, optional
             Factor of peak radius for background shell. The default is 1.
         background_outer_fact : float, optional
-            Factor of peak radius for background shell. The default is 1.5.        
+            Factor of peak radius for background shell. The default is 1.5.
 
         Returns
         -------
 
-        radius : list
-            Peak radius.
-        sig_noise : list
-            Peak signal/noise ratio at lowest threshold.
-        intens : list
+        x : list
+            Peak profile.
+        y : list
             Peak intensity.
+        lamda : list
+            Peak wavelength.
 
         """
 
@@ -320,22 +320,113 @@ class PeaksModel:
                          BackgroundInnerRadius=background_inner_radius,
                          BackgroundOuterRadius=background_outer_radius,
                          UseOnePercentBackgroundCorrection=True,
-                         Cylinder=True, 
-                         CylinderLength=length, 
+                         Cylinder=True,
+                         CylinderLength=length,
                          PercentBackground=15,
                          ProfileFunction='NoFit',
                          PeaksWorkspace=peaks,
-                         OutputWorkspace=peaks+'_')
+                         OutputWorkspace=peaks+'_profile')
 
-        ol = mtd['peaks'].sample().getOrientedLattice()
-        hkls = mtd['ProfilesData'].getAxis(1).extractValues()
-        hkls = [np.array(hkl.split('_')[:-1]).astype(float) for hkl in hkls]
-        Q = np.array([2*np.pi/ol.d(*hkl) for hkl in hkls])
+        lamda = np.array(mtd['peaks'].column(5))
 
         x = ((mtd['ProfilesData'].extractX()+1)/100-0.5)*length
         y = mtd['ProfilesData'].extractY()
 
-        return x, y, Q
+        return x, y, lamda
+
+    def intensity_projection(self, md,
+                                   peaks,
+                                   peak_radius,
+                                   background_inner_fact=1,
+                                   background_outer_fact=1.5):
+        """
+        Integrate peak intensity as profile.
+
+        Parameters
+        ----------
+        md : str
+            Name of Q-sample.
+        peaks : str
+            Name of peaks table.
+        peak_radius : float
+            Integrat region radius cut off.
+        background_inner_fact : float, optional
+            Factor of peak radius for background shell. The default is 1.
+        background_outer_fact : float, optional
+            Factor of peak radius for background shell. The default is 1.5.
+
+        Returns
+        -------
+
+        x : list
+            Peak projection.
+        y : list
+            Peak intensity.
+        theta : list
+            Peak angle.
+
+        """
+
+        background_inner_radius = peak_radius*background_inner_fact
+        background_outer_radius = peak_radius*background_outer_fact
+
+        length = 4*peak_radius
+
+        IntegratePeaksMD(InputWorkspace=md,
+                         PeakRadius=peak_radius,
+                         BackgroundInnerRadius=background_inner_radius,
+                         BackgroundOuterRadius=background_outer_radius,
+                         UseOnePercentBackgroundCorrection=True,
+                         Ellipsoid=True,
+                         FixQAxis=True,
+                         FixMajorAxisLength=False,
+                         MaxIterations=3,
+                         PeaksWorkspace=peaks,
+                         OutputWorkspace=peaks+'_projection')
+
+        two_theta = []
+        radius = []
+        intensity = []
+
+        for peak in mtd[peaks+'_projection']:
+
+            tt = peak.getScattering()
+            I = peak.getIntensity()
+            Q = peak.getQSampleFrame()
+
+            shape_dict = eval(peak.getPeakShape().toJSON())
+
+            v0 = [float(val) for val in shape_dict['direction0'].split(' ')]
+            v1 = [float(val) for val in shape_dict['direction1'].split(' ')]
+            v2 = [float(val) for val in shape_dict['direction2'].split(' ')]
+
+            r0 = shape_dict['radius0']
+            r1 = shape_dict['radius1']
+            r2 = shape_dict['radius2']
+
+            W = np.column_stack([v0, v1, v2])
+            V = np.diag([r0**2, r1**2, r2**2])
+
+            A = (W @ V) @ W.T
+
+            n = Q/np.linalg.norm(Q)
+
+            P = np.eye(3)-np.outer(n, n)
+
+            A_proj = P @ A @ P
+
+            i = np.abs(n).argmax()
+            cov = np.delete(np.delete(A_proj, i, axis=0), i, axis=1)
+
+            two_theta.append(np.rad2deg(tt))
+            radius.append(np.sqrt(np.linalg.eigvals(cov).max()))
+            intensity.append(I)
+
+        theta = np.array(two_theta)/2
+        y = np.array(intensity)
+        x = np.array(radius)
+
+        return x, y, theta
 
     def get_max_d_spacing(self, ws):
         """
@@ -794,7 +885,7 @@ class PeaksModel:
 
     def remove_peaks_by_d_tolerance(self, peaks, tol=0.05):
         """
-        Filter out peaks based on d-spacing tolerance. 
+        Filter out peaks based on d-spacing tolerance.
 
         Parameters
         ----------
