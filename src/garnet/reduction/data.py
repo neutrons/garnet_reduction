@@ -1066,6 +1066,8 @@ class LaueData(BaseDataModel):
 
         Load(Filename=filenames,
              OutputWorkspace=event_name,
+             FilterByTofMin=1500,
+             FilterByTofMax=16600,
              FilterByTimeStop=time_cut)
 
         FilterBadPulses(InputWorkspace=event_name,
