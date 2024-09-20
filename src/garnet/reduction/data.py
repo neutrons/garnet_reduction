@@ -1543,7 +1543,7 @@ class LaueData(BaseDataModel):
 
         """
 
-        if not mtd.doesExist('bkg_mde') and filename is not None:
+        if not mtd.doesExist('bkg_md') and filename is not None:
 
             if not mtd.doesExist('bkg'):
 
@@ -1619,7 +1619,7 @@ class LaueData(BaseDataModel):
                             LorentzCorrection=mtd.doesExist('spectra'),
                             MinValues=Q_min_vals,
                             MaxValues=Q_max_vals,
-                            OutputWorkspace='bkg_mde')
+                            OutputWorkspace='bkg_md')
 
                 DeleteWorkspace(Workspace='bkg')
 
@@ -1634,14 +1634,14 @@ class LaueData(BaseDataModel):
                 #                OutputWorkspace=event_name,
                 #                Tolerance=0.0001)
 
-        # if mtd.doesExist('bkg_mde'):
+        # if mtd.doesExist('bkg_md'):
 
         #     pc = mtd[event_name].run().getProperty('gd_prtn_chrg').value
 
         #     CreateSingleValuedWorkspace(DataValue=pc,
         #                                 OutputWorkspace='pc_scale')
 
-        #     MultiplyMD(LHSWorkspace='bkg_mde',
+        #     MultiplyMD(LHSWorkspace='bkg_md',
         #                RHSWorkspace='pc_scale',
         #                OutputWorkspace='bkg_md')
 
