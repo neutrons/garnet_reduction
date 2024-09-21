@@ -553,6 +553,8 @@ class Integration(SubPlan):
 
         r_cut = sphere.fit(r, sig_noise)
 
+        r_cut *= 1.5
+
         sig_noise_fit, *vals = sphere.best_fit(r)
 
         plot = RadiusPlot(r, sig_noise, sig_noise_fit)
