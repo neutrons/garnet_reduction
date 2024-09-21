@@ -925,7 +925,7 @@ class PeakProfile:
         hist[hist == 0] = np.nan
 
         c = np.nansum(hist*r, axis=1)
-        s = np.sqrt(np.nansum(hist*(r-c[:,np.newaxis])**2, axis=1))*2
+        s = np.sqrt(np.nansum(hist*(r-c[:,np.newaxis])**2, axis=1))*3
 
         out = Minimizer(self.residual,
                         self.params,
@@ -1098,7 +1098,7 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def residual(self, params, x0, x1, x2, y, e):
+    def residual(self, params, x0, x1, x2, y, e, lamda=0.01):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
@@ -1128,27 +1128,41 @@ class PeakEllipsoid:
 
         args = x0, x1, x2, 1, 0, c, inv_S
 
-        A, A_err, B = self.intensity_background(x0, x1, x2, y3_fit, y, e, '3d')
+        y_int, e_int = y.copy(), e.copy()
 
-        res = (np.arcsinh(A*y3_fit+B)-np.arcsinh(y))/e*np.sqrt(y**2+1)
+        A, A_err, B = self.intensity_background(x0, x1, x2, y3_fit, y_int, e_int, '3d')
+
+        s_int = e_int/np.sqrt(y_int**2+1)
+
+        res = (np.arcsinh(A*y3_fit+B)-np.arcsinh(y))/s_int
+        res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
+        diff.append(lamda*A_err/A)
 
         y_int, e_int = self.integrate(y, e, '2d')
 
         A, A_err, B = self.intensity_background(x0, x1, x2, y2_fit, y_int, e_int, '2d')
 
-        res = (np.arcsinh(A*y2_fit+B)-np.arcsinh(y_int))/e_int*np.sqrt(y_int**2+1)
+        s_int = e_int/np.sqrt(y_int**2+1)
+
+        res = (np.arcsinh(A*y2_fit+B)-np.arcsinh(y_int))/s_int
+        res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
+        diff.append(lamda*A_err/A)
 
         y_int, e_int = self.integrate(y, e, '1d')
 
         A, A_err, B = self.intensity_background(x0, x1, x2, y1_fit, y_int, e_int, '1d')
 
-        res = (np.arcsinh(A*y1_fit+B)-np.arcsinh(y_int))/e_int*np.sqrt(y_int**2+1)
+        s_int = e_int/np.sqrt(y_int**2+1)
+
+        res = (np.arcsinh(A*y1_fit+B)-np.arcsinh(y_int))/s_int
+        res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
+        diff.append(lamda*A_err/A)
 
         return diff
 
@@ -1244,13 +1258,16 @@ class PeakEllipsoid:
 
         B += np.einsum('i...,i->...', x, params)
 
+        if np.isclose(I, 0):
+            I += 1e-6
+
         if len(residuals) > 0:
             dof = b.size-len(result)
             res_var = residuals/dof
             cov_matrix = np.linalg.inv(np.dot(A.T, A))*res_var
             I_err = np.sqrt(cov_matrix[0, 0]) 
         else:
-            I_err = np.nan
+            I_err = I
 
         return I, I_err, B
 
@@ -1516,7 +1533,7 @@ class PeakEllipsoid:
         y_bkg = y[bkg].copy()
         e_bkg = e[bkg].copy()
 
-        w_bkg = 1/e_bkg**2
+        # w_bkg = 1/e_bkg**2
 
         # if len(w_bkg) > 2:
         #     b = self.weighted_median(y_bkg, w_bkg)
@@ -1531,16 +1548,16 @@ class PeakEllipsoid:
         # sig = np.sqrt(np.nansum(e[pk]**2+b_err**2))*scale
 
         # n_pk = np.sum(pk)
-        # n_bkg = np.sum(bkg)
+        n_bkg = np.sum(bkg)
 
         #b = self.weighted_median(y_bkg, w_bkg)
         #b_err = self.jackknife_uncertainty(y_bkg, w_bkg)
 
-        #b = np.nansum(y_bkg)/n_bkg
-        #b_err = np.nansum(e_bkg**2)/n_bkg
+        b = np.nansum(y_bkg)/n_bkg
+        b_err = np.nansum(e_bkg**2)/n_bkg
 
-        b = np.nansum(w_bkg*y_bkg)/np.nansum(w_bkg)
-        b_err = 1/np.sqrt(np.nansum(w_bkg))
+        #b = np.nansum(w_bkg*y_bkg)/np.nansum(w_bkg)
+        #b_err = 1/np.sqrt(np.nansum(w_bkg))
 
         self.info = [scale, scale]
 

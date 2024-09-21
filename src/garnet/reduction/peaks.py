@@ -260,12 +260,14 @@ class PeaksModel:
                               OutputWorkspace=peaks+'_intens_vs_rad',
                               OutputWorkspace2=peaks+'_sig/noise_vs_rad')
 
-        ExtractSingleSpectrum(InputWorkspace=peaks+'_sig/noise_vs_rad',
-                              OutputWorkspace=peaks+'_sig/noise_vs_rad/lowest',
-                              WorkspaceIndex=0)
+        n = mtd[peaks+'_sig/noise_vs_rad'].getNumberHistograms()
 
-        peak_radius = mtd[peaks+'_sig/noise_vs_rad/lowest'].extractX().ravel()
-        sig_noise = mtd[peaks+'_sig/noise_vs_rad/lowest'].extractY().ravel()
+        ExtractSingleSpectrum(InputWorkspace=peaks+'_sig/noise_vs_rad',
+                              OutputWorkspace=peaks+'_sig/noise_vs_rad/strong',
+                              WorkspaceIndex=n-1)
+
+        peak_radius = mtd[peaks+'_sig/noise_vs_rad/strong'].extractX().ravel()
+        sig_noise = mtd[peaks+'_sig/noise_vs_rad/strong'].extractY().ravel()
 
         ol = mtd['peaks'].sample().getOrientedLattice()
         hkls = mtd[peaks+'_intens_vs_rad'].getAxis(1).extractValues()
@@ -369,8 +371,6 @@ class PeaksModel:
 
         background_inner_radius = peak_radius*background_inner_fact
         background_outer_radius = peak_radius*background_outer_fact
-
-        length = 4*peak_radius
 
         IntegratePeaksMD(InputWorkspace=md,
                          PeakRadius=peak_radius,

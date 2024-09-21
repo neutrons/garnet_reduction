@@ -56,7 +56,7 @@ class RadiusPlot(BasePlot):
                np.sqrt(2/np.pi)*z*np.exp(-0.5*z**2))
 
         self.ax[0].plot(x, y, '-', color='C1')
-        self.ax[0].set_ylabel(r'# $I/\sigma=2$')
+        self.ax[0].set_ylabel(r'# [$I/\sigma=10$]')
 
     def add_profile(self, hist, r, l):
 
@@ -89,7 +89,7 @@ class RadiusPlot(BasePlot):
             ax.plot(r, vals, 'o', color=cmap(norm(t[i])))
             ax.step(r, vals, where='mid', color=cmap(norm(t[i])))
 
-        ax.set_xlabel(r'$|\Delta{Q}|$ [$\AA^{-1}$]')
+        ax.set_xlabel(r'$\Delta{Q}_r$ [$\AA^{-1}$]')
         ax.minorticks_on()
 
         im = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
