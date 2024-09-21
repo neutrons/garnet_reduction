@@ -20,7 +20,7 @@ class Normalization(SubPlan):
         super(Normalization, self).__init__(plan)
 
         self.params = plan['Normalization']
-        self.output = 'normalization'
+        self.output = plan['OutputName']+'_normalization'
 
         self.validate_params()
 
@@ -52,7 +52,7 @@ class Normalization(SubPlan):
     def normalize_parallel(plan, runs, proc):
 
         plan['Runs'] = runs
-        plan['OutputName'] += '_p{}'.format(proc)
+        plan['ProcName'] = '_p{}'.format(proc)
 
         instance = Normalization(plan)
         instance.proc = proc
@@ -205,7 +205,7 @@ class Normalization(SubPlan):
 
     def append_name(self, file):
         """
-        Update filename with identifier name
+        Update filename with identifier name.
 
         Parameters
         ----------

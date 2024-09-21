@@ -77,8 +77,12 @@ class SubPlan:
 
         """
 
+        proc = ''
+        if self.plan.get('ProcName') is not None:
+            proc += self.plan['ProcName']
+
         output_file = os.path.join(self.get_output_path(),
-                                   self.plan['OutputName']+ext)
+                                   self.plan['OutputName']+proc+ext)
 
         return output_file
 
@@ -215,10 +219,11 @@ class ReductionPlan:
         """
 
         path = os.path.dirname(os.path.abspath(filename))
-        name = os.path.splitext(os.path.basename(filename))[0]
-
         self.plan['OutputPath'] = path
-        self.plan['OutputName'] = name
+
+        if self.plan.get('OutputName') is None:
+            name = os.path.splitext(os.path.basename(filename))[0]
+            self.plan['OutputName'] = name 
 
     def load_plan(self, filename):
         """

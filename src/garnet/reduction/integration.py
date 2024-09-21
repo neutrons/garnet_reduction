@@ -37,7 +37,7 @@ class Integration(SubPlan):
         super(Integration, self).__init__(plan)
 
         self.params = plan['Integration']
-        self.output = 'integration'
+        self.output = plan['OutputName']+'_integration'
 
         self.validate_params()
 
@@ -71,7 +71,7 @@ class Integration(SubPlan):
     def integrate_parallel(plan, runs, proc):
 
         plan['Runs'] = runs
-        plan['OutputName'] += '_p{}'.format(proc)
+        plan['ProcName'] = '_p{}'.format(proc)
 
         data = DataModel(beamlines[plan['Instrument']])
 
@@ -143,6 +143,10 @@ class Integration(SubPlan):
 
             peaks.remove_weak_peaks('peaks', 10)
 
+            self.peaks, self.data = peaks, data
+
+            params = self.estimate_peak_size('peaks', 'md', r_cut)
+
             peaks.predict_peaks('data',
                                 'peaks',
                                 self.params['Centering'],
@@ -164,10 +168,6 @@ class Integration(SubPlan):
 
             data.delete_workspace('data')
 
-            self.peaks, self.data = peaks, data
-
-            params = self.estimate_peak_size('peaks', 'md', r_cut)
-
             self.fit_peaks('peaks', params)
 
             peaks.combine_peaks('peaks', 'combine')
@@ -181,8 +181,6 @@ class Integration(SubPlan):
             data.delete_workspace('peaks')
             data.delete_workspace('md')
 
-        peaks.remove_weak_peaks('combine')
-
         peaks.save_peaks(output_file, 'combine')
 
         mtd.clear()
@@ -192,6 +190,7 @@ class Integration(SubPlan):
     def laue_combine(self, files):
 
         output_file = self.get_output_file()
+        result_file = self.get_file(output_file, '')
 
         peaks = PeaksModel()
 
@@ -205,12 +204,12 @@ class Integration(SubPlan):
 
         if mtd.doesExist('combine'):
 
-            peaks.save_peaks(output_file, 'combine')
+            peaks.save_peaks(result_file, 'combine')
 
             opt = Optimization('combine')
             opt.optimize_lattice(self.params['Cell'])
 
-            ub_file = os.path.splitext(output_file)[0]+'.mat'
+            ub_file = os.path.splitext(result_file)[0]+'.mat'
 
             ub = UBModel('combine')
             ub.save_UB(ub_file)
@@ -320,6 +319,7 @@ class Integration(SubPlan):
     def monochromatic_combine(self, files):
 
         output_file = self.get_output_file()
+        result_file = self.get_file(output_file, '')
 
         data = DataModel(beamlines[self.plan['Instrument']])
         data.update_raw_path(self.plan)
@@ -395,17 +395,124 @@ class Integration(SubPlan):
 
         if mtd.doesExist('combine'):
 
-            peaks.save_peaks(output_file, 'combine')
+            peaks.save_peaks(result_file, 'combine')
 
             opt = Optimization('combine')
             opt.optimize_lattice(self.params['Cell'])
 
-            ub_file = os.path.splitext(output_file)[0]+'.mat'
+            ub_file = os.path.splitext(result_file)[0]+'.mat'
 
             ub = UBModel('combine')
             ub.save_UB(ub_file)
 
         mtd.clear()
+
+    def get_file(self, file, ws=''):
+        """
+        Update filename with identifier name and optional workspace name.
+
+        Parameters
+        ----------
+        file : str
+            Original file name.
+        ws : str, optional
+            Name of workspace. The default is ''.
+
+        Returns
+        -------
+        output_file : str
+            File with updated name for identifier and workspace name.
+
+        """
+
+        if len(ws) > 0:
+            ws = '_'+ws
+
+        return self.append_name(file).replace('.nxs', ws+'.nxs')
+
+    def append_name(self, file):
+        """
+        Update filename with identifier name.
+
+        Parameters
+        ----------
+        file : str
+            Original file name.
+
+        Returns
+        -------
+        output_file : str
+            File with updated name for identifier name.
+
+        """
+
+        append = self.cell_centering_name() \
+               + self.modulation_name() \
+               + self.resolution_name()
+
+        name, ext = os.path.splitext(file)
+
+        return name+append+ext
+
+    def cell_centering_name(self):
+        """
+        Lattice and reflection condition.
+
+        Returns
+        -------
+        lat_ref : str
+            Underscore separated strings.
+
+        """
+
+        cell = self.params['Cell']
+        centering = self.params['Centering']
+
+        return '_'+cell+'_'+centering
+
+    def modulation_name(self):
+        """
+        Modulation vectors.
+
+        Returns
+        -------
+        mod : str
+            Underscore separated vectors and max order
+
+        """
+
+        mod = ''
+
+        max_order = self.params.get('MaxOrder')
+        mod_vec_1 = self.params.get('ModVec1')
+        mod_vec_2 = self.params.get('ModVec1')
+        mod_vec_3 = self.params.get('ModVec3')
+        cross_terms = self.params.get('CrossTerms')
+
+        if max_order > 0:
+            for vec in [mod_vec_1, mod_vec_2, mod_vec_3]:
+                if np.linalg.norm(vec) > 0:
+                   mod += '_({},{},{})'.format(*vec)
+            if cross_terms:
+                mod += '_mix'
+
+        return mod
+
+    def resolution_name(self):
+        """
+        Minimum d-spacing and starting radii
+
+        Returns
+        -------
+        res_rad : str
+            Underscore separated strings.
+
+        """
+
+        min_d = self.params['MinD']
+        max_r = self.params['Radius']
+
+        return '_d(min)={:.2f}'.format(min_d)+'_r(max)={:.2f}'.format(max_r)
 
     def estimate_peak_size(self, peaks_ws, data_ws, r_cut):
         """
@@ -567,6 +674,8 @@ class Integration(SubPlan):
 
                     plot.add_profile_fit(*ellipsoid.best_profile)
 
+                    plot.add_projection_fit(*ellipsoid.best_projection)
+
                     plot.add_ellipsoid(c, S)
 
                     goniometer = peak.get_goniometer_angles(i)
@@ -639,13 +748,13 @@ class Integration(SubPlan):
 
         W = np.column_stack(projections)
 
-        am = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [-0.3, 0, 0]))
-        bm = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, -0.3, 0]))
-        cm = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0, -0.3]))
+        am = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [-0.5, 0, 0]))
+        bm = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, -0.5, 0]))
+        cm = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0, -0.5]))
 
-        ap = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0.3, 0, 0]))
-        bp = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0.3, 0]))
-        cp = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0, 0.3]))
+        ap = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0.5, 0, 0]))
+        bp = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0.5, 0]))
+        cp = np.dot(W.T, np.einsum('ij,j...->i...', 2*np.pi*UB, [0, 0, 0.5]))
 
         Q0_min = np.min([am[0], bm[0], cm[0], ap[0], bp[0], cp[0]])
         Q1_min = np.min([am[1], bm[1], cm[1], ap[1], bp[1], cp[1]])
@@ -1021,7 +1130,7 @@ class PeakEllipsoid:
 
         A, A_err, B = self.intensity_background(x0, x1, x2, y3_fit, y, e, '3d')
 
-        res = (A*y3_fit+B-y)/e/np.sqrt(e.size)
+        res = (np.arcsinh(A*y3_fit+B)-np.arcsinh(y))/e*np.sqrt(y**2+1)
 
         diff += res.flatten().tolist()
 
@@ -1029,7 +1138,7 @@ class PeakEllipsoid:
 
         A, A_err, B = self.intensity_background(x0, x1, x2, y2_fit, y_int, e_int, '2d')
 
-        res = (A*y2_fit+B-y_int)/e_int/np.sqrt(e_int.size)
+        res = (np.arcsinh(A*y2_fit+B)-np.arcsinh(y_int))/e_int*np.sqrt(y_int**2+1)
 
         diff += res.flatten().tolist()
 
@@ -1037,7 +1146,7 @@ class PeakEllipsoid:
 
         A, A_err, B = self.intensity_background(x0, x1, x2, y1_fit, y_int, e_int, '1d')
 
-        res = (A*y1_fit+B-y_int)/e_int/np.sqrt(e_int.size)
+        res = (np.arcsinh(A*y1_fit+B)-np.arcsinh(y_int))/e_int*np.sqrt(y_int**2+1)
 
         diff += res.flatten().tolist()
 
@@ -1046,15 +1155,14 @@ class PeakEllipsoid:
     def integrate(self, y, e, mode='1d'):
 
         if mode == '1d':
-            #weights = weights[:,np.newaxis,np.newaxis]
             n = np.nansum(y/e**2, axis=(1,2))
-            y_int = np.nansum(y**2/e**2, axis=(1,2))/n
-            e_int = np.sqrt(np.nansum(y**2/e**2, axis=(1,2)))/n
+            d = np.nansum(y**2/e**2, axis=(1,2))
         else:
-            #weights = weights[np.newaxis,:,:]
+            d = np.nansum(y**2/e**2, axis=0)
             n = np.nansum(y/e**2, axis=0)
-            y_int = np.nansum(y**2/e**2, axis=0)/n
-            e_int = np.sqrt(np.nansum(y**2/e**2, axis=0))/n
+
+        y_int = d/n
+        e_int = np.sqrt(d)/n
 
         return y_int, e_int
 
@@ -1259,20 +1367,24 @@ class PeakEllipsoid:
         args = x0, x1, x2, 1, 0, c, inv_S
 
         y1_fit = self.func(*args, '1d')
+        y2_fit = self.func(*args, '2d')
         y3_fit = self.func(*args, '3d')
 
         y1, e1 = self.integrate(y, e, mode='1d')
+        y2, e2 = self.integrate(y, e, mode='2d')
         y3, e3 = y.copy(), e.copy()
 
         A1, A1_err, B1 = self.intensity_background(x0, x1, x2, y1_fit, y1, e1, '1d')
+        A2, A2_err, B2 = self.intensity_background(x0, x1, x2, y2_fit, y2, e2, '2d')
         A3, A3_err, B3 = self.intensity_background(x0, x1, x2, y3_fit, y3, e3, '3d')
 
         y1_fit = A1*y1_fit+B1
+        y2_fit = A2*y2_fit+B2
         y3_fit = A3*y3_fit+B3
 
         inv_S = self.inv_S_matrix(r0, r1, r2, phi, theta, omega)
 
-        return c, inv_S, (y1_fit, y1, e1), (y3_fit, y3, e3)
+        return c, inv_S, (y1_fit, y1, e1), (y2_fit, y2, e2), (y3_fit, y3, e3)
 
     def voxels(self, x0, x1, x2):
 
@@ -1324,7 +1436,13 @@ class PeakEllipsoid:
             print('Invalid weight estimate')
             return None
 
-        c, inv_S, (y_prof_fit, y_prof, e_prof), (y_fit, y, e) = weights
+        c, inv_S, vals1d, vals2d, vals3d = weights
+
+        y_prof_fit, y_prof, e_prof = vals1d
+
+        y_proj_fit, y_proj, e_proj = vals2d
+
+        y_fit, y, e = vals3d
 
         if not np.linalg.det(inv_S) > 0:
             print('Improper optimal covariance')
@@ -1360,7 +1478,10 @@ class PeakEllipsoid:
         fitting = binning, y_fit
 
         self.best_fit = c, S, *fitting
+        
         self.best_profile = (x0[:,0,0], y_prof, e_prof), y_prof_fit
+
+        self.best_projection = (x1[0,:,:], x2[0,:,:], y_proj, e_proj), y_proj_fit
 
         self.bin_data = (x0, x1, x2), (dx0, dx1, dx2), y, e
 

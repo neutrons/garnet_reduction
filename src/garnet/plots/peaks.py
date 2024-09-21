@@ -107,9 +107,10 @@ class PeakPlot(BasePlot):
 
         plt.close('all')
 
-        self.fig = plt.figure(figsize=(6.4, 12), layout='constrained')
+        self.fig = plt.figure(figsize=(6.4*2, 4.8*1.5), layout='constrained')
 
-        sp = GridSpec(3, 1, figure=self.fig, height_ratios=[1,1,0.5])
+        # sp = GridSpec(3, 1, figure=self.fig, height_ratios=[1,1,0.5])
+        sp = GridSpec(2, 2, figure=self.fig, height_ratios=[1,0.5])
 
         self.gs = []
 
@@ -117,7 +118,7 @@ class PeakPlot(BasePlot):
                                      3,
                                      height_ratios=[1,1],
                                      width_ratios=[1,1,1],
-                                     subplot_spec=sp[0])
+                                     subplot_spec=sp[0,1])
 
         self.gs.append(gs)
 
@@ -125,7 +126,7 @@ class PeakPlot(BasePlot):
                                      1,
                                      height_ratios=[1],
                                      width_ratios=[1],
-                                     subplot_spec=sp[1])
+                                     subplot_spec=sp[0,0])
 
         self.gs.append(gs)
 
@@ -133,12 +134,21 @@ class PeakPlot(BasePlot):
                                      3,
                                      height_ratios=[1],
                                      width_ratios=[1,1,1],
-                                     subplot_spec=sp[2])
+                                     subplot_spec=sp[1,0])
+
+        self.gs.append(gs)
+
+        gs = GridSpecFromSubplotSpec(1,
+                                     2,
+                                     height_ratios=[1],
+                                     width_ratios=[1,1],
+                                     subplot_spec=sp[1,1])
 
         self.gs.append(gs)
 
         self.__init_ellipsoid()
         self.__init_profile()
+        self.__init_projection()
         self.__init_norm()
 
     def __init_ellipsoid(self):
@@ -316,6 +326,37 @@ class PeakPlot(BasePlot):
 
         self.profile = ax
 
+    def __init_projection(self):
+
+        self.proj = []   
+        self.prof_surf = []
+
+        gs = self.gs[3]
+
+        x = np.linspace(-5, 5, 101)
+        y = np.linspace(-5, 5, 100)
+
+        x, y = np.meshgrid(x, y)
+        z = np.sin(np.sqrt(x**2+y**2))
+
+        ax = self.fig.add_subplot(gs[0], projection='3d')
+        ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
+        ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
+
+        surf = ax.plot_surface(x, y, z, cmap='viridis', edgecolor='none')
+
+        self.proj.append(ax)
+        self.prof_surf.append(surf)
+
+        ax = self.fig.add_subplot(gs[1], projection='3d')
+        ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
+        ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
+
+        surf = ax.plot_surface(x, y, z, cmap='viridis', edgecolor='none')
+
+        self.proj.append(ax)
+        self.prof_surf.append(surf)
+
     def __init_norm(self):
 
         self.norm = []
@@ -423,6 +464,33 @@ class PeakPlot(BasePlot):
 
         self.profile.relim()
         self.profile.autoscale_view()
+
+    def add_projection_fit(self, xye, y_fit):
+
+        x0, x1, y, e = xye
+
+        mask = np.isfinite(y)
+        y_fit[~mask] = np.nan
+
+        self.prof_surf[0].remove()
+        self.prof_surf[1].remove()
+
+        self.prof_surf[0] = self.proj[0].plot_surface(x0,
+                                                      x1,
+                                                      y,
+                                                      cmap='viridis',
+                                                      edgecolor='none')
+
+        self.prof_surf[1] = self.proj[1].plot_surface(x0,
+                                                      x1,
+                                                      y_fit,
+                                                      cmap='viridis',
+                                                      edgecolor='none')
+
+        vmin, vmax = self._color_limits(y)
+
+        self.proj[0].set_zlim(vmin, vmax)
+        self.proj[1].set_zlim(vmin, vmax)
 
     def add_data_norm_fit(self, xye, params):
 

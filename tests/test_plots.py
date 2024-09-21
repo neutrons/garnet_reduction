@@ -174,7 +174,7 @@ def test_peak_plot():
 
     ellipsoid = PeakEllipsoid(counts)
 
-    ellipsoid.fit(Qx, Qy, Qz, data_norm, sig_data, 0.1, 2.0)
+    ellipsoid.fit(Qx, Qy, Qz, data_norm, sig_data, 0.1, 2.0, 2.0)
 
     c, S, *fitting = ellipsoid.best_fit
 
@@ -191,6 +191,7 @@ def test_peak_plot():
 
     plot.add_fitting(*fitting)
     plot.add_profile_fit(*ellipsoid.best_profile)
+    plot.add_projection_fit(*ellipsoid.best_projection)
     plot.add_ellipsoid(c, S)
     plot.add_peak_info(wavelength, angles, goniometer)
     plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
