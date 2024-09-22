@@ -987,7 +987,7 @@ class PeakProjection:
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares', loss='soft_l1')
- 
+
         ro = result.params['ro'].value
         rc = result.params['rc'].value
 
@@ -1132,9 +1132,11 @@ class PeakEllipsoid:
 
         A, A_err, B = self.intensity_background(x0, x1, x2, y3_fit, y_int, e_int, '3d')
 
-        s_int = e_int/np.sqrt(y_int**2+1)
+        # s_int = e_int/np.sqrt(y_int**2+1)
 
-        res = (np.arcsinh(A*y3_fit+B)-np.arcsinh(y))/s_int
+        # res = (np.arcsinh(A*y3_fit+B)-np.arcsinh(y))/s_int
+
+        res = (A*y3_fit+B-y_int)/e_int
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
@@ -1144,9 +1146,11 @@ class PeakEllipsoid:
 
         A, A_err, B = self.intensity_background(x0, x1, x2, y2_fit, y_int, e_int, '2d')
 
-        s_int = e_int/np.sqrt(y_int**2+1)
+        # s_int = e_int/np.sqrt(y_int**2+1)
 
-        res = (np.arcsinh(A*y2_fit+B)-np.arcsinh(y_int))/s_int
+        # res = (np.arcsinh(A*y2_fit+B)-np.arcsinh(y_int))/s_int
+
+        res = (A*y2_fit+B-y_int)/e_int
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
@@ -1156,9 +1160,11 @@ class PeakEllipsoid:
 
         A, A_err, B = self.intensity_background(x0, x1, x2, y1_fit, y_int, e_int, '1d')
 
-        s_int = e_int/np.sqrt(y_int**2+1)
+        # s_int = e_int/np.sqrt(y_int**2+1)
 
-        res = (np.arcsinh(A*y1_fit+B)-np.arcsinh(y_int))/s_int
+        # res = (np.arcsinh(A*y1_fit+B)-np.arcsinh(y_int))/s_int
+
+        res = (A*y1_fit+B-y_int)/e_int
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
@@ -1259,13 +1265,13 @@ class PeakEllipsoid:
         B += np.einsum('i...,i->...', x, params)
 
         if np.isclose(I, 0):
-            I += 1e-6
+            I += 1e-12
 
         if len(residuals) > 0:
             dof = b.size-len(result)
             res_var = residuals/dof
             cov_matrix = np.linalg.inv(np.dot(A.T, A))*res_var
-            I_err = np.sqrt(cov_matrix[0, 0]) 
+            I_err = np.sqrt(cov_matrix[0, 0])
         else:
             I_err = I
 
@@ -1342,24 +1348,24 @@ class PeakEllipsoid:
 
         self.params = result.params
 
-        # self.params['c0'].set(vary=True)
-        # self.params['c1'].set(vary=True)
-        # self.params['c2'].set(vary=True)
+        self.params['c0'].set(vary=True)
+        self.params['c1'].set(vary=True)
+        self.params['c2'].set(vary=True)
 
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=True)
-        # self.params['r2'].set(vary=True)
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
 
-        # self.params['phi'].set(vary=True)
-        # self.params['theta'].set(vary=True)
-        # self.params['omega'].set(vary=True)
+        self.params['phi'].set(vary=True)
+        self.params['theta'].set(vary=True)
+        self.params['omega'].set(vary=True)
 
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args,
-        #                 nan_policy='omit')
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        nan_policy='omit')
 
-        # result = out.minimize(method='least_squares')
+        result = out.minimize(method='least_squares')
 
         self.params = result.params
 
@@ -1413,7 +1419,7 @@ class PeakEllipsoid:
 
     def fit(self, x0, x1, x2, y, e, dx, l_cut, t_cut):
 
-        self.update_constraints(x0, x1, x2, y, dx, l_cut, t_cut)        
+        self.update_constraints(x0, x1, x2, y, dx, l_cut, t_cut)
 
         mask = (e > 0) & (y > 0)
 
@@ -1495,7 +1501,7 @@ class PeakEllipsoid:
         fitting = binning, y_fit
 
         self.best_fit = c, S, *fitting
-        
+
         self.best_profile = (x0[:,0,0], y_prof, e_prof), y_prof_fit
 
         self.best_projection = (x1[0,:,:], x2[0,:,:], y_proj, e_proj), y_proj_fit
