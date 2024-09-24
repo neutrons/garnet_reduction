@@ -190,10 +190,11 @@ def test_peak_plot():
     plot = PeakPlot()
 
     plot.add_fitting(*fitting)
-    plot.add_profile_fit(*ellipsoid.best_profile)
-    plot.add_projection_fit(*ellipsoid.best_projection)
+    plot.add_profile_fit(*ellipsoid.best_prof)
+    plot.add_projection_fit(*ellipsoid.best_proj)
     plot.add_ellipsoid(c, S)
     plot.add_peak_info(wavelength, angles, goniometer)
+    plot.add_peak_stats(ellipsoid.redchi2)
     plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 
     file = os.path.join(filepath, 'ellipsoid.png')

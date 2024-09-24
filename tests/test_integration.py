@@ -1,7 +1,7 @@
-# import os
+import os
 # import pytest
 # import tempfile
-# import shutil
+import shutil
 # import subprocess
 
 # import numpy as np
@@ -21,6 +21,12 @@ rp.load_plan(config_file)
 
 data_ws = '/SNS/CORELLI/shared/benchmark/test/CORELLI_data.nxs'
 peaks_ws = '/SNS/CORELLI/shared/benchmark/test/CORELLI_peaks.nxs'
+
+plots = '/SNS/CORELLI/shared/benchmark/test/CORELLI_plan_integration/plots/'
+
+if os.path.exists(plots):
+    shutil.rmtree(plots)
+os.mkdir(plots)
 
 data = DataModel(beamlines['CORELLI'])
 data.load_histograms(data_ws, 'md')

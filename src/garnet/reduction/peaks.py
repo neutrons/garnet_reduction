@@ -34,9 +34,9 @@ import numpy as np
 centering_reflection = {'P': 'Primitive',
                         'I': 'Body centred',
                         'F': 'All-face centred',
-                        'R': 'Primitive', # rhomb axes
-                        'R(obv)': 'Rhombohderally centred, obverse', # hex axes
-                        'R(rev)': 'Rhombohderally centred, reverse', # hex axes
+                        'R': 'Rhombohedrally centred', # rhomb axes
+                        'R(obv)': 'Rhombohedrally centred, obverse', # hex axes
+                        'R(rev)': 'Rhombohedrally centred, reverse', # hex axes
                         'A': 'A-face centred',
                         'B': 'B-face centred',
                         'C': 'C-face centred'}
@@ -526,15 +526,37 @@ class PeaksModel:
 
         d_max = self.get_max_d_spacing(ws)
 
-        PredictPeaks(InputWorkspace=ws,
-                     WavelengthMin=lamda_min,
-                     WavelengthMax=lamda_max,
-                     MinDSpacing=d_min,
-                     MaxDSpacing=d_max*1.2,
-                     ReflectionCondition=centering_reflection[centering],
-                     RoundHKL=True,
-                     EdgePixels=self.edge_pixels,
-                     OutputWorkspace=peaks)
+        refl_cond = centering_reflection[centering]
+
+        if centering == 'R': # obverse/reverse
+            obv_rev = ['R(obv)', 'R(rev)']
+            refl_conds = [centering_reflection[rc] for rc in obv_rev]
+        else:
+            refl_conds = [centering_reflection[centering]]
+
+        for i, refl_cond in enumerate(refl_conds):
+
+            peaks_cond = peaks+'_{}'.format(refl_cond)            
+
+            PredictPeaks(InputWorkspace=ws,
+                         WavelengthMin=lamda_min,
+                         WavelengthMax=lamda_max,
+                         MinDSpacing=d_min,
+                         MaxDSpacing=d_max*1.2,
+                         ReflectionCondition=refl_cond,
+                         RoundHKL=True,
+                         EdgePixels=self.edge_pixels,
+                         OutputWorkspace=peaks_cond)
+
+            if i == 0:
+                CloneWorkspace(InputWorkspace=peaks_cond,
+                               OutputWorkspace=peaks)
+            else:
+                CombinePeaksWorkspaces(LHSWorkspace=peaks,
+                                       RHSWorkspace=peaks_cond,
+                                       OutputWorkspace=peaks)
+
+        self.remove_duplicate_peaks(peaks)
 
     def predict_modulated_peaks(self, peaks,
                                       d_min,

@@ -329,7 +329,7 @@ class PeakPlot(BasePlot):
     def __init_projection(self):
 
         self.proj = []   
-        self.prof_surf = []
+        self.proj_surf = []
 
         gs = self.gs[3]
 
@@ -344,9 +344,10 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
 
         surf = ax.plot_surface(x, y, z, cmap='viridis', edgecolor='none')
+        ax.set_aspect('equalxy')
 
         self.proj.append(ax)
-        self.prof_surf.append(surf)
+        self.proj_surf.append(surf)
 
         ax = self.fig.add_subplot(gs[1], projection='3d')
         ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
@@ -355,7 +356,7 @@ class PeakPlot(BasePlot):
         surf = ax.plot_surface(x, y, z, cmap='viridis', edgecolor='none')
 
         self.proj.append(ax)
-        self.prof_surf.append(surf)
+        self.proj_surf.append(surf)
 
     def __init_norm(self):
 
@@ -472,20 +473,23 @@ class PeakPlot(BasePlot):
         mask = np.isfinite(y)
         y_fit[~mask] = np.nan
 
-        self.prof_surf[0].remove()
-        self.prof_surf[1].remove()
+        self.proj_surf[0].remove()
+        self.proj_surf[1].remove()
 
-        self.prof_surf[0] = self.proj[0].plot_surface(x0,
+        self.proj_surf[0] = self.proj[0].plot_surface(x0,
                                                       x1,
                                                       y,
                                                       cmap='viridis',
                                                       edgecolor='none')
 
-        self.prof_surf[1] = self.proj[1].plot_surface(x0,
+        self.proj_surf[1] = self.proj[1].plot_surface(x0,
                                                       x1,
                                                       y_fit,
                                                       cmap='viridis',
                                                       edgecolor='none')
+
+        self.proj[0].set_aspect('equalxy')
+        self.proj[1].set_aspect('equalxy')
 
         vmin, vmax = self._color_limits(y)
 
@@ -877,3 +881,19 @@ class PeakPlot(BasePlot):
         ellip[3].set_title(r'$({:.1f},{:.1f},{:.1f})^\circ$'.format(*gon))
         ellip[4].set_title(r'$2\theta={:.2f}^\circ$'.format(angles[0]))
         ellip[5].set_title(r'$\phi={:.2f}^\circ$'.format(angles[1]))
+
+    def add_peak_stats(self, redchi2):
+        """
+        Add peak statistics.
+
+        Parameters
+        ----------
+        redchi2 : list
+            Reduced chi^2 per degree of freedom.
+
+        """
+
+        self.profile.set_title(r'$\chi^2_\nu={:.1f}$'.format(redchi2[0]))
+        self.proj[1].set_title(r'$\chi^2_\nu={:.1f}$'.format(redchi2[1]))
+        self.ellip[1].set_title(r'$\chi^2_\nu={:.1f}$'.format(redchi2[2]))
+        

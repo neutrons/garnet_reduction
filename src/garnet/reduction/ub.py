@@ -379,7 +379,7 @@ class UBModel:
 
 class Optimization:
 
-    def __init__(self, peaks):
+    def __init__(self, peaks, tol=0.1):
         """
         Optimize lattice and orientation using nonlinear least squares.
 
@@ -387,19 +387,51 @@ class Optimization:
         ----------
         peaks : str
             Name of peaks workspace to perform constrained UB optimization.
+        tol : float
+            Indexing tolerance for optimization.
 
         """
 
-        Q, hkl = [], []
+        self.peaks = peaks
+
+        ub_inv = np.linalg.inv(self.get_UB())/(2*np.pi)
+
+        Qs, hkls = [], []
 
         for pk in mtd[peaks]:
 
-            hkl.append(pk.getHKL())
-            Q.append(pk.getQSampleFrame())
+            hkl = np.array(pk.getHKL())
+            Q = np.array(pk.getQSampleFrame())
 
-        self.Q, self.hkl = np.array(Q), np.array(hkl)
+            mod_Q = np.linalg.norm(Q)
 
-        self.peaks = peaks
+            if mod_Q > 0:
+
+                diff_hkl = np.abs(hkl-np.dot(ub_inv, Q))
+
+                if (diff_hkl < tol).all():
+
+                    hkls.append(hkl)
+                    Qs.append(Q)
+
+        self.Q, self.hkl = np.array(Qs), np.array(hkls)
+
+    def get_UB(self):
+        """
+        Current UB matrux.
+
+        Returns
+        -------
+        UB : 2d-array
+            UB-matrix.
+
+        """
+
+        if mtd.doesExist(self.peaks):
+
+            ol = mtd[self.peaks].sample().getOrientedLattice()
+
+            return ol.getUB()
 
     def get_lattice_parameters(self):
         """
@@ -459,7 +491,7 @@ class Optimization:
         u1 = np.sin(phi)*np.sin(theta)
         u2 = np.cos(theta)
 
-        w = omega*np.array([u0,u1,u2])
+        w = omega*np.array([u0, u1, u2])
 
         U = scipy.spatial.transform.Rotation.from_rotvec(w).as_matrix()
 
@@ -589,7 +621,7 @@ class Optimization:
             x0 += (phi, theta, omega)
             args = (self.hkl, self.Q, fun)
 
-            sol = scipy.optimize.least_squares(self.residual, 
+            sol = scipy.optimize.least_squares(self.residual,
                                                x0=x0,
                                                args=args)
 
