@@ -25,6 +25,7 @@ from mantid.simpleapi import (Load,
                               NormaliseByCurrent,
                               NormaliseToUnity,
                               Rebin,
+                              SumSpectra,
                               CompressEvents,
                               GroupDetectors,
                               LoadEmptyInstrument,
@@ -1426,17 +1427,21 @@ class LaueData(BaseDataModel):
             self.lamda_max = mtd['spectra'].getXDimension().getMaximum()
             self.lamda_bin = mtd['spectra'].getXDimension().getBinWidth()
 
-            Rebin(InputWorkspace='spectra',
-                  Params=[self.lamda_min, self.lamda_max, self.lamda_max],
-                  OutputWorkspace='norm')
+            # SumSpectra(InputWorkspace='spectra',
+            #            OutputWorkspace='spectra',
+            #            WeightedSum=True)
 
-            Divide(LHSWorkspace='spectra',
-                   RHSWorkspace='norm',
-                   OutputWorkspace='spectra',
-                   AllowDifferentNumberSpectra=True)
+            # Rebin(InputWorkspace='spectra',
+            #       Params=[self.lamda_min, self.lamda_max, self.lamda_max],
+            #       OutputWorkspace='norm')
 
-            NormaliseToUnity(InputWorkspace='spectra',
-                             OutputWorkspace='spectra')
+            # Divide(LHSWorkspace='spectra',
+            #        RHSWorkspace='norm',
+            #        OutputWorkspace='spectra',
+            #        AllowDifferentNumberSpectra=True)
+
+            # NormaliseToUnity(InputWorkspace='spectra',
+            #                  OutputWorkspace='spectra')
 
             self.wavelength_band = [self.lamda_min, self.lamda_max]
 
