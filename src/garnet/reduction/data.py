@@ -1523,7 +1523,6 @@ class LaueData(BaseDataModel):
         Divide(LHSWorkspace=event_name,
                RHSWorkspace='sa',
                OutputWorkspace=event_name,
-               WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
         ConvertUnits(InputWorkspace=event_name,
