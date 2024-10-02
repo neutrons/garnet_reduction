@@ -1520,15 +1520,16 @@ class LaueData(BaseDataModel):
         NormaliseByCurrent(InputWorkspace=event_name,
                            OutputWorkspace=event_name)
 
+        ConvertUnits(InputWorkspace=event_name,
+                     OutputWorkspace=event_name,
+                     Target='Wavelength')
+
         Divide(LHSWorkspace=event_name,
                RHSWorkspace='sa',
                OutputWorkspace=event_name,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        ConvertUnits(InputWorkspace=event_name,
-                     OutputWorkspace=event_name,
-                     Target='Wavelength')
 
         Divide(LHSWorkspace=event_name,
                RHSWorkspace='spectra',
