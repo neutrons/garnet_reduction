@@ -43,7 +43,6 @@ integrate.run = 0
 integrate.runs = 1
 integrate.fit_peaks('peaks', params)
 
-
 # @pytest.mark.skipif(not os.path.exists('/SNS/CORELLI/'), reason='file mount')
 # def test_corelli():
 
