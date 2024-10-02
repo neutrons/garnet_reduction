@@ -1523,6 +1523,7 @@ class LaueData(BaseDataModel):
         Divide(LHSWorkspace=event_name,
                RHSWorkspace='sa',
                OutputWorkspace=event_name,
+               WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
         ConvertUnits(InputWorkspace=event_name,
@@ -1532,6 +1533,7 @@ class LaueData(BaseDataModel):
         Divide(LHSWorkspace=event_name,
                RHSWorkspace='spectra',
                OutputWorkspace=event_name,
+               WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
