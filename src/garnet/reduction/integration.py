@@ -112,6 +112,8 @@ class Integration(SubPlan):
 
             data.load_spectra_file(self.plan['SpectraFile'])
 
+            data.load_efficiency_file(self.plan['SpectraFile'])
+
             data.apply_calibration('data',
                                    self.plan.get('DetectorCalibration'),
                                    self.plan.get('TubeCalibration'))

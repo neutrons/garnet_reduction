@@ -23,9 +23,6 @@ from mantid.simpleapi import (Load,
                               HB3AAdjustSampleNorm,
                               CorelliCrossCorrelate,
                               NormaliseByCurrent,
-                              NormaliseToUnity,
-                              Rebin,
-                              SumSpectra,
                               CompressEvents,
                               GroupDetectors,
                               LoadEmptyInstrument,
@@ -1189,18 +1186,10 @@ class LaueData(BaseDataModel):
             MaskDetectors(Workspace=event_name,
                           MaskedWorkspace='sa_mask')
 
-            # RemoveMaskedSpectra(InputWorkspace=event_name,
-            #                     MaskedWorkspace=event_name,
-            #                     OutputWorkspace=event_name)
-
         if mtd.doesExist('mask'):
 
             MaskDetectors(Workspace=event_name,
                           MaskedWorkspace='mask')
-
-            # RemoveMaskedSpectra(InputWorkspace=event_name,
-            #                     MaskedWorkspace=event_name,
-            #                     OutputWorkspace=event_name)
 
     def create_grouping(self, filename, grouping):
         """
@@ -1383,9 +1372,8 @@ class LaueData(BaseDataModel):
                             Operator='LessEqual',
                             OutputWorkspace='sa')
 
-            ExtractMask(InputWorkspace='sa', OutputWorkspace='sa_mask')
-
-            # RemoveMaskedSpectra(InputWorkspace='sa', OutputWorkspace='sa')
+            ExtractMask(InputWorkspace='sa',
+                        OutputWorkspace='sa_mask')
 
             #if self.grouping is not None:
 
@@ -1420,69 +1408,27 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=spectra_file,
                       OutputWorkspace='spectra')
 
-            self.spectra_x = mtd['spectra'].readX(0).copy()
-            self.spectra_y = mtd['spectra'].extractY().copy()
-
             self.lamda_min = mtd['spectra'].getXDimension().getMinimum()
             self.lamda_max = mtd['spectra'].getXDimension().getMaximum()
             self.lamda_bin = mtd['spectra'].getXDimension().getBinWidth()
 
-            # SumSpectra(InputWorkspace='spectra',
-            #            OutputWorkspace='spectra',
-            #            WeightedSum=True)
-
-            # Rebin(InputWorkspace='spectra',
-            #       Params=[self.lamda_min, self.lamda_max, self.lamda_max],
-            #       OutputWorkspace='norm')
-
-            # Divide(LHSWorkspace='spectra',
-            #        RHSWorkspace='norm',
-            #        OutputWorkspace='spectra',
-            #        AllowDifferentNumberSpectra=True)
-
-            # NormaliseToUnity(InputWorkspace='spectra',
-            #                  OutputWorkspace='spectra')
-
             self.wavelength_band = [self.lamda_min, self.lamda_max]
 
-    def calculate_norm(self, det_id, Q0, Q1, Q2, weights):
+    def load_efficiency_file(self, efficiency_file):
         """
-        Obtain spectrum correction from detector id.
+        Load an efficiency file.
 
         Parameters
         ----------
-        det_id : int
-            Detector id.
-        Q0, Q1, Q2 : array, float
-            Q-sample voxels.
-        weights : array, float
-            Peak signal voxel weights.
-
-        Returns
-        -------
-        scale : float
-            Normalization factor.
+        efficiency_file : str
+            Efficiency file.
 
         """
 
-        nos = mtd['spectra'].getIndicesFromDetectorIDs([det_id])
+        if not mtd.doesExist('efficiency'):
 
-        if len(nos) == 0:
-            return np.inf
-
-        no = nos[0]
-
-        y = self.spectra_y[no]
-
-        lamda, _, _ = self.coverage(Q0, Q1, Q2)
-
-        scale = 0.0
-        if np.sum(weights) > 0:
-            w, _ = np.histogram(lamda, bins=self.spectra_x, weights=weights)
-            if np.sum(w) > 0:
-                scale = np.sum(y*w)/np.sum(w)
-
-        return scale
+            LoadNexus(Filename=efficiency_file,
+                      OutputWorkspace='efficiency')
 
     def crop_for_normalization(self, event_name):
         """
@@ -1510,7 +1456,7 @@ class LaueData(BaseDataModel):
 
     def normalize_data(self, event_name):
         """
-        Normalize with detector efficiency and spectrum.
+        Normalize with detector efficiency and bank spectra.
 
         event_name : str
             Name of raw event data.
@@ -1525,11 +1471,10 @@ class LaueData(BaseDataModel):
                      Target='Wavelength')
 
         Divide(LHSWorkspace=event_name,
-               RHSWorkspace='sa',
+               RHSWorkspace='efficiency',
                OutputWorkspace=event_name,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
-
 
         Divide(LHSWorkspace=event_name,
                RHSWorkspace='spectra',
