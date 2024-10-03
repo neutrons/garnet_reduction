@@ -112,7 +112,7 @@ class Integration(SubPlan):
 
             data.load_spectra_file(self.plan['SpectraFile'])
 
-            data.load_efficiency_file(self.plan['SpectraFile'])
+            data.load_efficiency_file(self.plan['EfficiencyFile'])
 
             data.apply_calibration('data',
                                    self.plan.get('DetectorCalibration'),
