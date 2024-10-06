@@ -1184,9 +1184,9 @@ class PeakEllipsoid:
         if not np.isfinite(I_sig_1):
             I_sig_1 = 1
         if not np.isfinite(I_sig_2):
-            I_sig_2 = 1 
+            I_sig_2 = 1
         if not np.isfinite(I_sig_3):
-            I_sig_3 = 1 
+            I_sig_3 = 1
 
         diff.append(lamda/I_sig_1)
         diff.append(lamda/I_sig_2)
@@ -1205,9 +1205,12 @@ class PeakEllipsoid:
         if mode == '1d':
             n = np.nansum(y/e**2, axis=(1,2))
             d = np.nansum(y**2/e**2, axis=(1,2))
-        else:
+        elif mode == '2d':
             n = np.nansum(y/e**2, axis=0)
             d = np.nansum(y**2/e**2, axis=0)
+        else:
+            n = y/e**2
+            d = y**2/e**2
 
         y_int = d/n
         e_int = np.sqrt(d)/n
@@ -1314,7 +1317,7 @@ class PeakEllipsoid:
 
         # A, b = A.T @ A+reg_matrix, A.T @ b
 
-        #result, residuals, *_ = np.linalg.lstsq(A, b, rcond=None)
+        # result, residuals, *_ = np.linalg.lstsq(A, b, rcond=None)
 
         y1_max = np.nanmax(y1)
         y2_max = np.nanmax(y2)
@@ -1336,7 +1339,7 @@ class PeakEllipsoid:
         ub = [y1_int]*2+[y2_int]*2+[y3_int]*2\
            + [y_max, y1x0_slope, y2x1_slope, y2x2_slope]
 
-        result = scipy.optimize.lsq_linear(A, 
+        result = scipy.optimize.lsq_linear(A,
                                            b,
                                            bounds=(lb, ub),
                                            method='bvls',
@@ -1406,45 +1409,11 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        reduce_fcn=np.abs,
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares', loss='soft_l1')
+        result = out.minimize(method='least_squares')
 
         self.params = result.params
-
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args,
-        #                 nan_policy='omit')
-
-        # result = out.minimize(method='powell')
-
-        # self.params = result.params
-
-        # c0 = self.params['c0'].value
-        # c1 = self.params['c1'].value
-        # c2 = self.params['c2'].value
-
-        # r0 = self.params['r0'].value
-        # r1 = self.params['r1'].value
-        # r2 = self.params['r2'].value
-
-        # phi = self.params['phi'].value
-        # theta = self.params['theta'].value
-        # omega = self.params['omega'].value
-
-        # params = [c0, c1, c2, r0, r1, r2, phi, theta, omega]
-
-        # result = out.minimize(method='dual_annealing',
-        #                       no_local_search=True,
-        #                       maxfun=10000,
-        #                       x0=params,
-        #                       minimizer_kwargs={'method': 'powell'})
-
-        # self.params = result.params
-
-        # ---
 
         c0 = self.params['c0'].value
         c1 = self.params['c1'].value
@@ -1457,6 +1426,71 @@ class PeakEllipsoid:
         phi = self.params['phi'].value
         theta = self.params['theta'].value
         omega = self.params['omega'].value
+
+        # params = [c0, c1, c2, r0, r1, r2, phi, theta, omega]
+
+        # c0 = self.params['c0'].min
+        # c1 = self.params['c1'].min
+        # c2 = self.params['c2'].min
+
+        # r0 = self.params['r0'].min
+        # r1 = self.params['r1'].min
+        # r2 = self.params['r2'].min
+
+        # phi = self.params['phi'].min
+        # theta = self.params['theta'].min
+        # omega = self.params['omega'].min
+
+        # lower_bounds = [c0, c1, c2, r0, r1, r2, phi, theta, omega]
+
+        # c0 = self.params['c0'].max
+        # c1 = self.params['c1'].max
+        # c2 = self.params['c2'].max
+
+        # r0 = self.params['r0'].max
+        # r1 = self.params['r1'].max
+        # r2 = self.params['r2'].max
+
+        # phi = self.params['phi'].max
+        # theta = self.params['theta'].max
+        # omega = self.params['omega'].max
+
+        # upper_bounds = [c0, c1, c2, r0, r1, r2, phi, theta, omega]
+
+        # options = {
+        #     'bounds': [lower_bounds, upper_bounds],
+        #     'maxfevals': 1000
+        # }
+
+        # es = cma.CMAEvolutionStrategy(params, 0.3, options)
+
+        # es.optimize(self.residual, args=args)
+
+        # result = es.result
+
+        # c0, c1, c2, r0, r1, r2, phi, theta, omega = result[0]
+
+        # result = out.minimize(method='dual_annealing',
+        #                       no_local_search=True,
+        #                       maxfun=10000,
+        #                       x0=params,
+        #                       minimizer_kwargs={'method': 'powell'})
+
+        # self.params = result.params
+
+        # ---
+
+        # c0 = self.params['c0'].value
+        # c1 = self.params['c1'].value
+        # c2 = self.params['c2'].value
+
+        # r0 = self.params['r0'].value
+        # r1 = self.params['r1'].value
+        # r2 = self.params['r2'].value
+
+        # phi = self.params['phi'].value
+        # theta = self.params['theta'].value
+        # omega = self.params['omega'].value
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1618,10 +1652,10 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1.1) & (e > 0)
-        bkg = (ellipsoid > 1.6) & (ellipsoid <= 2.1) & (e > 0)
+        pk = (ellipsoid <= 1.1) # & (e > 0)
+        #bkg = (ellipsoid > 1.6) & (ellipsoid <= 2.1) & (e > 0)
 
-        dilate = pk | bkg
+        dilate = pk# | bkg
 
         d3x = dx0*dx1*dx2
 
@@ -1687,7 +1721,7 @@ class PeakEllipsoid:
         # else:
         #     self.info += [intens, sig]
 
-        freq = y.copy()
+        freq = y-b
         freq[~dilate] = np.nan
 
         if not np.isfinite(sig):
