@@ -1,6 +1,7 @@
 import numpy as np
-from garnet.reduction.ub import Optimization
 from mantid.simpleapi import AddPeakHKL, CreatePeaksWorkspace, SetUB
+
+from garnet.reduction.ub import Optimization
 
 
 def create_peaks(name, a, b, c, alpha, beta, gamma):

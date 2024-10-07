@@ -3,6 +3,7 @@ import os
 import numpy as np
 import scipy.linalg
 import scipy.spatial
+
 from garnet.plots.peaks import PeakPlot, RadiusPlot
 from garnet.plots.volume import SlicePlot
 from garnet.reduction.integration import PeakEllipsoid, PeakSphere
