@@ -32,9 +32,15 @@ inst_dict = {'corelli': 'CORELLI',
              'wand2': 'WAND²',
              'hb2c': 'WAND²'}
 
+reduction_types = {'temp': None,
+                   'int': 'Integration',
+                   'norm': 'Normalization'}
+
 if __name__ == '__main__':
 
     filename, reduction, arg = sys.argv[1], sys.argv[2], sys.argv[3]
+
+    assert reduction in reduction_types.keys()
 
     if arg.isdigit():
         n_proc = int(arg)
@@ -66,12 +72,17 @@ if __name__ == '__main__':
             comb = Normalization.combine_parallel
             inst = Normalization(rp.plan)
 
-        inst.create_directories()
+        for key in reduction_types.keys():
+            if key != reduction and key != 'temp':
+                if rp.plan.get(reduction_types[key]) is not None:
+                    rp.plan.pop(reduction_types[key])
 
-        grouping_file = inst.get_diagnostic_file('grouping', '.xml')
+        inst.create_directories()
 
         data = DataModel(beamlines[rp.plan['Instrument']])
         data.update_raw_path(rp.plan)
+
+        grouping_file = inst.get_diagnostic_file('grouping', '.xml')
 
         if data.laue:
             data.preprocess_detectors()
@@ -87,3 +98,5 @@ if __name__ == '__main__':
             n_proc = max_proc
 
         pt.run_tasks(rp.plan, n_proc)
+
+        rp.save_plan(filename.replace('.yaml', '.red'))

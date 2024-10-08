@@ -140,7 +140,9 @@ class SubPlan:
 
         """
 
-        return os.path.join(self.plan['OutputPath'], self.output, 'plots')
+        plots = self.append_name(self.plan['OutputName'])+'_plots'
+
+        return os.path.join(self.plan['OutputPath'], self.output, plots)
 
     def get_diagnostic_path(self):
         """
@@ -153,10 +155,27 @@ class SubPlan:
 
         """
 
-        return os.path.join(self.plan['OutputPath'],
-                            self.output,
-                            'diagnostics')
+        diagnostics = self.append_name(self.plan['OutputName'])+'_diagnostics'
 
+        return os.path.join(self.plan['OutputPath'], self.output, diagnostics)
+
+    def append_name(self, file):
+        """
+        Update filename with identifier name.
+
+        Parameters
+        ----------
+        file : str
+            Original file name.
+
+        Returns
+        -------
+        output_file : str
+            File with updated name for identifier name.
+
+        """
+
+        return file
 
 class ReductionPlan:
 
@@ -379,6 +398,9 @@ class ReductionPlan:
 
         self.plan['Integration'] = self.template_integration(instrument)
         self.plan['Normalization'] = self.template_normalization()
+
+        self.plan.pop('OutputPath')
+        self.plan.pop('OutputName')
 
     def template_integration(self, instrument):
         """
