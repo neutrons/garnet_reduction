@@ -672,6 +672,8 @@ class Integration(SubPlan):
 
                 peak.set_peak_intensity(i, I, sigma)
 
+                peak.add_diagonstic_info(i, ellipsoid.info)
+
                 if make_plot:
 
                     plot.add_fitting(*fitting)
@@ -1636,6 +1638,8 @@ class PeakEllipsoid:
 
         self.best_proj = (x1[0,:,:], x2[0,:,:], y_proj, e_proj), y_proj_fit
 
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
         self.bin_data = (x0, x1, x2), (dx0, dx1, dx2), y, e
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
@@ -1652,7 +1656,7 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1.1) # & (e > 0)
+        pk = (ellipsoid <= 1.1) & (e > 0)
         #bkg = (ellipsoid > 1.6) & (ellipsoid <= 2.1) & (e > 0)
 
         dilate = pk# | bkg
@@ -1695,7 +1699,7 @@ class PeakEllipsoid:
         #b = np.nansum(w_bkg*y_bkg)/np.nansum(w_bkg)
         #b_err = 1/np.sqrt(np.nansum(w_bkg))
 
-        self.info = [scale, scale]
+        # self.info = [scale, scale]
 
         # b *= n_pk
         # b_err *= n_pk
@@ -1714,7 +1718,7 @@ class PeakEllipsoid:
 
         # bin_count = np.nansum(self.counts[pk])
 
-        self.info += [d3x, intens, sig]
+        self.info = [d3x, b, b_err]
 
         # if not norm:
         #     self.info += [d3x*np.sum(pk)]

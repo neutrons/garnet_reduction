@@ -857,17 +857,17 @@ class PeaksModel:
                                    RHSWorkspace=peaks,
                                    OutputWorkspace=merge)
 
-            # merge_run = mtd[merge].run()
-            # peaks_run = mtd[peaks].run()
+            merge_run = mtd[merge].run()
+            peaks_run = mtd[peaks].run()
 
-            # keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-            #         'bkg', 'bkg_err', 'vol', 'intens', 'sig']
+            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 
+                    'vol', 'bkg', 'bkg_err']
 
-            # for key in keys:
-            #     log = 'peaks_{}'.format(key)
-            #     peaks_list = np.array(peaks_run.getLogData(log).value).tolist()
-            #     merge_list = np.array(merge_run.getLogData(log).value).tolist()
-            #     merge_run[log] = merge_list+peaks_list
+            for key in keys:
+                log = 'peaks_{}'.format(key)
+                peaks_list = np.array(peaks_run.getLogData(log).value).tolist()
+                merge_list = np.array(merge_run.getLogData(log).value).tolist()
+                merge_run[log] = merge_list+peaks_list
 
     def delete_peaks(self, peaks):
         """
@@ -1194,7 +1194,7 @@ class PeakModel:
         run_info_keys = run_info.keys()
 
         keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-                'bkg', 'bkg_err', 'vol', 'intens', 'sig']
+                'vol', 'bkg', 'bkg_err']
 
         vals = [run, h, k, l, m, n, p]+values
 
