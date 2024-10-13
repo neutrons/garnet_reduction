@@ -1156,22 +1156,6 @@ class PeakEllipsoid:
         y2_lorentz = self.lorentzian(*args, '2d')
         y3_lorentz = self.lorentzian(*args, '3d')
 
-        # p1d = y1_gauss, y1_lorentz, y1_int, e1_int
-        # p2d = y2_gauss, y2_lorentz, y2_int, e2_int
-        # p3d = y3_gauss, y3_lorentz, y3_int, e3_int
-
-        # result = self.intensity_background_shared(x0, x1, x2, p1d, p2d, p3d)
-
-        # intens1, intens2, intens3, bkg1, bkg2, bkg3, global_bkg = result
-
-        # G1, L1, G1_err, L1_err = intens1
-        # G2, L2, G2_err, L2_err = intens2
-        # G3, L3, G3_err, L3_err = intens3
-
-        # B1, B1_err = bkg1
-        # B2, B2_err = bkg2
-        # B3, B3_err = bkg3
-
         res = (G1*y1_gauss+L1*y1_lorentz+B1-y1_int)/e1_int
         res /= np.sqrt(res.size)
 
@@ -1413,16 +1397,21 @@ class PeakEllipsoid:
 
         y1, e1 = self.integrate(x0, x1, x2, y, e, mode='1d')
         y2, e2 = self.integrate(x0, x1, x2, y, e, mode='2d')
-        y3, e3 = y.copy(), e.copy()
+        y3, e3 = self.integrate(x0, x1, x2, y, e, mode='3d')
+
+        y1_min = np.nanmin(y1)
+        y2_min = np.nanmin(y2)
+        y3_min = np.nanmin(y3)
 
         y1_max = np.nanmax(y1)
         y2_max = np.nanmax(y2)
         y3_max = np.nanmax(y3)
 
-        y1_int = np.nansum(y1)*dx0
-        y2_int = np.nansum(y2)*dx1*dx2
-        y3_int = np.nansum(y3)*dx0*dx1*dx2
+        y1_int = np.nansum(y1-y1_min)*dx0
+        y2_int = np.nansum(y2-y2_min)*dx1*dx2
+        y3_int = np.nansum(y3-y3_min)*dx0*dx1*dx2
 
+        y_min = np.nanmin([y1_min, y2_min, y3_min])
         y_max = np.nanmax([y1_max, y2_max, y3_max])
 
         self.params.add('delta1', value=0, min=0, max=1, vary=False)
@@ -1433,7 +1422,7 @@ class PeakEllipsoid:
         self.params.add('I2', value=y2_int, min=0, max=2*y2_int)
         self.params.add('I3', value=y3_int, min=0, max=2*y3_int)
 
-        self.params.add('B', value=0, min=0, max=y_max)
+        self.params.add('B', value=y_min, min=0, max=y_max)
 
         args = [x0, x1, x2, (y1, y2, y3), (e1, e2, e3)]
 
