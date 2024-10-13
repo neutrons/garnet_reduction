@@ -783,7 +783,7 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
-        bin_sizes = np.array(dQ)/15
+        bin_sizes = np.array(dQ)/20
         bin_sizes[bin_sizes < bin_size] = bin_size
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
@@ -1040,10 +1040,6 @@ class PeakEllipsoid:
         self.params.add('theta', value=theta, min=0, max=np.pi)
         self.params.add('omega', value=omega, min=-np.pi, max=np.pi)
 
-        # self.params.add('phi', value=phi)
-        # self.params.add('theta', value=theta)
-        # self.params.add('omega', value=omega)
-
     def eigenvectors(self, W):
 
         w = scipy.spatial.transform.Rotation.from_matrix(W).as_rotvec()
@@ -1114,6 +1110,9 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
+        y1_int, y2_int, y3_int = y
+        e1_int, e2_int, e3_int = e
+
         c0 = params['c0']
         c1 = params['c1']
         c2 = params['c2']
@@ -1125,6 +1124,20 @@ class PeakEllipsoid:
         phi = params['phi']
         theta = params['theta']
         omega = params['omega']
+
+        B1 = B2 = B3 = params['B']
+
+        I1 = params['I1']
+        I2 = params['I2']
+        I3 = params['I3']
+
+        delta1 = params['delta1']
+        delta2 = params['delta2']
+        delta3 = params['delta3']
+
+        G1, L1 = (1-delta1)*I1, delta1*I1
+        G2, L2 = (1-delta2)*I2, delta2*I2
+        G3, L3 = (1-delta3)*I3, delta3*I3
 
         # c0, c1, c2, r0, r1, r2, phi, theta, omega = params
 
@@ -1144,25 +1157,21 @@ class PeakEllipsoid:
         y2_lorentz = self.lorentzian(*args, '2d')
         y3_lorentz = self.lorentzian(*args, '3d')
 
-        y1_int, e1_int = self.integrate(x0, x1, x2, y, e, '1d')
-        y2_int, e2_int = self.integrate(x0, x1, x2, y, e, '2d')
-        y3_int, e3_int = y.copy(), e.copy()
+        # p1d = y1_gauss, y1_lorentz, y1_int, e1_int
+        # p2d = y2_gauss, y2_lorentz, y2_int, e2_int
+        # p3d = y3_gauss, y3_lorentz, y3_int, e3_int
 
-        p1d = y1_gauss, y1_lorentz, y1_int, e1_int
-        p2d = y2_gauss, y2_lorentz, y2_int, e2_int
-        p3d = y3_gauss, y3_lorentz, y3_int, e3_int
+        # result = self.intensity_background_shared(x0, x1, x2, p1d, p2d, p3d)
 
-        result = self.intensity_background_shared(x0, x1, x2, p1d, p2d, p3d)
+        # intens1, intens2, intens3, bkg1, bkg2, bkg3, global_bkg = result
 
-        intens1, intens2, intens3, bkg1, bkg2, bkg3, global_bkg = result
+        # G1, L1, G1_err, L1_err = intens1
+        # G2, L2, G2_err, L2_err = intens2
+        # G3, L3, G3_err, L3_err = intens3
 
-        G1, L1, G1_err, L1_err = intens1
-        G2, L2, G2_err, L2_err = intens2
-        G3, L3, G3_err, L3_err = intens3
-
-        B1, B1_err = bkg1
-        B2, B2_err = bkg2
-        B3, B3_err = bkg3
+        # B1, B1_err = bkg1
+        # B2, B2_err = bkg2
+        # B3, B3_err = bkg3
 
         res = (G1*y1_gauss+L1*y1_lorentz+B1-y1_int)/e1_int
         res /= np.sqrt(res.size)
@@ -1179,20 +1188,20 @@ class PeakEllipsoid:
 
         diff += res.flatten().tolist()
 
-        I_sig_1 = np.nansum(y1_int-B1)/np.sqrt(np.nansum(e1_int**2+B1_err**2))
-        I_sig_2 = np.nansum(y2_int-B2)/np.sqrt(np.nansum(e2_int**2+B2_err**2))
-        I_sig_3 = np.nansum(y3_int-B3)/np.sqrt(np.nansum(e3_int**2+B3_err**2))
+        # I_sig_1 = np.nansum(y1_int-B1)/np.sqrt(np.nansum(e1_int**2+B1_err**2))
+        # I_sig_2 = np.nansum(y2_int-B2)/np.sqrt(np.nansum(e2_int**2+B2_err**2))
+        # I_sig_3 = np.nansum(y3_int-B3)/np.sqrt(np.nansum(e3_int**2+B3_err**2))
 
-        if not np.isfinite(I_sig_1):
-            I_sig_1 = 1
-        if not np.isfinite(I_sig_2):
-            I_sig_2 = 1
-        if not np.isfinite(I_sig_3):
-            I_sig_3 = 1
+        # if not np.isfinite(I_sig_1):
+        #     I_sig_1 = 1
+        # if not np.isfinite(I_sig_2):
+        #     I_sig_2 = 1
+        # if not np.isfinite(I_sig_3):
+        #     I_sig_3 = 1
 
-        diff.append(lamda/I_sig_1)
-        diff.append(lamda/I_sig_2)
-        diff.append(lamda/I_sig_3)
+        # diff.append(lamda/I_sig_1)
+        # diff.append(lamda/I_sig_2)
+        # diff.append(lamda/I_sig_3)
 
         diff = np.array(diff)
 
@@ -1288,9 +1297,13 @@ class PeakEllipsoid:
 
         n1, n2, n3 = np.sum(mask1), np.sum(mask2), np.sum(mask3)
 
-        d1 = [np.ones(n1), x0[:,0,0][mask1], np.zeros(n1), np.zeros(n1)]
-        d2 = [np.ones(n2), np.zeros(n2), x1[0,:,:][mask2], x2[0,:,:][mask2]]
-        d3 = [np.ones(n3), x0[mask3]*0, x1[mask3]*0, x2[mask3]*0]
+        # d1 = [np.ones(n1), x0[:,0,0][mask1], np.zeros(n1), np.zeros(n1)]
+        # d2 = [np.ones(n2), np.zeros(n2), x1[0,:,:][mask2], x2[0,:,:][mask2]]
+        # d3 = [np.ones(n3), x0[mask3]*0, x1[mask3]*0, x2[mask3]*0]
+
+        d1 = [np.ones(n1)]
+        d2 = [np.ones(n2)]
+        d3 = [np.ones(n3)]
 
         w1 = 1/e1[mask1]#/np.sqrt(n1)
         w2 = 1/e2[mask2]#/np.sqrt(n2)
@@ -1300,7 +1313,7 @@ class PeakEllipsoid:
         A2 = (np.vstack([y2_gauss[mask2], y2_lorentz[mask2], *d2])*w2).T
         A3 = (np.vstack([y3_gauss[mask3], y3_lorentz[mask3], *d3])*w3).T
 
-        A = np.zeros((n1+n2+n3, 6+4))
+        A = np.zeros((n1+n2+n3, 6+1))
 
         A[:n1,0] = A1[:,0]
         A[:n1,1] = A1[:,1]
@@ -1331,15 +1344,18 @@ class PeakEllipsoid:
         y2_int = np.nansum(y2)*dx1*dx2
         y3_int = np.nansum(y3)*dx0*dx1*dx2
 
-        y1x0_slope = (y1_max-y1_int)/dx0
-        y2x1_slope = (y2_max-y2_int)/dx1
-        y2x2_slope = (y2_max-y2_int)/dx2
+        # y1x0_slope = (y1_max-y1_int)/dx0
+        # y2x1_slope = (y2_max-y2_int)/dx1
+        # y2x2_slope = (y2_max-y2_int)/dx2
 
         y_max = np.nanmax([y1_max, y2_max, y3_max])
 
-        lb = [0]*7+[-y1x0_slope, -y2x1_slope, -y2x2_slope]
-        ub = [y1_int]*2+[y2_int]*2+[y3_int]*2\
-           + [y_max, y1x0_slope, y2x1_slope, y2x2_slope]
+        # lb = [0]*7+[-y1x0_slope, -y2x1_slope, -y2x2_slope]
+        # ub = [y1_int]*2+[y2_int]*2+[y3_int]*2\
+        #    + [y_max, y1x0_slope, y2x1_slope, y2x2_slope]
+
+        lb = [0]*7
+        ub = [y1_int]*2+[y2_int]*2+[y3_int]*2+[y_max]
 
         result = scipy.optimize.lsq_linear(A,
                                            b,
@@ -1364,9 +1380,13 @@ class PeakEllipsoid:
 
         uncert = np.array(uncert)
 
-        d1 = np.array([np.ones_like(mask1), x0[:,0,0], x1[:,0,0]*0, x2[:,0,0]*0])
-        d2 = np.array([np.ones_like(mask2), x0[0,:,:]*0, x1[0,:,:], x2[0,:,:]])
-        d3 = np.array([np.ones_like(mask3), x0*0, x1*0, x2*0])
+        # d1 = np.array([np.ones_like(mask1), x0[:,0,0], x1[:,0,0]*0, x2[:,0,0]*0])
+        # d2 = np.array([np.ones_like(mask2), x0[0,:,:]*0, x1[0,:,:], x2[0,:,:]])
+        # d3 = np.array([np.ones_like(mask3), x0*0, x1*0, x2*0])
+
+        d1 = np.array([np.ones_like(mask1)])
+        d2 = np.array([np.ones_like(mask2)])
+        d3 = np.array([np.ones_like(mask3)])
 
         B1 = np.einsum('i...,i->...', d1, params)
         B2 = np.einsum('i...,i->...', d2, params)
@@ -1392,7 +1412,31 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        args = [x0, x1, x2, y, e]
+        y1, e1 = self.integrate(x0, x1, x2, y, e, mode='1d')
+        y2, e2 = self.integrate(x0, x1, x2, y, e, mode='2d')
+        y3, e3 = y.copy(), e.copy()
+
+        y1_max = np.nanmax(y1)
+        y2_max = np.nanmax(y2)
+        y3_max = np.nanmax(y3)
+
+        y1_int = np.nansum(y1)*dx0
+        y2_int = np.nansum(y2)*dx1*dx2
+        y3_int = np.nansum(y3)*dx0*dx1*dx2
+
+        y_max = np.nanmax([y1_max, y2_max, y3_max])
+
+        self.params.add('delta1', value=0, min=0, max=1, vary=False)
+        self.params.add('delta2', value=0, min=0, max=1, vary=False)
+        self.params.add('delta3', value=0, min=0, max=1, vary=False)
+
+        self.params.add('I1', value=y1_int, min=0, max=2*y1_int)
+        self.params.add('I2', value=y2_int, min=0, max=2*y2_int)
+        self.params.add('I3', value=y3_int, min=0, max=2*y3_int)
+
+        self.params.add('B', value=0, min=0, max=y_max)
+
+        args = [x0, x1, x2, (y1, y2, y3), (e1, e2, e3)]
 
         # ---
 
@@ -1470,7 +1514,7 @@ class PeakEllipsoid:
 
         # result = es.result
 
-        # c0, c1, c2, r0, r1, r2, phi, theta, omega = result[0]
+        # result = out.minimize(method='differential_evolution')
 
         # result = out.minimize(method='dual_annealing',
         #                       no_local_search=True,
@@ -1480,7 +1524,7 @@ class PeakEllipsoid:
 
         # self.params = result.params
 
-        # ---
+        # # ---
 
         # c0 = self.params['c0'].value
         # c1 = self.params['c1'].value
@@ -1493,6 +1537,27 @@ class PeakEllipsoid:
         # phi = self.params['phi'].value
         # theta = self.params['theta'].value
         # omega = self.params['omega'].value
+
+        B = self.params['B'].value
+        B_err = self.params['B'].stderr
+
+        if B_err is None:
+            B_err = B
+
+        B1 = B2 = B3 = B
+        # B1_err = B2_err = B3_err = B_err
+
+        I1 = self.params['I1'].value
+        I2 = self.params['I2'].value
+        I3 = self.params['I3'].value
+
+        delta1 = self.params['delta1'].value
+        delta2 = self.params['delta2'].value
+        delta3 = self.params['delta3'].value
+
+        G1, L1 = (1-delta1)*I1, delta1*I1
+        G2, L2 = (1-delta2)*I2, delta2*I2
+        G3, L3 = (1-delta3)*I3, delta3*I3
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1508,27 +1573,23 @@ class PeakEllipsoid:
         y2_lorentz = self.lorentzian(*args, '2d')
         y3_lorentz = self.lorentzian(*args, '3d')
 
-        y1, e1 = self.integrate(x0, x1, x2, y, e, mode='1d')
-        y2, e2 = self.integrate(x0, x1, x2, y, e, mode='2d')
-        y3, e3 = y.copy(), e.copy()
+        # p1d = y1_gauss, y1_lorentz, y1, e1
+        # p2d = y2_gauss, y2_lorentz, y2, e2
+        # p3d = y3_gauss, y3_lorentz, y3, e3
 
-        p1d = y1_gauss, y1_lorentz, y1, e1
-        p2d = y2_gauss, y2_lorentz, y2, e2
-        p3d = y3_gauss, y3_lorentz, y3, e3
+        # result = self.intensity_background_shared(x0, x1, x2, p1d, p2d, p3d)
 
-        result = self.intensity_background_shared(x0, x1, x2, p1d, p2d, p3d)
+        # intens1, intens2, intens3, bkg1, bkg2, bkg3, global_bkg = result
 
-        intens1, intens2, intens3, bkg1, bkg2, bkg3, global_bkg = result
+        # G1, L1, G1_err, L1_err = intens1
+        # G2, L2, G2_err, L2_err = intens2
+        # G3, L3, G3_err, L3_err = intens3
 
-        G1, L1, G1_err, L1_err = intens1
-        G2, L2, G2_err, L2_err = intens2
-        G3, L3, G3_err, L3_err = intens3
+        # B1, B1_err = bkg1
+        # B2, B2_err = bkg2
+        # B3, B3_err = bkg3
 
-        B1, B1_err = bkg1
-        B2, B2_err = bkg2
-        B3, B3_err = bkg3
-
-        B, B_err = global_bkg
+        # B, B_err = global_bkg
 
         self.B, self.B_err = B, B_err
 
@@ -1794,7 +1855,7 @@ class PeakEllipsoid:
         med = y_mask[median_indices]
 
         dev = med-wgt_med
-        return np.sqrt((n-1)*np.sum(dev**2) /n)
+        return np.sqrt((n-1)*np.sum(dev**2)/n)
 
     # def jackknife_uncertainty(self, y, w):
 
