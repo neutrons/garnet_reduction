@@ -22,7 +22,7 @@ rp.load_plan(config_file)
 data_ws = '/SNS/CORELLI/shared/benchmark/test/CORELLI_data.nxs'
 peaks_ws = '/SNS/CORELLI/shared/benchmark/test/CORELLI_peaks.nxs'
 
-plots = '/SNS/CORELLI/shared/benchmark/test/CORELLI_plan_integration/plots/'
+plots = '/SNS/CORELLI/shared/benchmark/test/CORELLI_plan_integration/CORELLI_plan_Hexagonal_P_d(min)=0.70_r(max)=0.20_plots/'
 
 if os.path.exists(plots):
     shutil.rmtree(plots)

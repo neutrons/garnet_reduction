@@ -784,7 +784,7 @@ class Integration(SubPlan):
 
         # bin_sizes = np.array([bin_size, bin_size, bin_size])
         bin_sizes = np.array(dQ)/15
-        bin_sizes[bin_sizes < bin_size/2] = bin_size/2
+        bin_sizes[bin_sizes < bin_size] = bin_size
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
@@ -1413,7 +1413,7 @@ class PeakEllipsoid:
                         fcn_args=args,
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares')
+        result = out.minimize(method='least_squares', loss='soft_l1')
 
         self.params = result.params
 
