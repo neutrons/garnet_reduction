@@ -1126,17 +1126,17 @@ class PeakEllipsoid:
 
         B1 = B2 = B3 = params['B']
 
-        I1 = params['I1']
-        I2 = params['I2']
-        I3 = params['I3']
+        A1 = params['A1']
+        A2 = params['A2']
+        A3 = params['A3']
 
         delta1 = params['delta1']
         delta2 = params['delta2']
         delta3 = params['delta3']
 
-        G1, L1 = (1-delta1)*I1, delta1*I1
-        G2, L2 = (1-delta2)*I2, delta2*I2
-        G3, L3 = (1-delta3)*I3, delta3*I3
+        G1, L1 = (1-delta1)*A1, delta1*A1
+        G2, L2 = (1-delta2)*A2, delta2*A2
+        G3, L3 = (1-delta3)*A3, delta3*A3
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1168,21 +1168,6 @@ class PeakEllipsoid:
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
-
-        # I_sig_1 = np.nansum(y1_int-B1)/np.sqrt(np.nansum(e1_int**2+B1_err**2))
-        # I_sig_2 = np.nansum(y2_int-B2)/np.sqrt(np.nansum(e2_int**2+B2_err**2))
-        # I_sig_3 = np.nansum(y3_int-B3)/np.sqrt(np.nansum(e3_int**2+B3_err**2))
-
-        # if not np.isfinite(I_sig_1):
-        #     I_sig_1 = 1
-        # if not np.isfinite(I_sig_2):
-        #     I_sig_2 = 1
-        # if not np.isfinite(I_sig_3):
-        #     I_sig_3 = 1
-
-        # diff.append(lamda/I_sig_1)
-        # diff.append(lamda/I_sig_2)
-        # diff.append(lamda/I_sig_3)
 
         diff = np.array(diff)
 
@@ -1224,19 +1209,19 @@ class PeakEllipsoid:
         if mode == '3d':
             dx = [dx0, dx1, dx2]
             d2 = np.einsum('i...,ij,j...->...', dx, inv_S, dx)
-            factor = np.sqrt(np.linalg.det(inv_S)/(2*np.pi)**3)
+            # factor = np.sqrt(np.linalg.det(inv_S)/(2*np.pi)**3)
         elif mode == '2d':
             dx = [dx1[0,:,:], dx2[0,:,:]]
             mat = inv_S[1:,1:]
             d2 = np.einsum('i...,ij,j...->...', dx, mat, dx)
-            factor = np.sqrt(np.linalg.det(mat)/(2*np.pi)**2)
+            # factor = np.sqrt(np.linalg.det(mat)/(2*np.pi)**2)
         else: # mode == '1d'
             dx = dx0[:,0,0]
             inv_var = inv_S[0,0]
             d2 = inv_var*dx**2
-            factor = np.sqrt(inv_var/(2*np.pi))
+            # factor = np.sqrt(inv_var/(2*np.pi))
 
-        return A*np.exp(-0.5*d2)*factor+B
+        return A*np.exp(-0.5*d2)+B
 
     def lorentzian(self, x0, x1, x2, A, B, c, inv_S, mode='3d'):
 
@@ -1249,22 +1234,22 @@ class PeakEllipsoid:
         if mode == '3d':
             dx = [dx0, dx1, dx2]
             d2 = np.einsum('i...,ij,j...->...', dx, inv_G, dx)
-            factor = np.sqrt(np.linalg.det(inv_G))/np.pi**2
+            # factor = np.sqrt(np.linalg.det(inv_G))/np.pi**2
             power = 2
         elif mode == '2d':
             dx = [dx1[0,:,:], dx2[0,:,:]]
             mat = inv_G[1:,1:]
             d2 = np.einsum('i...,ij,j...->...', dx, mat, dx)
-            factor = np.sqrt(np.linalg.det(mat))/(2*np.pi)
+            # factor = np.sqrt(np.linalg.det(mat))/(2*np.pi)
             power = 1.5
         else: # mode == '1d'
             dx = dx0[:,0,0]
             inv_var = inv_G[0,0]
             d2 = inv_var*dx**2
-            factor = np.sqrt(inv_var)/np.pi
+            # factor = np.sqrt(inv_var)/np.pi
             power = 1
 
-        return A/(1+d2)**power*factor+B
+        return A/(1+d2)**power+B
 
     def estimate_weights(self, x0, x1, x2, y, e):
 
@@ -1284,11 +1269,11 @@ class PeakEllipsoid:
 
         w1 = y1-y1_min
         w2 = y2-y2_min
-        w3 = y3-y3_min
+        # w3 = y3-y3_min
 
-        y1_int = np.nansum(w1)*dx0
-        y2_int = np.nansum(w2)*dx1*dx2
-        y3_int = np.nansum(w3)*dx0*dx1*dx2
+        # y1_int = np.nansum(w1)*dx0
+        # y2_int = np.nansum(w2)*dx1*dx2
+        # y3_int = np.nansum(w3)*dx0*dx1*dx2
 
         y_min = np.nanmin([y1_min, y2_min, y3_min])
         y_max = np.nanmax([y1_max, y2_max, y3_max])
@@ -1310,9 +1295,9 @@ class PeakEllipsoid:
         self.params.add('delta2', value=0, min=0, max=1, vary=False)
         self.params.add('delta3', value=0, min=0, max=1, vary=False)
 
-        self.params.add('I1', value=y1_int, min=0, max=2*y1_int)
-        self.params.add('I2', value=y2_int, min=0, max=2*y2_int)
-        self.params.add('I3', value=y3_int, min=0, max=2*y3_int)
+        self.params.add('A1', value=y1_max, min=0, max=2*y1_max)
+        self.params.add('A2', value=y2_max, min=0, max=2*y2_max)
+        self.params.add('A3', value=y3_max, min=0, max=2*y3_max)
 
         self.params.add('B', value=y_min, min=0, max=y_max)
 
@@ -1361,17 +1346,17 @@ class PeakEllipsoid:
 
         B1 = B2 = B3 = B
 
-        I1 = self.params['I1'].value
-        I2 = self.params['I2'].value
-        I3 = self.params['I3'].value
+        A1 = self.params['A1'].value
+        A2 = self.params['A2'].value
+        A3 = self.params['A3'].value
 
         delta1 = self.params['delta1'].value
         delta2 = self.params['delta2'].value
         delta3 = self.params['delta3'].value
 
-        G1, L1 = (1-delta1)*I1, delta1*I1
-        G2, L2 = (1-delta2)*I2, delta2*I2
-        G3, L3 = (1-delta3)*I3, delta3*I3
+        G1, L1 = (1-delta1)*A1, delta1*A1
+        G2, L2 = (1-delta2)*A2, delta2*A2
+        G3, L3 = (1-delta3)*A3, delta3*A3
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
