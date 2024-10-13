@@ -1527,11 +1527,11 @@ class PeakEllipsoid:
         y_bkg = self.counts[bkg].copy()
         e_bkg = np.sqrt(self.counts[bkg])
 
-        b = np.nanmean(y_bkg)
-        b_err = np.nanmean(e_bkg**2)
+        b_raw = np.nanmean(y_bkg)
+        b_raw_err = np.nanmean(e_bkg**2)
 
-        intens_raw = np.nansum(y_pk-b)
-        sig_raw = np.sqrt(np.nansum(e_pk**2+b_err**2))
+        intens_raw = np.nansum(y_pk-b_raw)
+        sig_raw = np.sqrt(np.nansum(e_pk**2+b_raw_err**2))
 
         self.info += [intens_raw, sig_raw]
 
