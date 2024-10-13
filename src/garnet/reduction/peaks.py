@@ -861,7 +861,7 @@ class PeaksModel:
             peaks_run = mtd[peaks].run()
 
             keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 
-                    'vol', 'bkg', 'bkg_err']
+                    'vol', 'bkg', 'bkg_err', 'intens', 'sig']
 
             for key in keys:
                 log = 'peaks_{}'.format(key)
@@ -1194,7 +1194,7 @@ class PeakModel:
         run_info_keys = run_info.keys()
 
         keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-                'vol', 'bkg', 'bkg_err']
+                'vol', 'bkg', 'bkg_err', 'intens', 'sig']
 
         vals = [run, h, k, l, m, n, p]+values
 
