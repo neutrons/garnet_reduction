@@ -1301,7 +1301,7 @@ class PeakEllipsoid:
         r1 = 4*np.sqrt(np.nansum((x1[0,:,:]-c1)**2*w2)/np.nansum(w2))
         r2 = 4*np.sqrt(np.nansum((x2[0,:,:]-c2)**2*w2)/np.nansum(w2))
 
-        for param in ['c0,' 'c1', 'c2', 'r0', 'r1', 'r2']:
+        for param in ['c0', 'c1', 'c2', 'r0', 'r1', 'r2']:
             value = eval(param)
             if np.isfinite(value):
                 self.params[param].set(value=value)
