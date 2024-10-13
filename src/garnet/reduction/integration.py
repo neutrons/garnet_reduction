@@ -1138,8 +1138,6 @@ class PeakEllipsoid:
         G2, L2 = (1-delta2)*I2, delta2*I2
         G3, L3 = (1-delta3)*I3, delta3*I3
 
-        # c0, c1, c2, r0, r1, r2, phi, theta, omega = params
-
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
                                                     phi, theta, omega)
@@ -1284,12 +1282,32 @@ class PeakEllipsoid:
         y2_max = np.nanmax(y2)
         y3_max = np.nanmax(y3)
 
-        y1_int = np.nansum(y1-y1_min)*dx0
-        y2_int = np.nansum(y2-y2_min)*dx1*dx2
-        y3_int = np.nansum(y3-y3_min)*dx0*dx1*dx2
+        w1 = y1-y1_min
+        w2 = y2-y2_min
+        w3 = y3-y3_min
+
+        y1_int = np.nansum(w1)*dx0
+        y2_int = np.nansum(w2)*dx1*dx2
+        y3_int = np.nansum(w3)*dx0*dx1*dx2
 
         y_min = np.nanmin([y1_min, y2_min, y3_min])
         y_max = np.nanmax([y1_max, y2_max, y3_max])
+
+        c0 = np.nansum(x0[:,0,0]*w1)/np.nansum(w1)
+        c1 = np.nansum(x1[0,:,:]*w2)/np.nansum(w2)
+        c2 = np.nansum(x2[0,:,:]*w2)/np.nansum(w2)
+
+        r0 = 4*np.sqrt(np.nansum((x0[:,0,0]-c0)**2*w1)/np.nansum(w1))
+        r1 = 4*np.sqrt(np.nansum((x1[0,:,:]-c1)**2*w2)/np.nansum(w2))
+        r2 = 4*np.sqrt(np.nansum((x2[0,:,:]-c2)**2*w2)/np.nansum(w2))
+
+        self.params['c0'].set(value=c0)
+        self.params['c1'].set(value=c1)
+        self.params['c2'].set(value=c2)
+
+        self.params['r0'].set(value=r0)
+        self.params['r1'].set(value=r1)
+        self.params['r2'].set(value=r2)
 
         self.params.add('delta1', value=0, min=0, max=1, vary=False)
         self.params.add('delta2', value=0, min=0, max=1, vary=False)
