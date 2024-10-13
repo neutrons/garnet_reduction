@@ -1179,18 +1179,28 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        if mode == '1d':
-            n = np.nansum(y/e**2, axis=(1,2))
-            d = np.nansum(y**2/e**2, axis=(1,2))
-        elif mode == '2d':
-            n = np.nansum(y/e**2, axis=0)
-            d = np.nansum(y**2/e**2, axis=0)
-        else:
-            n = y/e**2
-            d = y**2/e**2
+        # if mode == '1d':
+        #     n = np.nansum(y/e**2, axis=(1,2))
+        #     d = np.nansum(y**2/e**2, axis=(1,2))
+        # elif mode == '2d':
+        #     n = np.nansum(y/e**2, axis=0)
+        #     d = np.nansum(y**2/e**2, axis=0)
+        # else:
+        #     n = y/e**2
+        #     d = y**2/e**2
 
-        y_int = d/n
-        e_int = np.sqrt(d)/n
+        # y_int = d/n
+        # e_int = np.sqrt(d)/n
+
+        if mode == '1d':
+            y_int = np.nanmean(y, axis=(1,2))
+            e_int = np.sqrt(np.nanmean(e**2, axis=(1,2)))
+        elif mode == '2d':
+            y_int = np.nanmean(y, axis=0)
+            e_int = np.sqrt(np.nanmean(e**2, axis=0))
+        else:
+            y_int = y.copy()
+            e_int = e.copy()
 
         mask = (y_int > 0) & np.isfinite(y_int) \
              & (e_int > 0) & np.isfinite(e_int)
