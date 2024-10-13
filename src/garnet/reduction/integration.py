@@ -1518,6 +1518,9 @@ class PeakEllipsoid:
 
         self.info = [d3x, b, b_err]
 
+        freq = y-b
+        freq[~pk] = np.nan
+
         y_pk = self.counts[pk].copy()
         e_pk = np.sqrt(self.counts[pk])
 
@@ -1531,9 +1534,6 @@ class PeakEllipsoid:
         sig_raw = np.sqrt(np.nansum(e_pk**2+b_err**2))
 
         self.info += [intens_raw, sig_raw]
-
-        freq = y-b
-        freq[~pk] = np.nan
 
         if not np.isfinite(sig):
             sig = intens
