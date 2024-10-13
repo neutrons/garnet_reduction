@@ -1456,7 +1456,7 @@ class PeakEllipsoid:
                         fcn_args=args,
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares', loss='soft_l1')
+        result = out.minimize(method='least_squares')
 
         self.params = result.params
 
@@ -1472,71 +1472,6 @@ class PeakEllipsoid:
         theta = self.params['theta'].value
         omega = self.params['omega'].value
 
-        # params = [c0, c1, c2, r0, r1, r2, phi, theta, omega]
-
-        # c0 = self.params['c0'].min
-        # c1 = self.params['c1'].min
-        # c2 = self.params['c2'].min
-
-        # r0 = self.params['r0'].min
-        # r1 = self.params['r1'].min
-        # r2 = self.params['r2'].min
-
-        # phi = self.params['phi'].min
-        # theta = self.params['theta'].min
-        # omega = self.params['omega'].min
-
-        # lower_bounds = [c0, c1, c2, r0, r1, r2, phi, theta, omega]
-
-        # c0 = self.params['c0'].max
-        # c1 = self.params['c1'].max
-        # c2 = self.params['c2'].max
-
-        # r0 = self.params['r0'].max
-        # r1 = self.params['r1'].max
-        # r2 = self.params['r2'].max
-
-        # phi = self.params['phi'].max
-        # theta = self.params['theta'].max
-        # omega = self.params['omega'].max
-
-        # upper_bounds = [c0, c1, c2, r0, r1, r2, phi, theta, omega]
-
-        # options = {
-        #     'bounds': [lower_bounds, upper_bounds],
-        #     'maxfevals': 1000
-        # }
-
-        # es = cma.CMAEvolutionStrategy(params, 0.3, options)
-
-        # es.optimize(self.residual, args=args)
-
-        # result = es.result
-
-        # result = out.minimize(method='differential_evolution')
-
-        # result = out.minimize(method='dual_annealing',
-        #                       no_local_search=True,
-        #                       maxfun=10000,
-        #                       x0=params,
-        #                       minimizer_kwargs={'method': 'powell'})
-
-        # self.params = result.params
-
-        # # ---
-
-        # c0 = self.params['c0'].value
-        # c1 = self.params['c1'].value
-        # c2 = self.params['c2'].value
-
-        # r0 = self.params['r0'].value
-        # r1 = self.params['r1'].value
-        # r2 = self.params['r2'].value
-
-        # phi = self.params['phi'].value
-        # theta = self.params['theta'].value
-        # omega = self.params['omega'].value
-
         B = self.params['B'].value
         B_err = self.params['B'].stderr
 
@@ -1544,7 +1479,6 @@ class PeakEllipsoid:
             B_err = B
 
         B1 = B2 = B3 = B
-        # B1_err = B2_err = B3_err = B_err
 
         I1 = self.params['I1'].value
         I2 = self.params['I2'].value
@@ -1571,24 +1505,6 @@ class PeakEllipsoid:
         y1_lorentz = self.lorentzian(*args, '1d')
         y2_lorentz = self.lorentzian(*args, '2d')
         y3_lorentz = self.lorentzian(*args, '3d')
-
-        # p1d = y1_gauss, y1_lorentz, y1, e1
-        # p2d = y2_gauss, y2_lorentz, y2, e2
-        # p3d = y3_gauss, y3_lorentz, y3, e3
-
-        # result = self.intensity_background_shared(x0, x1, x2, p1d, p2d, p3d)
-
-        # intens1, intens2, intens3, bkg1, bkg2, bkg3, global_bkg = result
-
-        # G1, L1, G1_err, L1_err = intens1
-        # G2, L2, G2_err, L2_err = intens2
-        # G3, L3, G3_err, L3_err = intens3
-
-        # B1, B1_err = bkg1
-        # B2, B2_err = bkg2
-        # B3, B3_err = bkg3
-
-        # B, B_err = global_bkg
 
         self.B, self.B_err = B, B_err
 
