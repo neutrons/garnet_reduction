@@ -263,7 +263,10 @@ class ReductionPlan:
 
         self.set_output(filename)
         runs = self.plan['Runs']
-        self.plan['Runs'] = self.runs_string_to_list(runs)
+        if type(runs) is str:
+            self.plan['Runs'] = self.runs_string_to_list(runs)
+        else:
+            self.plan['Runs'] = [int(runs)]
 
     def save_plan(self, filename):
         """

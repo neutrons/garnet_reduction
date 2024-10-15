@@ -35,9 +35,6 @@ class ParallelTasks:
 
         runs = plan['Runs']
 
-        if type(runs) is int:
-            runs = [runs]
-
         pool = multiprocessing.Pool(processes=n_proc)
 
         def terminate_pool(e):
