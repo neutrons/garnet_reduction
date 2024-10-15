@@ -92,7 +92,9 @@ if __name__ == '__main__':
 
         pt = ParallelTasks(func, comb)
 
-        max_proc = min(os.cpu_count(), len(rp.plan['Runs']))
+        n_runs = len(rp.plan['Runs']) if rp.plan['Runs'] is list else 1
+
+        max_proc = min(os.cpu_count(), n_runs)
 
         if n_proc > max_proc:
             n_proc = max_proc
