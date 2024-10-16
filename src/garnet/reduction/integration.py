@@ -1130,6 +1130,8 @@ class PeakEllipsoid:
         A2 = params['A2']
         A3 = params['A3']
 
+        C = params['C']
+
         # delta1 = params['delta1']
         # delta2 = params['delta2']
         # delta3 = params['delta3']
@@ -1154,7 +1156,7 @@ class PeakEllipsoid:
         # y2_lorentz = self.lorentzian(*args, '2d')
         # y3_lorentz = self.lorentzian(*args, '3d')
 
-        res = (np.arcsinh(A1*y1_gauss+B1)-np.arcsinh(y1_int))/e1_int*np.sqrt(y1_int**2+1)
+        res = (np.arcsinh(A1*y1_gauss+B1+C*x0[:,0,0])-np.arcsinh(y1_int))/e1_int*np.sqrt(y1_int**2+1)
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
@@ -1301,9 +1303,13 @@ class PeakEllipsoid:
             if np.isfinite(value):
                 self.params[param].set(value=value)
 
-        self.params.add('delta1', value=0, min=0, max=1, vary=False)
-        self.params.add('delta2', value=0, min=0, max=1, vary=False)
-        self.params.add('delta3', value=0, min=0, max=1, vary=False)
+        C_max = y1_max/dx0
+
+        self.params.add('C', value=0, min=-C_max, max=C_max, vary=True)
+
+        # self.params.add('delta1', value=0, min=0, max=1, vary=False)
+        # self.params.add('delta2', value=0, min=0, max=1, vary=False)
+        # self.params.add('delta3', value=0, min=0, max=1, vary=False)
 
         self.params.add('A1', value=y1_max, min=0, max=2*y1_max)
         self.params.add('A2', value=y2_max, min=0, max=2*y2_max)
@@ -1356,6 +1362,8 @@ class PeakEllipsoid:
 
         B1 = B2 = B3 = B
 
+        C = self.params['C'].value
+
         A1 = self.params['A1'].value
         A2 = self.params['A2'].value
         A3 = self.params['A3'].value
@@ -1384,9 +1392,9 @@ class PeakEllipsoid:
 
         self.B, self.B_err = B, B_err
 
-        y1_fit = A1*y1_gauss+B1#+L1*y1_lorentz+B1
-        y2_fit = A2*y2_gauss+B2#+L2*y2_lorentz+B2
-        y3_fit = A3*y3_gauss+B3#+L3*y3_lorentz+B3
+        y1_fit = A1*y1_gauss+B1+C*x0[:,0,0]
+        y2_fit = A2*y2_gauss+B2
+        y3_fit = A3*y3_gauss+B3
 
         self.redchi2 = np.nanmean((y1_fit-y1)**2/e1**2),\
                        np.nanmean((y2_fit-y2)**2/e2**2),\
