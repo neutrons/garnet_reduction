@@ -101,4 +101,4 @@ if __name__ == '__main__':
 
         pt.run_tasks(rp.plan, n_proc)
 
-        rp.save_plan(filename.replace('.yaml', '.red'))
+        rp.save_plan(filename.replace('.yaml', '_'+reduction+'.json'))

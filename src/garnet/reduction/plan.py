@@ -1,6 +1,7 @@
 import os
 import sys
 import yaml
+import json
 import shutil
 import concurrent.futures
 
@@ -26,9 +27,27 @@ def save_YAML(output, filename):
         Output file name.
 
     """
+
     with open(filename, 'w') as f:
 
         yaml.dump(output, f, Dumper=Dumper, sort_keys=False)
+
+def save_JSON(output, filename):
+    """
+    Save reduction output file.
+
+    Parameters
+    ----------
+    output : str
+        Name of file.
+    filename : str
+        Output file name.
+
+    """
+
+    with open(filename, 'w') as f:
+
+        json.dump(output, f, indent=4)
 
 def delete_directory(path):
     """
@@ -286,7 +305,10 @@ class ReductionPlan:
             if type(runs) is list:
                 self.plan['Runs'] = self.runs_list_to_string(runs)
 
-            save_YAML(self.plan, filename)
+            if filename.endswith('.json'):
+                save_JSON(self.plan, filename)
+            else:
+                save_YAML(self.plan, filename)
 
     def runs_string_to_list(self, runs_str):
         """
