@@ -1124,13 +1124,15 @@ class PeakEllipsoid:
         theta = params['theta']
         omega = params['omega']
 
-        B1 = B2 = B3 = params['B']
+        B1 = params['B1']
+        B2 = params['B2']
+        B3 = params['B3']
 
         A1 = params['A1']
         A2 = params['A2']
         A3 = params['A3']
 
-        C = params['C']
+        # C = params['C']
 
         # delta1 = params['delta1']
         # delta2 = params['delta2']
@@ -1156,7 +1158,7 @@ class PeakEllipsoid:
         # y2_lorentz = self.lorentzian(*args, '2d')
         # y3_lorentz = self.lorentzian(*args, '3d')
 
-        res = (np.arcsinh(A1*y1_gauss+B1+C*x0[:,0,0])-np.arcsinh(y1_int))/e1_int*np.sqrt(y1_int**2+1)
+        res = (np.arcsinh(A1*y1_gauss+B1)-np.arcsinh(y1_int))/e1_int*np.sqrt(y1_int**2+1)
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
@@ -1287,8 +1289,8 @@ class PeakEllipsoid:
         # y2_int = np.nansum(w2)*dx1*dx2
         # y3_int = np.nansum(w3)*dx0*dx1*dx2
 
-        y_min = np.nanmin([y1_min, y2_min, y3_min])
-        y_max = np.nanmax([y1_max, y2_max, y3_max])
+        # y_min = np.nanmin([y1_min, y2_min, y3_min])
+        # y_max = np.nanmax([y1_max, y2_max, y3_max])
 
         c0 = np.nansum(x0[:,0,0]*w1)/np.nansum(w1)
         c1 = np.nansum(x1[0,:,:]*w2)/np.nansum(w2)
@@ -1303,9 +1305,8 @@ class PeakEllipsoid:
             if np.isfinite(value):
                 self.params[param].set(value=value)
 
-        C_max = y1_max/dx0
 
-        self.params.add('C', value=0, min=-C_max, max=C_max, vary=True)
+        # self.params.add('C', value=0, min=-C_max, max=C_max, vary=True)
 
         # self.params.add('delta1', value=0, min=0, max=1, vary=False)
         # self.params.add('delta2', value=0, min=0, max=1, vary=False)
@@ -1315,7 +1316,9 @@ class PeakEllipsoid:
         self.params.add('A2', value=y2_max, min=0, max=2*y2_max)
         self.params.add('A3', value=y3_max, min=0, max=2*y3_max)
 
-        self.params.add('B', value=y_min, min=0, max=y_max)
+        self.params.add('B1', value=y1_min, min=0, max=y1_max)
+        self.params.add('B2', value=y2_min, min=0, max=y2_max)
+        self.params.add('B3', value=y3_min, min=0, max=y3_max)
 
         args = [x0, x1, x2, (y1, y2, y3), (e1, e2, e3)]
 
@@ -1354,15 +1357,15 @@ class PeakEllipsoid:
         theta = self.params['theta'].value
         omega = self.params['omega'].value
 
-        B = self.params['B'].value
-        B_err = self.params['B'].stderr
+        B1 = self.params['B1'].value
+        B2 = self.params['B2'].value
+        B3 = self.params['B3'].value
+
+        B_err = self.params['B3'].stderr
+        B = B3
 
         if B_err is None:
             B_err = B
-
-        B1 = B2 = B3 = B
-
-        C = self.params['C'].value
 
         A1 = self.params['A1'].value
         A2 = self.params['A2'].value
@@ -1392,7 +1395,7 @@ class PeakEllipsoid:
 
         self.B, self.B_err = B, B_err
 
-        y1_fit = A1*y1_gauss+B1+C*x0[:,0,0]
+        y1_fit = A1*y1_gauss+B1
         y2_fit = A2*y2_gauss+B2
         y3_fit = A3*y3_gauss+B3
 
