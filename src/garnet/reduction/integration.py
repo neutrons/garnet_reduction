@@ -1332,7 +1332,7 @@ class PeakEllipsoid:
                         fcn_args=args,
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares', loss='soft_l1')
+        result = out.minimize(method='least_squares')
 
         self.params = result.params
 
