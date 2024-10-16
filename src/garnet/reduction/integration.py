@@ -1130,13 +1130,13 @@ class PeakEllipsoid:
         A2 = params['A2']
         A3 = params['A3']
 
-        delta1 = params['delta1']
-        delta2 = params['delta2']
-        delta3 = params['delta3']
+        # delta1 = params['delta1']
+        # delta2 = params['delta2']
+        # delta3 = params['delta3']
 
-        G1, L1 = (1-delta1)*A1, delta1*A1
-        G2, L2 = (1-delta2)*A2, delta2*A2
-        G3, L3 = (1-delta3)*A3, delta3*A3
+        # G1, L1 = (1-delta1)*A1, delta1*A1
+        # G2, L2 = (1-delta2)*A2, delta2*A2
+        # G3, L3 = (1-delta3)*A3, delta3*A3
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1150,21 +1150,21 @@ class PeakEllipsoid:
         y2_gauss = self.gaussian(*args, '2d')
         y3_gauss = self.gaussian(*args, '3d')
 
-        y1_lorentz = self.lorentzian(*args, '1d')
-        y2_lorentz = self.lorentzian(*args, '2d')
-        y3_lorentz = self.lorentzian(*args, '3d')
+        # y1_lorentz = self.lorentzian(*args, '1d')
+        # y2_lorentz = self.lorentzian(*args, '2d')
+        # y3_lorentz = self.lorentzian(*args, '3d')
 
-        res = (G1*y1_gauss+L1*y1_lorentz+B1-y1_int)/e1_int
+        res = (np.arcsinh(A1*y1_gauss+B1)-np.arcsinh(y1_int))/e1_int*np.sqrt(y1_int**2+1)
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
 
-        res = (G2*y2_gauss+L2*y2_lorentz+B2-y2_int)/e2_int
+        res = (np.arcsinh(A2*y2_gauss+B2)-np.arcsinh(y2_int))/e2_int*np.sqrt(y2_int**2+1)
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
 
-        res = (G3*y3_gauss+L3*y3_lorentz+B3-y3_int)/e3_int
+        res = (np.arcsinh(A3*y3_gauss+B3)-np.arcsinh(y3_int))/e3_int*np.sqrt(y3_int**2+1)
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
@@ -1360,13 +1360,13 @@ class PeakEllipsoid:
         A2 = self.params['A2'].value
         A3 = self.params['A3'].value
 
-        delta1 = self.params['delta1'].value
-        delta2 = self.params['delta2'].value
-        delta3 = self.params['delta3'].value
+        # delta1 = self.params['delta1'].value
+        # delta2 = self.params['delta2'].value
+        # delta3 = self.params['delta3'].value
 
-        G1, L1 = (1-delta1)*A1, delta1*A1
-        G2, L2 = (1-delta2)*A2, delta2*A2
-        G3, L3 = (1-delta3)*A3, delta3*A3
+        # G1, L1 = (1-delta1)*A1, delta1*A1
+        # G2, L2 = (1-delta2)*A2, delta2*A2
+        # G3, L3 = (1-delta3)*A3, delta3*A3
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1378,15 +1378,15 @@ class PeakEllipsoid:
         y2_gauss = self.gaussian(*args, '2d')
         y3_gauss = self.gaussian(*args, '3d')
 
-        y1_lorentz = self.lorentzian(*args, '1d')
-        y2_lorentz = self.lorentzian(*args, '2d')
-        y3_lorentz = self.lorentzian(*args, '3d')
+        # y1_lorentz = self.lorentzian(*args, '1d')
+        # y2_lorentz = self.lorentzian(*args, '2d')
+        # y3_lorentz = self.lorentzian(*args, '3d')
 
         self.B, self.B_err = B, B_err
 
-        y1_fit = G1*y1_gauss+L1*y1_lorentz+B1
-        y2_fit = G2*y2_gauss+L2*y2_lorentz+B2
-        y3_fit = G3*y3_gauss+L3*y3_lorentz+B3
+        y1_fit = A1*y1_gauss+B1#+L1*y1_lorentz+B1
+        y2_fit = A2*y2_gauss+B2#+L2*y2_lorentz+B2
+        y3_fit = A3*y3_gauss+B3#+L3*y3_lorentz+B3
 
         self.redchi2 = np.nanmean((y1_fit-y1)**2/e1**2),\
                        np.nanmean((y2_fit-y2)**2/e2**2),\
