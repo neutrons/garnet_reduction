@@ -562,7 +562,7 @@ class BaseDataModel:
 
         SaveMD(Filename=filename,
                InputWorkspace=ws,
-               SaveHistory=True,
+               SaveHistory=False,
                SaveInstrument=sample_logs,
                SaveSample=sample_logs,
                SaveLogs=sample_logs)
