@@ -638,11 +638,13 @@ class Integration(SubPlan):
 
             dQ = data.get_resolution_in_Q(wavelength, two_theta)
 
-            T = np.eye(3)
+            # T = np.eye(3)
 
-            params = self.project_ellipsoid_parameters(params, T)
+            # params = self.project_ellipsoid_parameters(params, T)
 
             bin_params = l_cut, t_cut, dQ, UB
+
+            # ---
 
             bins, extents, projections = self.bin_extent(*params, *bin_params)
 
@@ -656,13 +658,31 @@ class Integration(SubPlan):
 
             params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ, l_cut, t_cut)
 
+            # ---
+
+            if params is not None:
+
+                params = self.revert_ellipsoid_parameters(params, projections)
+
+                bins, extents, projections = self.bin_extent(*params, *bin_params)
+
+                data_norm = data.normalize_in_Q('md', extents, bins, projections)
+
+                y, e, Q0, Q1, Q2 = data_norm
+
+                counts = data.extract_counts('md_data')
+
+                ellipsoid = PeakEllipsoid(counts)
+
+                params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ, l_cut, t_cut)
+
             if params is not None and det_id > 0:
 
                 c, S, *fitting = ellipsoid.best_fit
 
                 params = self.revert_ellipsoid_parameters(params, projections)
 
-                params = self.revert_ellipsoid_parameters(params, T)
+                # params = self.revert_ellipsoid_parameters(params, T)
 
                 peak.set_peak_shape(i, *params)
 
@@ -1124,6 +1144,8 @@ class PeakEllipsoid:
         theta = params['theta']
         omega = params['omega']
 
+        C1 = params['C1']
+
         B1 = params['B1']
         B2 = params['B2']
         B3 = params['B3']
@@ -1158,7 +1180,7 @@ class PeakEllipsoid:
         # y2_lorentz = self.lorentzian(*args, '2d')
         # y3_lorentz = self.lorentzian(*args, '3d')
 
-        res = (np.arcsinh(A1*y1_gauss+B1)-np.arcsinh(y1_int))/e1_int*np.sqrt(y1_int**2+1)
+        res = (np.arcsinh(A1*y1_gauss+B1+C1*x0[:,0,0])-np.arcsinh(y1_int))/e1_int*np.sqrt(y1_int**2+1)
         res /= np.sqrt(res.size)
 
         diff += res.flatten().tolist()
@@ -1305,8 +1327,9 @@ class PeakEllipsoid:
             if np.isfinite(value):
                 self.params[param].set(value=value)
 
+        C1_max = (y1_max-y1_min)/dx0
 
-        # self.params.add('C', value=0, min=-C_max, max=C_max, vary=True)
+        self.params.add('C1', value=0, min=-C1_max, max=C1_max, vary=True)
 
         # self.params.add('delta1', value=0, min=0, max=1, vary=False)
         # self.params.add('delta2', value=0, min=0, max=1, vary=False)
@@ -1357,6 +1380,8 @@ class PeakEllipsoid:
         theta = self.params['theta'].value
         omega = self.params['omega'].value
 
+        C1 = self.params['C1'].value
+
         B1 = self.params['B1'].value
         B2 = self.params['B2'].value
         B3 = self.params['B3'].value
@@ -1395,7 +1420,7 @@ class PeakEllipsoid:
 
         self.B, self.B_err = B, B_err
 
-        y1_fit = A1*y1_gauss+B1
+        y1_fit = A1*y1_gauss+B1+C1*x0[:,0,0]
         y2_fit = A2*y2_gauss+B2
         y3_fit = A3*y3_gauss+B3
 
