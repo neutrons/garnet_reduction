@@ -1456,7 +1456,7 @@ class LaueData(BaseDataModel):
 
     def normalize_data(self, event_name):
         """
-        Normalize with detector efficiency and bank spectra.
+        Normalize with detector solid angle and bank spectra.
 
         event_name : str
             Name of raw event data.
@@ -1471,7 +1471,7 @@ class LaueData(BaseDataModel):
                      Target='Wavelength')
 
         Divide(LHSWorkspace=event_name,
-               RHSWorkspace='efficiency',
+               RHSWorkspace='sa',
                OutputWorkspace=event_name,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
