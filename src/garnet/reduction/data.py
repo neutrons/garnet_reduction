@@ -1068,9 +1068,9 @@ class LaueData(BaseDataModel):
              FilterByTofMax=16600,
              FilterByTimeStop=time_cut)
 
-        # MaskDetectorsIf(InputWorkspace=event_name,
-        #                 Operator='LessEqual',
-        #                 OutputWorkspace=event_name)
+        MaskDetectorsIf(InputWorkspace=event_name,
+                        Operator='LessEqual',
+                        OutputWorkspace=event_name)
 
         FilterBadPulses(InputWorkspace=event_name,
                         OutputWorkspace=event_name)
