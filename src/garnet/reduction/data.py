@@ -1475,7 +1475,7 @@ class LaueData(BaseDataModel):
                      Target='Wavelength')
 
         Divide(LHSWorkspace=event_name,
-               RHSWorkspace='sa',
+               RHSWorkspace='efficiency',
                OutputWorkspace=event_name,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
