@@ -583,7 +583,7 @@ class Integration(SubPlan):
 
         return lo, lc, to, tc
 
-    def fit_peaks(self, peaks_ws, params, make_plot=True):
+    def fit_peaks(self, peaks_ws, params, make_plot=False):
         """
         Integrate peaks.
 
@@ -1125,12 +1125,13 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def residual(self, params, x0, x1, x2, y, e, lamda=1e-2):
+    def residual(self, params, x0, x1, x2, ys, vs, ws):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        y1_int, y2_int, y3_int = y
-        e1_int, e2_int, e3_int = e
+        y1, y2, y3 = ys
+        v1, v2, v3 = vs
+        w1, w2, w3 = ws
 
         c0 = params['c0']
         c1 = params['c1']
@@ -1180,18 +1181,23 @@ class PeakEllipsoid:
         # y2_lorentz = self.lorentzian(*args, '2d')
         # y3_lorentz = self.lorentzian(*args, '3d')
 
-        res = (np.arcsinh(A1*y1_gauss+B1+C1*x0[:,0,0])-np.arcsinh(y1_int))/e1_int*np.sqrt(y1_int**2+1)
-        res /= np.sqrt(res.size)
+        y1_fit = A1*y1_gauss+B1+C1*x0[:,0,0]
+        y2_fit = A2*y2_gauss+B2
+        y3_fit = A3*y3_gauss+B3
+
+        u1 = np.sqrt(1+y1_fit**2)
+        u2 = np.sqrt(1+y2_fit**2)
+        u3 = np.sqrt(1+y3_fit**2)
+
+        res = np.arcsinh(y1*u1-y1_fit*v1)*w1
 
         diff += res.flatten().tolist()
 
-        res = (np.arcsinh(A2*y2_gauss+B2)-np.arcsinh(y2_int))/e2_int*np.sqrt(y2_int**2+1)
-        res /= np.sqrt(res.size)
+        res = np.arcsinh(y2*u2-y2_fit*v2)*w2
 
         diff += res.flatten().tolist()
 
-        res = (np.arcsinh(A3*y3_gauss+B3)-np.arcsinh(y3_int))/e3_int*np.sqrt(y3_int**2+1)
-        res /= np.sqrt(res.size)
+        res = np.arcsinh(y3*u3-y3_fit*v3)*w3
 
         diff += res.flatten().tolist()
 
@@ -1343,13 +1349,50 @@ class PeakEllipsoid:
         self.params.add('B2', value=y2_min, min=0, max=y2_max)
         self.params.add('B3', value=y3_min, min=0, max=y3_max)
 
-        args = [x0, x1, x2, (y1, y2, y3), (e1, e2, e3)]
+        v1 = np.sqrt(1+y1**2)
+        v2 = np.sqrt(1+y2**2)
+        v3 = np.sqrt(1+y3**2)
+
+        w1 = v1/e1/np.sqrt(e1.size)
+        w2 = v2/e2/np.sqrt(e2.size)
+        w3 = v3/e3/np.sqrt(e3.size)
+
+        ys = (y1, y2, y3)
+        vs = (v1, v2, v3)
+        ws = (w1, w2, w3)
+
+        args = [x0, x1, x2, ys, vs, ws]
 
         # ---
 
         self.params['c0'].set(vary=True)
         self.params['c1'].set(vary=True)
         self.params['c2'].set(vary=True)
+
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
+
+        self.params['phi'].set(vary=False)
+        self.params['theta'].set(vary=False)
+        self.params['omega'].set(vary=False)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        ftol=1e-6,
+                        gtol=1e-6,
+                        xtol=1e-6,
+                        max_nfev=100,
+                        nan_policy='omit')
+
+        result = out.minimize(method='least_squares')
+
+        self.params = result.params
+
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
 
         self.params['r0'].set(vary=True)
         self.params['r1'].set(vary=True)
@@ -1362,6 +1405,10 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
+                        ftol=1e-6,
+                        gtol=1e-6,
+                        xtol=1e-6,
+                        max_nfev=100,
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares')

@@ -3,6 +3,7 @@ import os
 # import tempfile
 import shutil
 # import subprocess
+import cProfile
 
 # import numpy as np
 
@@ -41,7 +42,8 @@ integrate.data = data
 integrate.peaks = peaks
 integrate.run = 0
 integrate.runs = 1
-integrate.fit_peaks('peaks', params)
+cProfile.run("integrate.fit_peaks('peaks', params)", 'profile.stats')
+
 
 # @pytest.mark.skipif(not os.path.exists('/SNS/CORELLI/'), reason='file mount')
 # def test_corelli():
