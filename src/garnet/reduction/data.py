@@ -1066,6 +1066,7 @@ class LaueData(BaseDataModel):
              OutputWorkspace=event_name,
              FilterByTofMin=1500,
              FilterByTofMax=16600,
+             NumberOfBins=1,
              FilterByTimeStop=time_cut)
 
         MaskDetectorsIf(InputWorkspace=event_name,
