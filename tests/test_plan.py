@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from garnet.reduction.integration import Integration
 from garnet.reduction.normalization import Normalization
 from garnet.reduction.plan import ReductionPlan
