@@ -2,8 +2,9 @@ import os
 import subprocess
 import sys
 
-import garnet.workflow
 import pytest
+
+import garnet.workflow
 from garnet.workflow import main as main
 
 
