@@ -152,7 +152,7 @@ class BaseDataModel:
             self.elastic = plan.get('Elastic')
             self.time_offset = plan.get('TimeOffset')
             if self.elastic == True and self.time_offset is None:
-                raw_path = raw_path.replace('nexus/', 'shared/autoreduce')
+                raw_path = raw_path.replace('nexus', 'shared/autoreduce')
                 raw_file = raw_file.replace('.nxs.h5', '_elastic.nxs')
 
         self.raw_file_path = os.path.join(raw_path, raw_file)

@@ -660,21 +660,28 @@ class Integration(SubPlan):
 
             # ---
 
-            if params is not None:
+            for _ in range(2):
 
-                params = self.revert_ellipsoid_parameters(params, projections)
+                if params is not None:
 
-                bins, extents, projections = self.bin_extent(*params, *bin_params)
+                    params = self.revert_ellipsoid_parameters(params,
+                                                              projections)
 
-                data_norm = data.normalize_in_Q('md', extents, bins, projections)
+                    bins, extents, projections = self.bin_extent(*params,
+                                                                 *bin_params)
 
-                y, e, Q0, Q1, Q2 = data_norm
+                    data_norm = data.normalize_in_Q('md',
+                                                    extents,
+                                                    bins,
+                                                    projections)
 
-                counts = data.extract_counts('md_data')
+                    y, e, Q0, Q1, Q2 = data_norm
 
-                ellipsoid = PeakEllipsoid(counts)
+                    counts = data.extract_counts('md_data')
 
-                params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ, l_cut, t_cut)
+                    ellipsoid = PeakEllipsoid(counts)
+
+                    params = ellipsoid.fit(Q0, Q1, Q2, y, e, dQ, l_cut, t_cut)
 
             if params is not None and det_id > 0:
 
@@ -773,6 +780,13 @@ class Integration(SubPlan):
         Q0, Q1, Q2, r0, r1, r2, v0, v1, v2 = params
 
         dQ = 2*np.array([l_cut, t_cut, t_cut])
+
+        W = np.column_stack([v0, v1, v2])
+        V = np.diag([r0**2, r1**2, r2**2])
+
+        S = np.dot(np.dot(W, V), W.T)
+
+        dQ = np.column_stack([2*np.sqrt(np.diag(S)), dQ]).min(axis=1)
 
         W = np.column_stack(projections)
 
@@ -1051,9 +1065,9 @@ class PeakEllipsoid:
         self.params.add('c1', value=c1, min=c1_min, max=c1_max)
         self.params.add('c2', value=c2, min=c2_min, max=c2_max)
 
-        self.params.add('r0', value=r0, min=2*dx, max=r0_max)
-        self.params.add('r1', value=r1, min=2*dx, max=r1_max)
-        self.params.add('r2', value=r2, min=2*dx, max=r2_max)
+        self.params.add('r0', value=r0, min=dx, max=r0_max)
+        self.params.add('r1', value=r1, min=dx, max=r1_max)
+        self.params.add('r2', value=r2, min=dx, max=r2_max)
 
         self.params.add('phi', value=phi, min=-np.pi, max=np.pi)
         self.params.add('theta', value=theta, min=0, max=np.pi)
@@ -1380,10 +1394,6 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        ftol=1e-6,
-                        gtol=1e-6,
-                        xtol=1e-6,
-                        max_nfev=100,
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares')
@@ -1405,10 +1415,6 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=args,
-                        ftol=1e-6,
-                        gtol=1e-6,
-                        xtol=1e-6,
-                        max_nfev=100,
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares')
@@ -1433,11 +1439,11 @@ class PeakEllipsoid:
         B2 = self.params['B2'].value
         B3 = self.params['B3'].value
 
-        B_err = self.params['B3'].stderr
-        B = B3
+        # B_err = self.params['B3'].stderr
+        # B = B3
 
-        if B_err is None:
-            B_err = B
+        # if B_err is None:
+        #     B_err = B
 
         A1 = self.params['A1'].value
         A2 = self.params['A2'].value
@@ -1465,7 +1471,7 @@ class PeakEllipsoid:
         # y2_lorentz = self.lorentzian(*args, '2d')
         # y3_lorentz = self.lorentzian(*args, '3d')
 
-        self.B, self.B_err = B, B_err
+        #self.B, self.B_err = B, B_err
 
         y1_fit = A1*y1_gauss+B1+C1*x0[:,0,0]
         y2_fit = A2*y2_gauss+B2
@@ -1601,8 +1607,11 @@ class PeakEllipsoid:
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
 
-        b = self.B
-        b_err = self.B_err
+        y_bkg = y[bkg].copy()
+        e_bkg = e[bkg].copy()
+
+        b = np.nanmean(y_bkg)
+        b_err = np.nanmean(e_bkg**2)
 
         intens = np.nansum(y_pk-b)*scale
         sig = np.sqrt(np.nansum(e_pk**2+b_err**2))*scale
