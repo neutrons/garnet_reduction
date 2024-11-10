@@ -245,6 +245,9 @@ class ReductionPlan:
             detcal = self.plan['DetectorCalibration']
             self.validate_file(detcal, ['.xml', '.detcal'])
 
+        if self.plan.get('Elastic') is not None:
+            assert self.plan['Instrument']  == 'CORELLI'
+
     def set_output(self, filename):
         """
         Change the output directory and name.

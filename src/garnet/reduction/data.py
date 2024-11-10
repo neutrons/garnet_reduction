@@ -1066,20 +1066,17 @@ class LaueData(BaseDataModel):
 
         filenames = self.file_names(IPTS, runs)
 
-        if self.elastic:
-
+        if self.elastic and self.time_offset is None:
             LoadNexus(Filename=filenames,
                       OutputWorkspace=event_name)
 
         else:
-
             Load(Filename=filenames,
                  OutputWorkspace=event_name,
                  FilterByTofMin=1500,
                  FilterByTofMax=16600,
                  NumberOfBins=1,
                  FilterByTimeStop=time_cut)
-
             FilterBadPulses(InputWorkspace=event_name,
                             OutputWorkspace=event_name)
 
