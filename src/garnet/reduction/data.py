@@ -1066,18 +1066,22 @@ class LaueData(BaseDataModel):
 
         filenames = self.file_names(IPTS, runs)
 
-        Load(Filename=filenames,
-             OutputWorkspace=event_name,
-             FilterByTofMin=1500,
-             FilterByTofMax=16600,
-             NumberOfBins=1,
-             FilterByTimeStop=time_cut)
+        if self.elastic:
+            Load(Filename=filenames,
+                 OutputWorkspace=event_name)
+        else:
+            Load(Filename=filenames,
+                 OutputWorkspace=event_name,
+                 FilterByTofMin=1500,
+                 FilterByTofMax=16600,
+                 NumberOfBins=1,
+                 FilterByTimeStop=time_cut)
+
+            FilterBadPulses(InputWorkspace=event_name,
+                            OutputWorkspace=event_name)
 
         MaskDetectorsIf(InputWorkspace=event_name,
                         Operator='LessEqual',
-                        OutputWorkspace=event_name)
-
-        FilterBadPulses(InputWorkspace=event_name,
                         OutputWorkspace=event_name)
 
         if self.elastic == True and self.time_offset is not None:
