@@ -222,11 +222,27 @@ class Normalization(SubPlan):
         append = self.projection_name() \
                + self.extents_name() \
                + self.binning_name() \
-               + self.symmetry_name()
+               + self.symmetry_name() \
+               + self.elastic_name()
 
         name, ext = os.path.splitext(file)
 
         return name+append+ext
+
+    def elastic_name(self):
+        """
+        Elastic channel.
+
+        Returns
+        -------
+        cc : str
+           Total or elastic channel.
+
+        """
+
+        elastic = self.params.get('Elastic')
+
+        return '_cc' if elastic else ''
 
     def extents_name(self):
         """

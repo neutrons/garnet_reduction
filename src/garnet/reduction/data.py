@@ -1067,8 +1067,8 @@ class LaueData(BaseDataModel):
         filenames = self.file_names(IPTS, runs)
 
         if self.elastic:
-            Load(Filename=filenames,
-                 OutputWorkspace=event_name)
+            LoadNexus(Filename=filenames,
+                      OutputWorkspace=event_name)
         else:
             Load(Filename=filenames,
                  OutputWorkspace=event_name,
