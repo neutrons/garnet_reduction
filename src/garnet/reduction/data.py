@@ -159,10 +159,14 @@ class BaseDataModel:
 
         files = self.get_file_name_list(plan['IPTS'], plan['Runs'])
         if instrument != 'DEMAND':
-            LoadEventNexus(Filename=files[0],
-                           OutputWorkspace=self.instrument,
-                           MetaDataOnly=True,
-                           LoadLogs=False)
+            if not self.elastic:
+                LoadEventNexus(Filename=files[0],
+                               OutputWorkspace=self.instrument,
+                               MetaDataOnly=True,
+                               LoadLogs=False)
+            else:
+                Load(Filename=files[0],
+                     OutputWorkspace=self.instrument)
         else:
             LoadEmptyInstrument(InstrumentName=self.ref_inst,
                                 OutputWorkspace=self.instrument)
