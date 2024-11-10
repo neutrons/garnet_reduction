@@ -165,8 +165,8 @@ class BaseDataModel:
                                MetaDataOnly=True,
                                LoadLogs=False)
             else:
-                Load(Filename=files[0],
-                     OutputWorkspace=self.instrument)
+                LoadNexus(Filename=files[0],
+                          OutputWorkspace=self.instrument)
         else:
             LoadEmptyInstrument(InstrumentName=self.ref_inst,
                                 OutputWorkspace=self.instrument)
@@ -1067,9 +1067,12 @@ class LaueData(BaseDataModel):
         filenames = self.file_names(IPTS, runs)
 
         if self.elastic:
+
             LoadNexus(Filename=filenames,
                       OutputWorkspace=event_name)
+
         else:
+
             Load(Filename=filenames,
                  OutputWorkspace=event_name,
                  FilterByTofMin=1500,
