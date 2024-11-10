@@ -7,6 +7,7 @@ from mantid.simpleapi import (Load,
                               LoadEventNexus,
                               LoadParameterFile,
                               LoadIsawDetCal,
+                              Rebin,
                               ApplyCalibration,
                               Multiply,
                               Divide,
@@ -1069,7 +1070,10 @@ class LaueData(BaseDataModel):
         if self.elastic and self.time_offset is None:
             LoadNexus(Filename=filenames,
                       OutputWorkspace=event_name)
-
+            x = mtd[event_name].extractX()[0]
+            Rebin(InputWorkspace=event_name,
+                  Params=[x[0], x[-1], x[-1]],
+                  OutputWorkspace=event_name)
         else:
             Load(Filename=filenames,
                  OutputWorkspace=event_name,
@@ -1077,8 +1081,9 @@ class LaueData(BaseDataModel):
                  FilterByTofMax=16600,
                  NumberOfBins=1,
                  FilterByTimeStop=time_cut)
-            FilterBadPulses(InputWorkspace=event_name,
-                            OutputWorkspace=event_name)
+
+        FilterBadPulses(InputWorkspace=event_name,
+                        OutputWorkspace=event_name)
 
         MaskDetectorsIf(InputWorkspace=event_name,
                         Operator='LessEqual',

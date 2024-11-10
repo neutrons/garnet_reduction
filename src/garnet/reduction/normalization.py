@@ -240,7 +240,8 @@ class Normalization(SubPlan):
 
         """
 
-        elastic = self.params.get('Elastic')
+        elastic = self.plan.get('Elastic')
+        print('_cc' if elastic else '')
 
         return '_cc' if elastic else ''
 
