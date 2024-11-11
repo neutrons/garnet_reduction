@@ -1048,7 +1048,7 @@ class LaueData(BaseDataModel):
 
         self.laue = True
 
-    def load_data(self, event_name, IPTS, runs, time_cut=None):
+    def load_data(self, event_name, IPTS, runs, grouping=None, time_cut=None):
         """
         Load raw data into time-of-flight vs counts.
 
@@ -1097,6 +1097,14 @@ class LaueData(BaseDataModel):
                                   TimingOffset=self.time_offset)
 
         self.set_goniometer(event_name)
+
+        if self.grouping is not None and grouping is not None:
+
+            self.create_grouping(grouping)
+
+        if self.grouping is not None:
+
+            self.group_pixels(event_name)
 
     def calculate_maximum_Q(self):
         """
@@ -1209,14 +1217,12 @@ class LaueData(BaseDataModel):
             MaskDetectors(Workspace=event_name,
                           MaskedWorkspace='mask')
 
-    def create_grouping(self, filename, grouping):
+    def create_grouping(self, grouping):
         """
-        Generate grouping file.
+        Generate grouping pattern.
 
         Parameters
         ----------
-        filename : str
-            Grouping file.
         gropuing : str
             Grouping pattern (rows)x(cols).
 
@@ -1229,47 +1235,38 @@ class LaueData(BaseDataModel):
         cols, rows = self.instrument_config['BankPixels']
 
         det_id = np.array(mtd['detectors'].column(4)).reshape(-1,cols,rows)
+        det_map = np.array(mtd['detectors'].column(5)).reshape(-1,cols,rows)
 
         grouped_ids = {}
         for i in range(det_id.shape[0]):
             for j in range(det_id.shape[1]):
                 for k in range(det_id.shape[2]):
                     key = (i, j // c, k // r)
-                    detector_id = str(det_id[i,j,k])
+                    detector_id = str(det_map[i,j,k])
                     if key in grouped_ids:
                         grouped_ids[key].append(detector_id)
                     else:
                         grouped_ids[key] = [detector_id]
 
-        header = '<?xml version="1.0" encoding="UTF-8" ?>\n'+\
-                 '<detector-grouping instrument="{}">\n'.format(self.ref_inst)
+        self.grouping = ','.join(['+'.join(grouped_ids[key])\
+                                  for key in grouped_ids.keys()])
 
-        with open(filename, 'wt+') as f:
-            f.write(header)
-            for det_group, ids in enumerate(grouped_ids.values()):
-                det_ids = ','.join(ids)
-                f.write('<group name="{}">'.format(det_group)+\
-                        '<detids val="{}"/> '.format(det_ids)+ '</group>\n')
-            f.write('</detector-grouping>')
-
-        self.grouping = filename
-
-    def group_pixels(self, filename, ws):
+    def group_pixels(self, ws):
         """
         Group pixels with grouping file.
 
         Parameters
         ----------
-        filename : str
-            Grouping file.
         ws : str
             Workspace name.
 
         """
 
-        GroupDetectors(InputWorkspace=ws,
-                       MapFile=filename,
-                       OutputWorkspace=ws)
+        if self.grouping is not None:
+
+            GroupDetectors(InputWorkspace=ws,
+                           GroupingPattern=self.grouping,
+                           OutputWorkspace=ws)
 
     def convert_to_Q_sample(self, event_name, md_name, lorentz_corr=False):
         """
@@ -1481,8 +1478,12 @@ class LaueData(BaseDataModel):
 
         """
 
-        NormaliseByCurrent(InputWorkspace=event_name,
-                           OutputWorkspace=event_name)
+        run = mtd[event_name].run()
+
+        if run.getProtonCharge() > 0:
+
+            NormaliseByCurrent(InputWorkspace=event_name,
+                               OutputWorkspace=event_name)
 
         ConvertUnits(InputWorkspace=event_name,
                      OutputWorkspace=event_name,
@@ -1535,7 +1536,7 @@ class LaueData(BaseDataModel):
 
                 if self.grouping is not None:
 
-                    self.group_pixels(self.grouping, 'bkg')
+                    self.group_pixels('bkg')
 
                 if mtd.doesExist('sa_mask'):
 

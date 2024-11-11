@@ -81,15 +81,7 @@ if __name__ == '__main__':
 
         data = DataModel(beamlines[rp.plan['Instrument']])
         data.update_raw_path(rp.plan)
-
-        grouping_file = inst.get_diagnostic_file('grouping', '.xml')
-
-        if data.laue:
-            data.preprocess_detectors()
-            data.create_grouping(grouping_file, rp.plan.get('Grouping'))
-            mtd.remove('detectors')
-            rp.plan['GroupingFile'] = grouping_file
-
+    
         pt = ParallelTasks(func, comb)
 
         n_runs = len(rp.plan['Runs'])

@@ -105,7 +105,10 @@ class Integration(SubPlan):
 
             self.run += 1
 
-            data.load_data('data', self.plan['IPTS'], run)
+            data.load_data('data',
+                           self.plan['IPTS'],
+                           run,
+                           self.plan.get('Grouping'))
 
             data.load_generate_normalization(self.plan['VanadiumFile'],
                                              self.plan['FluxFile'])

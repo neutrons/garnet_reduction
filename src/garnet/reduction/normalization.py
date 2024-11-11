@@ -68,8 +68,6 @@ class Normalization(SubPlan):
 
         if data.laue:
 
-            # grouping_file = self.plan['GroupingFile']
-
             self.run = 0
             self.runs = len(runs)
 
@@ -77,7 +75,10 @@ class Normalization(SubPlan):
 
                 self.run += 1
 
-                data.load_data('data', self.plan['IPTS'], run)
+                data.load_data('data', 
+                               self.plan['IPTS'], 
+                               run,
+                               self.plan.get('Grouping'))
 
                 data.load_generate_normalization(self.plan['VanadiumFile'],
                                                  self.plan.get('FluxFile'))
@@ -94,7 +95,7 @@ class Normalization(SubPlan):
 
                 data.load_background(self.plan.get('BackgroundFile'), 'data')
 
-                # data.group_pixels(grouping_file, 'data')
+                data.group_pixels('data')
 
                 data.load_clear_UB(self.plan['UBFile'], 'data')
 
