@@ -47,8 +47,10 @@ from mantid.simpleapi import (Load,
                               MinusMD,
                               SaveMD,
                               LoadMD,
+                              Scale,
                               CreateSingleValuedWorkspace,
                               AddSampleLog,
+                              RemoveLogs,
                               CopySample,
                               DeleteWorkspace,
                               DeleteWorkspaces,
@@ -722,9 +724,9 @@ class BaseDataModel:
 
         return np.min([dQ_dl, dQ_dt])
 
-    def normalize_in_Q(self, md, extents, bins, projections):
+    def bin_in_Q(self, md, extents, bins, projections):
         """
-        Histogram data into normalized Q-space.
+        Histogram data into Q-space.
 
         Parameters
         ----------
@@ -744,6 +746,8 @@ class BaseDataModel:
             extents = np.array(extents).flatten().tolist()
 
             u0, u1, u2 = projections
+
+            bins[bins == 0] = 1
 
             BinMD(InputWorkspace=md,
                   AxisAligned=False,
@@ -839,41 +843,6 @@ class MonochromaticData(BaseDataModel):
                                 MinValues=Q_min_vals,
                                 MaxValues=Q_max_vals,
                                 OutputWorkspace=md_name)
-
-    def coverage(self, Q0, Q1, Q2):
-        """
-        Angular and detector coverage.
-
-        Parameters
-        ----------
-        Q0, Q1, Q2 : array
-            Q-sample bin centers.
-
-        Returns
-        -------
-        omega: array
-            Rotation angle.
-        two_theta: array
-            Scattering angle.
-        phi: array
-            Azimuthal angle.
-
-        """
-
-        lamda = self.wavelength
-
-        Q = np.sqrt(Q0**2+Q1**2+Q2**2)
-
-        theta = np.arcsin(Q*lamda/(4*np.pi))
-        phi = np.arcsin(Q1/Q/np.sqrt(1-(Q*lamda)**2/(4*np.pi)**2))
-
-        Qx = 2*np.pi/lamda*np.sin(2*theta)*np.cos(phi)
-        Qz = 2*np.pi/lamda*(np.cos(2*theta)-1)
-
-        omega = np.arctan2((Q2*Qx+Q0*Qz)/(Q0**2+Q2**2),
-                           (Q0*Qx+Q2*Qz)/(Q0**2+Q2**2))
-
-        return omega, 2*theta, phi
 
     def load_generate_normalization(self, filename, histo_name=None):
         """
@@ -1090,8 +1059,10 @@ class LaueData(BaseDataModel):
                         OutputWorkspace=event_name)
 
         if self.elastic == True and self.time_offset is not None:
+
             CopyInstrumentParameters(InputWorkspace=self.ref_inst,
                                      OutputWorkspace=event_name)
+
             CorelliCrossCorrelate(InputWorkspace=event_name,
                                   OutputWorkspace=event_name,
                                   TimingOffset=self.time_offset)
@@ -1113,6 +1084,7 @@ class LaueData(BaseDataModel):
         """
 
         lamda_min = np.min(self.wavelength_band)
+
         self.Q_max = 4*np.pi/lamda_min*np.sin(self.theta_max)
 
     def apply_calibration(self, event_name,
@@ -1183,6 +1155,7 @@ class LaueData(BaseDataModel):
                                     OutputWorkspace='detectors')
 
             two_theta = mtd['detectors'].column('TwoTheta')
+
             self.theta_max = 0.5*np.max(two_theta)
 
             self.calculate_maximum_Q()
@@ -1335,36 +1308,6 @@ class LaueData(BaseDataModel):
                         MaxValues=Q_max_vals,
                         OutputWorkspace=md_name)
 
-    def coverage(self, Q0, Q1, Q2):
-        """
-        Spectral and detector coverage.
-
-        Parameters
-        ----------
-        Q0, Q1, Q2 : array
-            Q-sample bin centers.
-
-        Returns
-        -------
-        lamda: array
-            Wavelength.
-        two_theta: array
-            Scattering angle.
-        phi: array
-            Azimuthal angle.
-
-        """
-
-        Qx, Qy, Qz = np.einsum('ij,j...->i...', self.R, [Q0, Q1, Q2])
-
-        Q = np.sqrt(Qx**2+Qy**2+Qz**2)
-
-        lamda = np.abs(4*np.pi*Qz/Q**2)
-        theta = np.abs(np.arcsin(Qz/Q))
-        phi = np.arctan2(Qy, Qx)
-
-        return lamda, 2*theta, phi
-
     def load_generate_normalization(self, vanadium_file, flux_file):
         """
         Load a vanadium file and generate normalization data.
@@ -1383,6 +1326,8 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=vanadium_file,
                       OutputWorkspace='sa')
 
+            RemoveLogs(Workspace='sa')
+
             MaskDetectorsIf(InputWorkspace='sa',
                             Operator='LessEqual',
                             OutputWorkspace='sa')
@@ -1390,14 +1335,12 @@ class LaueData(BaseDataModel):
             ExtractMask(InputWorkspace='sa',
                         OutputWorkspace='sa_mask')
 
-            #if self.grouping is not None:
-
-            #    self.group_pixels(self.grouping, 'sa')
-
         if not mtd.doesExist('flux'):
 
             LoadNexus(Filename=flux_file,
                       OutputWorkspace='flux')
+
+            RemoveLogs(Workspace='flux')
 
             self.k_min = mtd['flux'].getXDimension().getMinimum()
             self.k_max = mtd['flux'].getXDimension().getMaximum()
@@ -1423,11 +1366,26 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=spectra_file,
                       OutputWorkspace='spectra')
 
-            self.lamda_min = mtd['spectra'].getXDimension().getMinimum()
-            self.lamda_max = mtd['spectra'].getXDimension().getMaximum()
-            self.lamda_bin = mtd['spectra'].getXDimension().getBinWidth()
+            RemoveLogs(Workspace='spectra')
 
-            self.wavelength_band = [self.lamda_min, self.lamda_max]
+            lamda_min = mtd['spectra'].getXDimension().getMinimum()
+            lamda_max = mtd['spectra'].getXDimension().getMaximum()
+            # lamda_bin = mtd['spectra'].getXDimension().getBinWidth()
+
+            self.k_min = 2*np.pi/lamda_max
+            self.k_max = 2*np.pi/lamda_min
+
+            self.wavelength_band = [lamda_min, lamda_max]
+
+            Scale(InputWorkspace='spectra',
+                  OutputWorkspace='lorentz_spectra',
+                  Factor=0)
+
+            lamda = mtd['spectra'].extractX()
+            lamda = 0.5*(lamda[:,1:]+lamda[:,:-1])
+
+            for i in range(lamda.shape[0]):
+                mtd['lorentz_spectra'].setY(i, lamda[i]**4)
 
     def load_efficiency_file(self, efficiency_file):
         """
@@ -1444,6 +1402,19 @@ class LaueData(BaseDataModel):
 
             LoadNexus(Filename=efficiency_file,
                       OutputWorkspace='efficiency')
+
+            RemoveLogs(Workspace='efficiency')
+
+            Scale(InputWorkspace='efficiency',
+                  OutputWorkspace='lorentz_efficiency',
+                  Factor=0)
+
+            self.preprocess_detectors('efficiency')
+
+            theta = 0.5*np.array(mtd['detectors'].column(2))
+
+            for i in range(theta.shape[0]):
+                mtd['lorentz_efficiency'].setY(i, [1/(np.sin(theta[i])**2)])
 
     def crop_for_normalization(self, event_name):
         """
@@ -1469,37 +1440,81 @@ class LaueData(BaseDataModel):
                                    XMax=self.k_max,
                                    OutputWorkspace=event_name)
 
-    def normalize_data(self, event_name):
+    def normalize_data(self, event_name, ratio, product):
         """
-        Normalize with detector solid angle and bank spectra.
+        Normalize with detector efficiency and bank spectra.
 
         event_name : str
             Name of raw event data.
+        ratio : str
+            Name of normalized ratio workspace.
+        product : str
+            Name of normalized product workspace.
 
         """
 
-        run = mtd[event_name].run()
+        pc = mtd[event_name].run().getProperty('gd_prtn_chrg').value
 
-        if run.getProtonCharge() > 0:
-
-            NormaliseByCurrent(InputWorkspace=event_name,
-                               OutputWorkspace=event_name)
+        CreateSingleValuedWorkspace(OutputWorkspace='scale', DataValue=pc)
 
         ConvertUnits(InputWorkspace=event_name,
                      OutputWorkspace=event_name,
                      Target='Wavelength')
 
         Divide(LHSWorkspace=event_name,
-               RHSWorkspace='efficiency',
-               OutputWorkspace=event_name,
+               RHSWorkspace='scale',
+               OutputWorkspace=ratio,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        Divide(LHSWorkspace=event_name,
-               RHSWorkspace='spectra',
-               OutputWorkspace=event_name,
+        Divide(LHSWorkspace=ratio,
+               RHSWorkspace='efficiency',
+               OutputWorkspace=ratio,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
+
+        Divide(LHSWorkspace=ratio,
+               RHSWorkspace='spectra',
+               OutputWorkspace=ratio,
+               WarnOnZeroDivide=False,
+               AllowDifferentNumberSpectra=True)
+
+        Divide(LHSWorkspace=ratio,
+               RHSWorkspace='lorentz_efficiency',
+               OutputWorkspace=ratio,
+               WarnOnZeroDivide=False,
+               AllowDifferentNumberSpectra=True)
+
+        Divide(LHSWorkspace=ratio,
+               RHSWorkspace='lorentz_spectra',
+               OutputWorkspace=ratio,
+               WarnOnZeroDivide=False,
+               AllowDifferentNumberSpectra=True)
+
+        Multiply(LHSWorkspace=event_name,
+                 RHSWorkspace='scale',
+                 OutputWorkspace=product,
+                 AllowDifferentNumberSpectra=True)
+
+        Multiply(LHSWorkspace=product,
+                 RHSWorkspace='efficiency',
+                 OutputWorkspace=product,
+                 AllowDifferentNumberSpectra=True)
+
+        Multiply(LHSWorkspace=product,
+                 RHSWorkspace='spectra',
+                 OutputWorkspace=product,
+                 AllowDifferentNumberSpectra=True)
+
+        Multiply(LHSWorkspace=product,
+                 RHSWorkspace='lorentz_efficiency',
+                 OutputWorkspace=product,
+                 AllowDifferentNumberSpectra=True)
+
+        Multiply(LHSWorkspace=product,
+                 RHSWorkspace='lorentz_spectra',
+                 OutputWorkspace=product,
+                 AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """
@@ -1593,34 +1608,6 @@ class LaueData(BaseDataModel):
                             OutputWorkspace='bkg_md')
 
                 DeleteWorkspace(Workspace='bkg')
-
-            # else:
-
-            #     Minus(LHSWorkspace=event_name,
-            #           RHSWorkspace='bkg',
-            #           OutputWorkspace=event_name,
-            #           AllowDifferentNumberSpectra=True)
-
-                # CompressEvents(InputWorkspace=event_name,
-                #                OutputWorkspace=event_name,
-                #                Tolerance=0.0001)
-
-        # if mtd.doesExist('bkg_md'):
-
-        #     pc = mtd[event_name].run().getProperty('gd_prtn_chrg').value
-
-        #     CreateSingleValuedWorkspace(DataValue=pc,
-        #                                 OutputWorkspace='pc_scale')
-
-        #     MultiplyMD(LHSWorkspace='bkg_md',
-        #                RHSWorkspace='pc_scale',
-        #                OutputWorkspace='bkg_md')
-
-        #     AddSampleLog(Workspace='bkg_md',
-        #                  LogName='gd_prtn_chrg',
-        #                  LogText=str(pc),
-        #                  LogType='Number',
-        #                  NumberType='Double')
 
     def normalize_to_hkl(self, md, projections, extents, bins, symmetry=None):
         """
