@@ -596,7 +596,7 @@ class Integration(SubPlan):
 
         return lo, lc, to, tc
 
-    def fit_peaks(self, peaks_ws, params, make_plot=True):
+    def fit_peaks(self, peaks_ws, params, make_plot=False):
         """
         Integrate peaks.
 
@@ -1598,8 +1598,8 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1.1)
-        bkg = (ellipsoid > 1.1) & (ellipsoid <= 2.1)
+        pk = (ellipsoid <= 1.1) & (d > 0)
+        bkg = (ellipsoid > 1.1) & (ellipsoid <= 2.1) & (d > 0)
 
         d3x = dx0*dx1*dx2
 
