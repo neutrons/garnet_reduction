@@ -1052,6 +1052,7 @@ class LaueData(BaseDataModel):
                  FilterByTimeStop=time_cut)
 
         FilterBadPulses(InputWorkspace=event_name,
+                        LowerCutOff=70,
                         OutputWorkspace=event_name)
 
         MaskDetectorsIf(InputWorkspace=event_name,
