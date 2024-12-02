@@ -68,7 +68,7 @@ class UBModel:
 
         SaveIsawUB(InputWorkspace=self.peaks, Filename=filename)
 
-    def load_UB(self, filename):
+    def load_UB(self, filename, run_number=None):
         """
         Load UB from file.
 
@@ -76,10 +76,13 @@ class UBModel:
         ----------
         filename : str
             Name of UB file with extension .mat.
+        run_number : str, optional
+            Run number to replace starred expression.
 
         """
 
-        LoadIsawUB(InputWorkspace=self.peaks, Filename=filename)
+        LoadIsawUB(InputWorkspace=self.peaks,
+                   Filename=filename.replace('*', str(run_number)))
 
     def determine_UB_with_niggli_cell(self, min_d, max_d, tol=0.1):
         """

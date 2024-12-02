@@ -136,7 +136,7 @@ class Integration(SubPlan):
 
             data.convert_to_Q_sample('data', 'md')
 
-            data.load_clear_UB(self.plan['UBFile'], 'data')
+            data.load_clear_UB(self.plan['UBFile'], 'data', run)
 
             peaks.predict_peaks('data',
                                 'peaks',
@@ -596,7 +596,7 @@ class Integration(SubPlan):
 
         return lo, lc, to, tc
 
-    def fit_peaks(self, peaks_ws, params, make_plot=False):
+    def fit_peaks(self, peaks_ws, params, make_plot=True):
         """
         Integrate peaks.
 
@@ -1598,8 +1598,8 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1.1) & (d > 0)
-        bkg = (ellipsoid > 1.1) & (ellipsoid <= 2.1) & (d > 0)
+        pk = (ellipsoid <= 1.1) # & (d > 0)
+        bkg = (ellipsoid > 1.1) & (ellipsoid <= 2.1) # & (d > 0)
 
         d3x = dx0*dx1*dx2
 
@@ -1621,7 +1621,7 @@ class PeakEllipsoid:
 
         # *(1+self.error_scale**2)
 
-        self.weights = (x0[pk], x1[pk], x2[pk]), d[pk]
+        self.weights = (x0[pk], x1[pk], x2[pk]), d[pk].copy()
 
         self.info = [d3x, b, b_err]
 
@@ -1635,7 +1635,7 @@ class PeakEllipsoid:
         e_bkg = np.sqrt(d[bkg])
 
         b_raw = np.nanmean(y_bkg)
-        b_raw_err = np.nanmean(e_bkg**2)
+        b_raw_err = np.sqrt(np.nanmean(e_bkg**2))
 
         intens_raw = np.nansum(y_pk-b_raw)
         sig_raw = np.sqrt(np.nansum(e_pk**2+b_raw_err**2))

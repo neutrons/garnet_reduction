@@ -97,7 +97,7 @@ class Normalization(SubPlan):
 
                 data.group_pixels('data')
 
-                data.load_clear_UB(self.plan['UBFile'], 'data')
+                data.load_clear_UB(self.plan['UBFile'], 'data', run)
 
                 data.convert_to_Q_sample('data', 'md', lorentz_corr=False)
 

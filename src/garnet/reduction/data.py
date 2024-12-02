@@ -12,7 +12,6 @@ from mantid.simpleapi import (Load,
                               Multiply,
                               Divide,
                               Minus,
-                              FilterBadPulses,
                               PreprocessDetectorsToMD,
                               ExtractMonitors,
                               LoadMask,
@@ -178,7 +177,7 @@ class BaseDataModel:
         # for file in files:
         #     assert os.path.exists(file)
 
-    def load_clear_UB(self, filename, ws):
+    def load_clear_UB(self, filename, ws, run_number=None):
         """
         Load UB from file and replace.
 
@@ -188,11 +187,14 @@ class BaseDataModel:
             Name of UB file with extension .mat.
         ws : str, optional
            Name of data.
+        run_number : str, optional
+            Run number to replace starred expression in filename.
 
         """
 
         ClearUB(Workspace=ws)
-        LoadIsawUB(InputWorkspace=ws, Filename=filename)
+        LoadIsawUB(InputWorkspace=ws,
+                   Filename=filename.replace('*', str(run_number)))
 
     def save_UB(self, filename, ws):
         """
@@ -1046,14 +1048,12 @@ class LaueData(BaseDataModel):
         else:
             Load(Filename=filenames,
                  OutputWorkspace=event_name,
-                 FilterByTofMin=1500,
-                 FilterByTofMax=16600,
                  NumberOfBins=1,
                  FilterByTimeStop=time_cut)
 
-        FilterBadPulses(InputWorkspace=event_name,
-                        LowerCutOff=70,
-                        OutputWorkspace=event_name)
+        # FilterBadPulses(InputWorkspace=event_name,
+        #                 LowerCutOff=70,
+        #                 OutputWorkspace=event_name)
 
         MaskDetectorsIf(InputWorkspace=event_name,
                         Operator='LessEqual',
@@ -1404,6 +1404,13 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=efficiency_file,
                       OutputWorkspace='efficiency')
 
+            MaskDetectorsIf(InputWorkspace='efficiency',
+                            Operator='LessEqual',
+                            OutputWorkspace='efficiency')
+
+            ExtractMask(InputWorkspace='efficiency',
+                        OutputWorkspace='sa_mask')
+
             RemoveLogs(Workspace='efficiency')
 
             Scale(InputWorkspace='efficiency',
@@ -1456,7 +1463,8 @@ class LaueData(BaseDataModel):
 
         pc = mtd[event_name].run().getProperty('gd_prtn_chrg').value
 
-        CreateSingleValuedWorkspace(OutputWorkspace='scale', DataValue=pc)
+        CreateSingleValuedWorkspace(OutputWorkspace='scale',
+                                    DataValue=pc)
 
         ConvertUnits(InputWorkspace=event_name,
                      OutputWorkspace=event_name,

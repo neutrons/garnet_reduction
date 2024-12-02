@@ -224,7 +224,8 @@ class ReductionPlan:
 
         if self.plan.get('UBFile') is not None:
             UB = self.plan['UBFile']
-            self.validate_file(UB, '.mat')
+            for run in self.runs_string_to_list(self.plan['Runs']):
+                self.validate_file(UB.replace('*', str(run)), '.mat')
 
         nxs_items = ['VanadiumFile',
                      'FluxFile',
