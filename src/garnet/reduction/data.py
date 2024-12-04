@@ -1539,8 +1539,8 @@ class LaueData(BaseDataModel):
                  OutputWorkspace=product,
                  AllowDifferentNumberSpectra=True)
 
-        ConvertUnits(InputWorkspace=product,
-                     OutputWorkspace=product,
+        ConvertUnits(InputWorkspace=ratio,
+                     OutputWorkspace=ratio,
                      Target='Momentum')
 
         ConvertUnits(InputWorkspace=product,
