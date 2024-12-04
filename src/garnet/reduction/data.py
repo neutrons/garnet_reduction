@@ -1514,6 +1514,8 @@ class LaueData(BaseDataModel):
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
+        self.crop_for_normalization(ratio)
+
         Multiply(LHSWorkspace=event_name,
                  RHSWorkspace='scale',
                  OutputWorkspace=product,
@@ -1538,6 +1540,8 @@ class LaueData(BaseDataModel):
                  RHSWorkspace='lorentz_spectra',
                  OutputWorkspace=product,
                  AllowDifferentNumberSpectra=True)
+
+        self.crop_for_normalization(product)
 
     def load_background(self, filename, event_name):
         """
