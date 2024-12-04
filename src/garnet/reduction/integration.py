@@ -1600,8 +1600,8 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1.1) # & (d > 0)
-        bkg = (ellipsoid > 1.1) & (ellipsoid <= 2.1) # & (d > 0)
+        pk = (ellipsoid <= 1.1) & (d > 0)
+        bkg = (ellipsoid > 1.1) & (ellipsoid <= 2.1) & (d > 0)
 
         d3x = dx0*dx1*dx2
 
@@ -1624,20 +1624,14 @@ class PeakEllipsoid:
 
         self.info = [d3x, b, b_err]
 
-        freq = (d-b)/n
+        freq = (d-b)/(n/d)
         freq[~(pk | bkg)] = np.nan
 
-        y_pk = d[pk].copy()
-        e_pk = np.sqrt(d[pk])
+        b_raw = np.nanmean(d_bkg)
+        b_raw_err = np.sqrt(np.nanmean(d_bkg))
 
-        y_bkg = d[bkg].copy()
-        e_bkg = np.sqrt(d[bkg])
-
-        b_raw = np.nanmean(y_bkg)
-        b_raw_err = np.sqrt(np.nanmean(e_bkg**2))
-
-        intens_raw = np.nansum(y_pk-b_raw)
-        sig_raw = np.sqrt(np.nansum(e_pk**2+b_raw_err**2))
+        intens_raw = np.nansum(d_pk-b_raw)
+        sig_raw = np.sqrt(np.nansum(d_pk+b_raw_err**2))
 
         self.info += [intens_raw, sig_raw]
 
