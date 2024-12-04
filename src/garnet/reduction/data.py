@@ -1514,8 +1514,6 @@ class LaueData(BaseDataModel):
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        self.crop_for_normalization(ratio)
-
         Multiply(LHSWorkspace=event_name,
                  RHSWorkspace='scale',
                  OutputWorkspace=product,
@@ -1541,7 +1539,23 @@ class LaueData(BaseDataModel):
                  OutputWorkspace=product,
                  AllowDifferentNumberSpectra=True)
 
-        self.crop_for_normalization(product)
+        ConvertUnits(InputWorkspace=product,
+                     OutputWorkspace=product,
+                     Target='Momentum')
+
+        ConvertUnits(InputWorkspace=product,
+                     OutputWorkspace=product,
+                     Target='Momentum')
+
+        CropWorkspaceForMDNorm(InputWorkspace=ratio,
+                               XMin=self.k_min,
+                               XMax=self.k_max,
+                               OutputWorkspace=ratio)
+
+        CropWorkspaceForMDNorm(InputWorkspace=product,
+                               XMin=self.k_min,
+                               XMax=self.k_max,
+                               OutputWorkspace=product)
 
     def load_background(self, filename, event_name):
         """
