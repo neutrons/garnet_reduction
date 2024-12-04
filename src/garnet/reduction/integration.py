@@ -122,9 +122,9 @@ class Integration(SubPlan):
 
             data.apply_mask('data', self.plan.get('MaskFile'))
 
-            data.crop_for_normalization('data')
-
             data.normalize_data('data', 'ratio', 'product')
+
+            data.crop_for_normalization('data')
 
             data.convert_to_Q_sample('ratio', 'md_ratio')
 
