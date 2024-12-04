@@ -660,13 +660,15 @@ class Integration(SubPlan):
 
             bins, extents, projections = self.bin_extent(*params, *bin_params)
 
-            data_Q = data.bin_in_Q('md', extents, bins, projections)
-    
-            weight_Q = data.bin_in_Q('md_product', extents, bins, projections)
+            d, e, Q0, Q1, Q2 = data.bin_in_Q('md',
+                                             extents,
+                                             bins,
+                                             projections)
 
-            d, e, Q0, Q1, Q2 = data_Q
-
-            n = weight_Q[0]/data_Q[0]
+            n, *_ = data.bin_in_Q('md_product',
+                                  extents,
+                                  bins,
+                                  projections)
 
             ellipsoid = PeakEllipsoid()
 
@@ -684,17 +686,16 @@ class Integration(SubPlan):
                     bins, extents, projections = self.bin_extent(*params,
                                                                  *bin_params)
 
-                    data_Q = data.bin_in_Q('md', extents, bins, projections)
-            
-                    weight_Q = data.bin_in_Q('md_product',
-                                             extents,
-                                             bins,
-                                             projections)
-        
-                    d, e, Q0, Q1, Q2 = data_Q
-        
-                    n = weight_Q[0]/data_Q[0]
-            
+                    d, e, Q0, Q1, Q2 = data.bin_in_Q('md',
+                                                     extents,
+                                                     bins,
+                                                     projections)
+
+                    n, *_ = data.bin_in_Q('md_product',
+                                          extents,
+                                          bins,
+                                          projections)
+
                     ellipsoid = PeakEllipsoid()
 
                     params = ellipsoid.fit(Q0, Q1, Q2, d, n, dQ, l_cut, t_cut)
@@ -1234,14 +1235,15 @@ class PeakEllipsoid:
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         if mode == '1d':
-            n_int = np.nansum(n, axis=(1,2))
             d_int = np.nansum(d, axis=(1,2))
+            n_int = np.nansum(n, axis=(1,2))/d_int
         elif mode == '2d':
-            n_int = np.nansum(n, axis=0)
             d_int = np.nansum(d, axis=0)
+            n_int = np.nansum(n, axis=0)/d_int
         else:
-            n_int = n.copy()
             d_int = d.copy()
+            n_int = n.copy()/d_int
+
 
         y_int = d_int/n_int
         e_int = np.sqrt(d_int)/n_int
@@ -1340,17 +1342,17 @@ class PeakEllipsoid:
         C1_max = (y1_max-y1_min)/dx0
         C2_max = (y2_max-y2_min)/np.min([dx1,dx2])
 
-        self.params.add('C1', value=0, min=-C1_max, max=C1_max, vary=True)
-        self.params.add('C2', value=0, min=-C2_max, max=C2_max, vary=True)
-        self.params.add('C3', value=0, min=-C2_max, max=C2_max, vary=True)
+        self.params.add('C1', value=0, min=-5*C1_max, max=5*C1_max, vary=True)
+        self.params.add('C2', value=0, min=-5*C2_max, max=5*C2_max, vary=True)
+        self.params.add('C3', value=0, min=-5*C2_max, max=5*C2_max, vary=True)
 
-        self.params.add('A1', value=y1_max, min=0, max=2*y1_max)
-        self.params.add('A2', value=y2_max, min=0, max=2*y2_max)
-        self.params.add('A3', value=y3_max, min=0, max=2*y3_max)
+        self.params.add('A1', value=y1_max, min=0, max=5*y1_max)
+        self.params.add('A2', value=y2_max, min=0, max=5*y2_max)
+        self.params.add('A3', value=y3_max, min=0, max=5*y3_max)
 
-        self.params.add('B1', value=y1_min, min=-y1_max, max=y1_max)
-        self.params.add('B2', value=y2_min, min=-y2_max, max=y2_max)
-        self.params.add('B3', value=y3_min, min=-y3_max, max=y3_max)
+        self.params.add('B1', value=y1_min, min=-5*y1_max, max=5*y1_max)
+        self.params.add('B2', value=y2_min, min=-5*y2_max, max=5*y2_max)
+        self.params.add('B3', value=y3_min, min=-5*y3_max, max=5*y3_max)
 
         v1 = np.sqrt(1+y1**2)
         v2 = np.sqrt(1+y2**2)
@@ -1491,7 +1493,7 @@ class PeakEllipsoid:
 
     def fit(self, x0, x1, x2, d, n, dx, l_cut, t_cut):
 
-        y, e = d/n, np.sqrt(d)/n
+        y, e = d/(n/d), np.sqrt(d)/(n/d)
 
         self.update_constraints(x0, x1, x2, y, dx, l_cut, t_cut)
 
@@ -1603,21 +1605,18 @@ class PeakEllipsoid:
 
         d3x = dx0*dx1*dx2
 
-        w = d/np.nansum(d)
-
         d_pk = d[pk].copy()
         n_pk = n[pk].copy()
-        w_pk = w[pk].copy()
 
         d_bkg = d[bkg].copy()
-        #n_bkg = n[bkg].copy()
-        #w_bkg = w[bkg].copy()
+
+        scale = np.nansum(n_pk*d3x)/np.nansum(d_pk*d3x)
 
         b = np.nanmean(d_bkg)#/np.nansum(n_bkg*w_bkg)
         b_err = np.sqrt(np.nanmean(d_bkg))#/np.nansum(n_bkg*w_bkg)
 
-        intens = np.nansum(d_pk-b)/np.nansum(n_pk*w_pk)
-        sig = np.sqrt(np.nansum(d_pk+b_err**2))/np.nansum(n_pk*w_pk)
+        intens = np.nansum(d_pk-b)/scale
+        sig = np.sqrt(np.nansum(d_pk+b_err**2))/scale
 
         # *(1+self.error_scale**2)
 
@@ -1626,7 +1625,7 @@ class PeakEllipsoid:
         self.info = [d3x, b, b_err]
 
         freq = (d-b)/n
-        freq[~pk] = np.nan
+        freq[~(pk | bkg)] = np.nan
 
         y_pk = d[pk].copy()
         e_pk = np.sqrt(d[pk])
