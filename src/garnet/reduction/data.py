@@ -1371,18 +1371,32 @@ class LaueData(BaseDataModel):
 
             lamda_min = mtd['spectra'].getXDimension().getMinimum()
             lamda_max = mtd['spectra'].getXDimension().getMaximum()
-            # lamda_bin = mtd['spectra'].getXDimension().getBinWidth()
+            lamda_bin = mtd['spectra'].getXDimension().getBinWidth()
+
+            params = [lamda_min, lamda_bin, lamda_max]
+
+            Rebin(InputWorkspace='efficiency',
+                  OutputWorkspace='spectra_full',
+                  Params=params,
+                  PreserveEvents=False)
+
+            y = mtd['spectra'].extractY()
+            det_id = mtd['detectors'].column(4)
+            inds = mtd['spectra'].getIndicesFromDetectorIDs(det_id)
+
+            for i, j in enumerate(inds):
+                mtd['spectra_full'].setY(i, y[j])
 
             self.k_min = 2*np.pi/lamda_max
             self.k_max = 2*np.pi/lamda_min
 
             self.wavelength_band = [lamda_min, lamda_max]
 
-            Scale(InputWorkspace='spectra',
+            Scale(InputWorkspace='spectra_full',
                   OutputWorkspace='lorentz_spectra',
                   Factor=0)
 
-            lamda = mtd['spectra'].extractX()
+            lamda = mtd['spectra_full'].extractX()
             lamda = 0.5*(lamda[:,1:]+lamda[:,:-1])
 
             for i in range(lamda.shape[0]):
@@ -1483,7 +1497,7 @@ class LaueData(BaseDataModel):
                AllowDifferentNumberSpectra=True)
 
         Divide(LHSWorkspace=ratio,
-               RHSWorkspace='spectra',
+               RHSWorkspace='spectra_full',
                OutputWorkspace=ratio,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
@@ -1511,7 +1525,7 @@ class LaueData(BaseDataModel):
                  AllowDifferentNumberSpectra=True)
 
         Multiply(LHSWorkspace=product,
-                 RHSWorkspace='spectra',
+                 RHSWorkspace='spectra_full',
                  OutputWorkspace=product,
                  AllowDifferentNumberSpectra=True)
 

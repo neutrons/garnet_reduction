@@ -110,17 +110,17 @@ class Integration(SubPlan):
                            run,
                            self.plan.get('Grouping'))
 
-            data.load_spectra_file(self.plan['SpectraFile'])
+            data.preprocess_detectors('data')
 
             data.load_efficiency_file(self.plan['EfficiencyFile'])
+
+            data.load_spectra_file(self.plan['SpectraFile'])
 
             data.apply_calibration('data',
                                    self.plan.get('DetectorCalibration'),
                                    self.plan.get('TubeCalibration'))
 
             data.apply_mask('data', self.plan.get('MaskFile'))
-
-            data.preprocess_detectors('data')
 
             data.crop_for_normalization('data')
 
