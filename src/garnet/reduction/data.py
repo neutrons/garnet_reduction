@@ -1484,25 +1484,25 @@ class LaueData(BaseDataModel):
                      Target='Wavelength')
 
         Divide(LHSWorkspace=event_name,
-               RHSWorkspace='scale',
-               OutputWorkspace=ratio,
-               WarnOnZeroDivide=False,
-               AllowDifferentNumberSpectra=True)
-
-        Divide(LHSWorkspace=ratio,
                RHSWorkspace='factor',
                OutputWorkspace=ratio,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
+        Divide(LHSWorkspace=ratio,
+               RHSWorkspace='scale',
+               OutputWorkspace=ratio,
+               WarnOnZeroDivide=False,
+               AllowDifferentNumberSpectra=True)
+
         Divide(LHSWorkspace=event_name,
-               RHSWorkspace='inv_scale',
+               RHSWorkspace='correction',
                OutputWorkspace=product,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        Divide(LHSWorkspace=product,
-               RHSWorkspace='correction',
+        Divide(LHSWorkspace=ratio,
+               RHSWorkspace='inv_scale',
                OutputWorkspace=product,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
