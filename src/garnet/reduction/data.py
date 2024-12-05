@@ -1488,6 +1488,8 @@ class LaueData(BaseDataModel):
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
+        print(mtd[ratio])
+
         Divide(LHSWorkspace=ratio,
                RHSWorkspace='scale',
                OutputWorkspace=ratio,
@@ -1499,6 +1501,8 @@ class LaueData(BaseDataModel):
                OutputWorkspace=product,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
+
+        print(mtd[correction])
 
         Divide(LHSWorkspace=product,
                RHSWorkspace='inv_scale',
