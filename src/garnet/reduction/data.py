@@ -13,6 +13,7 @@ from mantid.simpleapi import (Load,
                               Divide,
                               Minus,
                               PreprocessDetectorsToMD,
+                              CreateDetectorTable,
                               ExtractMonitors,
                               LoadMask,
                               MaskDetectors,
@@ -1366,6 +1367,10 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=spectra_file,
                       OutputWorkspace='spectra')
 
+            ConvertUnits(InputWorkspace='spectra',
+                         OutputWorkspace='spectra',
+                         Target='Wavelength')
+
             RemoveLogs(Workspace='spectra')
 
             lamda_min = mtd['spectra'].getXDimension().getMinimum()
@@ -1375,6 +1380,19 @@ class LaueData(BaseDataModel):
             self.k_max = 2*np.pi/lamda_min
 
             self.wavelength_band = [lamda_min, lamda_max]
+
+            CreateDetectorTable(InputWorkspace='spectra',
+                                DetectorTableWorkspace='spectra_det')
+
+            det_ids = mtd['spectra_det'].column(2)
+
+            self.spectra_dict = {}
+
+            for i, ids in enumerate(det_ids):
+                ids = ids.split(',')
+                min_ind, max_ind  = int(ids[0]), int(ids[-1])
+                for ind in range(min_ind, max_ind+1):
+                    self.spectra_dict[ind] = i
 
     def load_efficiency_file(self, efficiency_file):
         """
@@ -1392,6 +1410,10 @@ class LaueData(BaseDataModel):
             LoadNexus(Filename=efficiency_file,
                       OutputWorkspace='efficiency')
 
+            ConvertUnits(InputWorkspace='efficiency',
+                         OutputWorkspace='efficiency',
+                         Target='Wavelength')
+
             MaskDetectorsIf(InputWorkspace='efficiency',
                             Operator='LessEqual',
                             OutputWorkspace='efficiency')
@@ -1401,39 +1423,55 @@ class LaueData(BaseDataModel):
 
             RemoveLogs(Workspace='efficiency')
 
+            CreateDetectorTable(InputWorkspace='efficiency',
+                                DetectorTableWorkspace='efficiency_det')
+
+            det_ids = mtd['efficiency_det'].column(2)
+
+            self.efficiency_dict = {}
+
+            for i, ids in enumerate(det_ids):
+                ids = ids.split(',')
+                min_ind, max_ind  = int(ids[0]), int(ids[-1])
+                for ind in range(min_ind, max_ind+1):
+                    self.efficiency_dict[ind] = i
+
     def calculate_correction_factor(self):
-    
+
         if not mtd.doesExist('correction'):
 
             params = [mtd['spectra'].getXDimension().getMinimum(),
                       mtd['spectra'].getXDimension().getBinWidth(),
                       mtd['spectra'].getXDimension().getMaximum()]
-    
+
             Rebin(InputWorkspace='efficiency',
                   OutputWorkspace='correction',
                   Params=params,
                   PreserveEvents=False)
-    
+
             Rebin(InputWorkspace='efficiency',
                   OutputWorkspace='factor',
                   Params=params,
                   PreserveEvents=False)
-    
+
             two_theta = np.array(mtd['detectors'].column(2))
-            det_id = mtd['detectors'].column(4)
+            det_ids = np.array(mtd['detectors'].column(4))
     
             y_sp = mtd['spectra'].extractY()
             y_ef = mtd['efficiency'].extractY()
-    
-            inds = mtd['spectra'].getIndicesFromDetectorIDs(det_id)
-    
-            lamda = mtd['spectra'].extractX()
+
+            lamda = mtd['factor'].extractX()
             lamda = 0.5*(lamda[:,1:]+lamda[:,:-1])
-    
-            for i, j in enumerate(inds):
-                y = y_ef[i]*y_sp[j]*lamda[j]**4/(2*np.sin(0.5*two_theta[i])**2)
-                mtd['correction'].setY(i, 1/y)
-                mtd['factor'].setY(i, y)
+
+            for i, det_id in enumerate(det_ids):
+                ind_ef = self.efficiency_dict.get(det_id)
+                ind_sp = self.spectra_dict.get(det_id)
+
+                if ind_ef is not None and ind_sp is not None:
+                    y = y_ef[ind_ef]*y_sp[ind_sp]
+                    L = lamda[ind_ef]**4/(2*np.sin(0.5*two_theta[i])**2)
+                    mtd['correction'].setY(i, 1/(y*L))
+                    mtd['factor'].setY(i, y*L)
 
     def crop_for_normalization(self, event_name):
         """
