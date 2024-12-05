@@ -46,7 +46,6 @@ from mantid.simpleapi import (Load,
                               MinusMD,
                               SaveMD,
                               LoadMD,
-                              Scale,
                               CreateSingleValuedWorkspace,
                               AddSampleLog,
                               RemoveLogs,
@@ -1411,12 +1410,12 @@ class LaueData(BaseDataModel):
         Rebin(InputWorkspace='efficiency',
               OutputWorkspace='correction',
               Params=params,
-              PreserveEvents=True)
+              PreserveEvents=False)
 
         Rebin(InputWorkspace='efficiency',
               OutputWorkspace='factor',
               Params=params,
-              PreserveEvents=True)
+              PreserveEvents=False)
 
         two_theta = np.array(mtd['detectors'].column(2))
         det_id = mtd['detectors'].column(4)
@@ -1501,7 +1500,7 @@ class LaueData(BaseDataModel):
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        Divide(LHSWorkspace=ratio,
+        Divide(LHSWorkspace=product,
                RHSWorkspace='inv_scale',
                OutputWorkspace=product,
                WarnOnZeroDivide=False,
