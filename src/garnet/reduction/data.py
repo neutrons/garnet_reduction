@@ -1371,36 +1371,11 @@ class LaueData(BaseDataModel):
 
             lamda_min = mtd['spectra'].getXDimension().getMinimum()
             lamda_max = mtd['spectra'].getXDimension().getMaximum()
-            lamda_bin = mtd['spectra'].getXDimension().getBinWidth()
-
-            params = [lamda_min, lamda_bin, lamda_max]
-
-            Rebin(InputWorkspace='efficiency',
-                  OutputWorkspace='spectra_full',
-                  Params=params,
-                  PreserveEvents=False)
-
-            y = mtd['spectra'].extractY()
-            det_id = mtd['detectors'].column(4)
-            inds = mtd['spectra'].getIndicesFromDetectorIDs(det_id)
-
-            for i, j in enumerate(inds):
-                mtd['spectra_full'].setY(i, y[j])
 
             self.k_min = 2*np.pi/lamda_max
             self.k_max = 2*np.pi/lamda_min
 
             self.wavelength_band = [lamda_min, lamda_max]
-
-            Scale(InputWorkspace='spectra_full',
-                  OutputWorkspace='lorentz_spectra',
-                  Factor=0)
-
-            lamda = mtd['spectra_full'].extractX()
-            lamda = 0.5*(lamda[:,1:]+lamda[:,:-1])
-
-            for i in range(lamda.shape[0]):
-                mtd['lorentz_spectra'].setY(i, lamda[i]**4)
 
     def load_efficiency_file(self, efficiency_file):
         """
@@ -1427,16 +1402,37 @@ class LaueData(BaseDataModel):
 
             RemoveLogs(Workspace='efficiency')
 
-            Scale(InputWorkspace='efficiency',
-                  OutputWorkspace='lorentz_efficiency',
-                  Factor=0)
+    def calculate_correction_factor(self):
 
-            self.preprocess_detectors('efficiency')
+        params = [mtd['spectra'].getXDimension().getMinimum(),
+                  mtd['spectra'].getXDimension().getBinWidth(),
+                  mtd['spectra'].getXDimension().getMaximum()]
 
-            theta = 0.5*np.array(mtd['detectors'].column(2))
+        Rebin(InputWorkspace='efficiency',
+              OutputWorkspace='correction',
+              Params=params,
+              PreserveEvents=True)
 
-            for i in range(theta.shape[0]):
-                mtd['lorentz_efficiency'].setY(i, [1/(np.sin(theta[i])**2)])
+        Rebin(InputWorkspace='efficiency',
+              OutputWorkspace='factor',
+              Params=params,
+              PreserveEvents=True)
+
+        two_theta = np.array(mtd['detectors'].column(2))
+        det_id = mtd['detectors'].column(4)
+
+        y_sp = mtd['spectra'].extractY()
+        y_ef = mtd['efficiency'].extractY()
+
+        inds = mtd['spectra'].getIndicesFromDetectorIDs(det_id)
+
+        lamda = mtd['spectra'].extractX()
+        lamda = 0.5*(lamda[:,1:]+lamda[:,:-1])
+
+        for i, j in enumerate(inds):
+            y = y_ef[i]*y_sp[j]*lamda[j]**4/(2*np.sin(0.5*two_theta[i])**2)
+            mtd['correction'].setY(i, y)
+            mtd['factor'].setY(i, y)
 
     def crop_for_normalization(self, event_name):
         """
@@ -1491,25 +1487,7 @@ class LaueData(BaseDataModel):
                AllowDifferentNumberSpectra=True)
 
         Divide(LHSWorkspace=ratio,
-               RHSWorkspace='efficiency',
-               OutputWorkspace=ratio,
-               WarnOnZeroDivide=False,
-               AllowDifferentNumberSpectra=True)
-
-        Divide(LHSWorkspace=ratio,
-               RHSWorkspace='spectra_full',
-               OutputWorkspace=ratio,
-               WarnOnZeroDivide=False,
-               AllowDifferentNumberSpectra=True)
-
-        Divide(LHSWorkspace=ratio,
-               RHSWorkspace='lorentz_efficiency',
-               OutputWorkspace=ratio,
-               WarnOnZeroDivide=False,
-               AllowDifferentNumberSpectra=True)
-
-        Divide(LHSWorkspace=ratio,
-               RHSWorkspace='lorentz_spectra',
+               RHSWorkspace='factor',
                OutputWorkspace=ratio,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
@@ -1519,43 +1497,11 @@ class LaueData(BaseDataModel):
                  OutputWorkspace=product,
                  AllowDifferentNumberSpectra=True)
 
-        Multiply(LHSWorkspace=product,
-                 RHSWorkspace='efficiency',
-                 OutputWorkspace=product,
-                 AllowDifferentNumberSpectra=True)
-
-        Multiply(LHSWorkspace=product,
-                 RHSWorkspace='spectra_full',
-                 OutputWorkspace=product,
-                 AllowDifferentNumberSpectra=True)
-
-        Multiply(LHSWorkspace=product,
-                 RHSWorkspace='lorentz_efficiency',
-                 OutputWorkspace=product,
-                 AllowDifferentNumberSpectra=True)
-
-        Multiply(LHSWorkspace=product,
-                 RHSWorkspace='lorentz_spectra',
-                 OutputWorkspace=product,
-                 AllowDifferentNumberSpectra=True)
-
-        ConvertUnits(InputWorkspace=ratio,
-                     OutputWorkspace=ratio,
-                     Target='Momentum')
-
-        ConvertUnits(InputWorkspace=product,
-                     OutputWorkspace=product,
-                     Target='Momentum')
-
-        CropWorkspaceForMDNorm(InputWorkspace=ratio,
-                               XMin=self.k_min,
-                               XMax=self.k_max,
-                               OutputWorkspace=ratio)
-
-        CropWorkspaceForMDNorm(InputWorkspace=product,
-                               XMin=self.k_min,
-                               XMax=self.k_max,
-                               OutputWorkspace=product)
+        Divide(LHSWorkspace=ratio,
+               RHSWorkspace='correction',
+               OutputWorkspace=ratio,
+               WarnOnZeroDivide=False,
+               AllowDifferentNumberSpectra=True)
 
     def load_background(self, filename, event_name):
         """
