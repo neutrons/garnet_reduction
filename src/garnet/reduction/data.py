@@ -1431,7 +1431,7 @@ class LaueData(BaseDataModel):
 
         for i, j in enumerate(inds):
             y = y_ef[i]*y_sp[j]*lamda[j]**4/(2*np.sin(0.5*two_theta[i])**2)
-            mtd['correction'].setY(i, y)
+            mtd['correction'].setY(i, 1/y)
             mtd['factor'].setY(i, y)
 
     def crop_for_normalization(self, event_name):
