@@ -1476,6 +1476,9 @@ class LaueData(BaseDataModel):
         CreateSingleValuedWorkspace(OutputWorkspace='scale',
                                     DataValue=pc)
 
+        CreateSingleValuedWorkspace(OutputWorkspace='inv_scale',
+                                    DataValue=pc)
+
         ConvertUnits(InputWorkspace=event_name,
                      OutputWorkspace=event_name,
                      Target='Wavelength')
@@ -1492,14 +1495,15 @@ class LaueData(BaseDataModel):
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        Multiply(LHSWorkspace=event_name,
-                 RHSWorkspace='scale',
-                 OutputWorkspace=product,
-                 AllowDifferentNumberSpectra=True)
+        Divide(LHSWorkspace=event_name,
+               RHSWorkspace='inv_scale',
+               OutputWorkspace=product,
+               WarnOnZeroDivide=False,
+               AllowDifferentNumberSpectra=True)
 
-        Divide(LHSWorkspace=ratio,
+        Divide(LHSWorkspace=product,
                RHSWorkspace='correction',
-               OutputWorkspace=ratio,
+               OutputWorkspace=product,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
