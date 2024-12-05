@@ -1502,7 +1502,7 @@ class LaueData(BaseDataModel):
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        print(mtd[correction])
+        print(mtd[product])
 
         Divide(LHSWorkspace=product,
                RHSWorkspace='inv_scale',
