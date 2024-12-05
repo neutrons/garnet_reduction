@@ -1402,36 +1402,38 @@ class LaueData(BaseDataModel):
             RemoveLogs(Workspace='efficiency')
 
     def calculate_correction_factor(self):
+    
+        if not mtd.doesExist('correction'):
 
-        params = [mtd['spectra'].getXDimension().getMinimum(),
-                  mtd['spectra'].getXDimension().getBinWidth(),
-                  mtd['spectra'].getXDimension().getMaximum()]
-
-        Rebin(InputWorkspace='efficiency',
-              OutputWorkspace='correction',
-              Params=params,
-              PreserveEvents=False)
-
-        Rebin(InputWorkspace='efficiency',
-              OutputWorkspace='factor',
-              Params=params,
-              PreserveEvents=False)
-
-        two_theta = np.array(mtd['detectors'].column(2))
-        det_id = mtd['detectors'].column(4)
-
-        y_sp = mtd['spectra'].extractY()
-        y_ef = mtd['efficiency'].extractY()
-
-        inds = mtd['spectra'].getIndicesFromDetectorIDs(det_id)
-
-        lamda = mtd['spectra'].extractX()
-        lamda = 0.5*(lamda[:,1:]+lamda[:,:-1])
-
-        for i, j in enumerate(inds):
-            y = y_ef[i]*y_sp[j]*lamda[j]**4/(2*np.sin(0.5*two_theta[i])**2)
-            mtd['correction'].setY(i, 1/y)
-            mtd['factor'].setY(i, y)
+            params = [mtd['spectra'].getXDimension().getMinimum(),
+                      mtd['spectra'].getXDimension().getBinWidth(),
+                      mtd['spectra'].getXDimension().getMaximum()]
+    
+            Rebin(InputWorkspace='efficiency',
+                  OutputWorkspace='correction',
+                  Params=params,
+                  PreserveEvents=False)
+    
+            Rebin(InputWorkspace='efficiency',
+                  OutputWorkspace='factor',
+                  Params=params,
+                  PreserveEvents=False)
+    
+            two_theta = np.array(mtd['detectors'].column(2))
+            det_id = mtd['detectors'].column(4)
+    
+            y_sp = mtd['spectra'].extractY()
+            y_ef = mtd['efficiency'].extractY()
+    
+            inds = mtd['spectra'].getIndicesFromDetectorIDs(det_id)
+    
+            lamda = mtd['spectra'].extractX()
+            lamda = 0.5*(lamda[:,1:]+lamda[:,:-1])
+    
+            for i, j in enumerate(inds):
+                y = y_ef[i]*y_sp[j]*lamda[j]**4/(2*np.sin(0.5*two_theta[i])**2)
+                mtd['correction'].setY(i, 1/y)
+                mtd['factor'].setY(i, y)
 
     def crop_for_normalization(self, event_name):
         """
