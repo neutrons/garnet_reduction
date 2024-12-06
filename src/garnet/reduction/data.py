@@ -420,7 +420,7 @@ class BaseDataModel:
 
         """
 
-        return mtd[ws].getNumEventsArray()
+        return mtd[ws].getNumEventsArray().copy()
 
     def extract_axis_info(self, ws):
         """
