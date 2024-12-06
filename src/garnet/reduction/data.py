@@ -758,9 +758,9 @@ class BaseDataModel:
                   BasisVector2='Q_z,Angstrom^-1,{},{},{}'.format(*u2),
                   OutputExtents=extents,
                   OutputBins=bins,
-                  OutputWorkspace=md+'_data')
+                  OutputWorkspace=md+'_bin')
 
-            y, e, x0, x1, x2 = self.extract_bin_info(md+'_data')
+            y, e, x0, x1, x2 = self.extract_bin_info(md+'_bin')
 
             return y, e, x0, x1, x2
 
@@ -1444,10 +1444,6 @@ class LaueData(BaseDataModel):
                       mtd['spectra'].getXDimension().getBinWidth(),
                       mtd['spectra'].getXDimension().getMaximum()]
 
-            Rebin(InputWorkspace='efficiency',
-                  OutputWorkspace='correction',
-                  Params=params,
-                  PreserveEvents=False)
 
             Rebin(InputWorkspace='efficiency',
                   OutputWorkspace='factor',
@@ -1470,7 +1466,6 @@ class LaueData(BaseDataModel):
                 if ind_ef is not None and ind_sp is not None:
                     y = y_ef[ind_ef]*y_sp[ind_sp]
                     L = lamda[ind_ef]**4/(2*np.sin(0.5*two_theta[i])**2)
-                    mtd['correction'].setY(i, 1/(y*L))
                     mtd['factor'].setY(i, y*L)
 
     def crop_for_normalization(self, event_name):
@@ -1497,16 +1492,14 @@ class LaueData(BaseDataModel):
                                    XMax=self.k_max,
                                    OutputWorkspace=event_name)
 
-    def normalize_data(self, event_name, ratio, product):
+    def normalize_data(self, event_name, data_norm):
         """
         Normalize with detector efficiency and bank spectra.
 
         event_name : str
             Name of raw event data.
-        ratio : str
-            Name of normalized ratio workspace.
-        product : str
-            Name of normalized product workspace.
+        data_norm : str
+            Name of normalized data workspace.
 
         """
 
@@ -1515,34 +1508,19 @@ class LaueData(BaseDataModel):
         CreateSingleValuedWorkspace(OutputWorkspace='scale',
                                     DataValue=pc)
 
-        CreateSingleValuedWorkspace(OutputWorkspace='inv_scale',
-                                    DataValue=pc)
-
         ConvertUnits(InputWorkspace=event_name,
                      OutputWorkspace=event_name,
                      Target='Wavelength')
 
         Divide(LHSWorkspace=event_name,
                RHSWorkspace='factor',
-               OutputWorkspace=ratio,
+               OutputWorkspace=data_norm,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        Divide(LHSWorkspace=ratio,
+        Divide(LHSWorkspace=data_norm,
                RHSWorkspace='scale',
-               OutputWorkspace=ratio,
-               WarnOnZeroDivide=False,
-               AllowDifferentNumberSpectra=True)
-
-        Divide(LHSWorkspace=event_name,
-               RHSWorkspace='correction',
-               OutputWorkspace=product,
-               WarnOnZeroDivide=False,
-               AllowDifferentNumberSpectra=True)
-
-        Divide(LHSWorkspace=product,
-               RHSWorkspace='inv_scale',
-               OutputWorkspace=product,
+               OutputWorkspace=data_norm,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 

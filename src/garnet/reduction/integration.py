@@ -126,17 +126,11 @@ class Integration(SubPlan):
 
             data.calculate_correction_factor()
 
-            data.normalize_data('data', 'ratio', 'product')
+            data.normalize_data('data', 'data_norm')
 
-            data.convert_to_Q_sample('ratio', 'md_ratio')
+            data.convert_to_Q_sample('data_norm', 'md_data_norm')
 
-            data.delete_workspace('ratio')
-
-            data.convert_to_Q_sample('product', 'md_product')
-
-            data.delete_workspace('product')
-
-            data.convert_to_Q_sample('data', 'md')
+            data.delete_workspace('data_norm')
 
             data.load_clear_UB(self.plan['UBFile'], 'data', run)
 
@@ -149,13 +143,13 @@ class Integration(SubPlan):
 
             r_cut = self.params['Radius']
 
-            peaks.integrate_peaks('md_ratio', 'peaks', r_cut)
+            peaks.integrate_peaks('md_data_norm', 'peaks', r_cut)
 
             peaks.remove_weak_peaks('peaks', 10)
 
             self.peaks, self.data = peaks, data
 
-            params = self.estimate_peak_size('peaks', 'md_ratio', r_cut)
+            params = self.estimate_peak_size('peaks', 'md_data_norm', r_cut)
 
             peaks.predict_peaks('data',
                                 'peaks',
@@ -167,7 +161,7 @@ class Integration(SubPlan):
             if self.params['MaxOrder'] > 0:
 
                 peaks.predict_satellite_peaks('peaks',
-                                              'md_ratio',
+                                              'md_data_norm',
                                               self.params['MinD'],
                                               lamda_max,
                                               self.params['ModVec1'],
@@ -180,9 +174,7 @@ class Integration(SubPlan):
 
             md_file = self.get_diagnostic_file('run#{}_data'.format(run))
 
-            data.save_histograms(md_file, 'md_ratio', sample_logs=True)
-
-            data.delete_workspace('md_ratio')
+            data.save_histograms(md_file, 'md_data_norm', sample_logs=True)
 
             self.fit_peaks('peaks', params)
 
@@ -196,9 +188,7 @@ class Integration(SubPlan):
 
             data.delete_workspace('peaks')
 
-            data.delete_workspace('md')
-
-            data.delete_workspace('md_product')
+            data.delete_workspace('md_data_norm')
 
         peaks.save_peaks(output_file, 'combine')
 
@@ -662,19 +652,16 @@ class Integration(SubPlan):
 
             bins, extents, projections = self.bin_extent(*params, *bin_params)
 
-            d, e, Q0, Q1, Q2 = data.bin_in_Q('md',
+            y, e, Q0, Q1, Q2 = data.bin_in_Q('md_data_norm',
                                              extents,
                                              bins,
                                              projections)
 
-            n, *_ = data.bin_in_Q('md_product',
-                                  extents,
-                                  bins,
-                                  projections)
+            counts = data.extract_counts('md_data_norm_bin')
 
             ellipsoid = PeakEllipsoid()
 
-            params = ellipsoid.fit(Q0, Q1, Q2, d, n, dQ)
+            params = ellipsoid.fit(Q0, Q1, Q2, counts, y, dQ)
 
             # ---
 
@@ -688,19 +675,16 @@ class Integration(SubPlan):
                     bins, extents, projections = self.bin_extent(*params,
                                                                  *bin_params)
 
-                    d, e, Q0, Q1, Q2 = data.bin_in_Q('md',
+                    y, e, Q0, Q1, Q2 = data.bin_in_Q('md_data_norm',
                                                      extents,
                                                      bins,
                                                      projections)
 
-                    n, *_ = data.bin_in_Q('md_product',
-                                          extents,
-                                          bins,
-                                          projections)
+                    counts = data.extract_counts('md_data_norm_bin')
 
                     ellipsoid = PeakEllipsoid()
 
-                    params = ellipsoid.fit(Q0, Q1, Q2, d, n, dQ)
+                    params = ellipsoid.fit(Q0, Q1, Q2, counts, y, dQ)
 
             if params is not None and det_id > 0:
 
@@ -710,7 +694,9 @@ class Integration(SubPlan):
 
                 peak.set_peak_shape(i, *params)
 
-                I, sigma = ellipsoid.integrate_norm(Q0, Q1, Q2, d, n, c, S)
+                norm_params = Q0, Q1, Q2, y, e, counts, c, S
+
+                I, sigma = ellipsoid.integrate_norm(*norm_params)
 
                 peak.set_peak_intensity(i, I, sigma)
 
@@ -1232,9 +1218,12 @@ class PeakEllipsoid:
 
         return diff[mask]
 
-    def integrate(self, x0, x1, x2, d, n, mode='1d'):
+    def integrate(self, x0, x1, x2, counts, y, mode='1d'):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
+        d = counts.copy()
+        n  = counts/y
 
         if mode == '1d':
             d_int = np.nansum(d, axis=(1,2))
@@ -1291,13 +1280,13 @@ class PeakEllipsoid:
 
         return A*np.exp(-0.5*d2)+B
 
-    def estimate_weights(self, x0, x1, x2, d, n):
+    def estimate_weights(self, x0, x1, x2, counts, y):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        y1, e1 = self.integrate(x0, x1, x2, d, n, mode='1d')
-        y2, e2 = self.integrate(x0, x1, x2, d, n, mode='2d')
-        y3, e3 = self.integrate(x0, x1, x2, d, n, mode='3d')
+        y1, e1 = self.integrate(x0, x1, x2, counts, y, mode='1d')
+        y2, e2 = self.integrate(x0, x1, x2, counts, y, mode='2d')
+        y3, e3 = self.integrate(x0, x1, x2, counts, y, mode='3d')
 
         y1_min = np.nanmin(y1)
         y2_min = np.nanmin(y2)
@@ -1504,16 +1493,14 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def fit(self, x0, x1, x2, d, n, dx):
-
-        y, e = d/(n/d), np.sqrt(d)/(n/d)
+    def fit(self, x0, x1, x2, counts, y, dx):
 
         self.update_constraints(x0, x1, x2, dx)
 
-        mask = (e > 0) & (y > 0) & np.isfinite(e) & np.isfinite(y)
+        mask = (counts > 0) & (y > 0) & np.isfinite(counts) & np.isfinite(y)
 
+        counts[~mask] = np.nan
         y[~mask] = np.nan
-        e[~mask] = np.nan
 
         y_max = np.nanmax(y)
 
@@ -1525,7 +1512,8 @@ class PeakEllipsoid:
         i0, i1, i2 = coords.min(axis=0)
         j0, j1, j2 = coords.max(axis=0)+1
 
-        y, e = y[i0:j0,i1:j1,i2:j2].copy(), e[i0:j0,i1:j1,i2:j2].copy()
+        y = y[i0:j0,i1:j1,i2:j2].copy(), 
+        counts = counts[i0:j0,i1:j1,i2:j2].copy()
 
         # y_bin = y_bin[i0:j0,i1:j1,i2:j2].copy()
         # e_bin = e_bin[i0:j0,i1:j1,i2:j2].copy()
@@ -1545,14 +1533,12 @@ class PeakEllipsoid:
             print('Invalid data')
             return None
 
-        d_val, n_val = d[i0:j0,i1:j1,i2:j2].copy(), n[i0:j0,i1:j1,i2:j2].copy()
-
         # size = np.floor(dx/np.array([dx0, dx1, dx2])).astype(int)+1
 
         # d_val = scipy.ndimage.median_filter(d_val, size=size, mode='nearest')
         # n_val = scipy.ndimage.median_filter(n_val, size=size, mode='nearest')
 
-        weights = self.estimate_weights(x0, x1, x2, d_val, n_val)
+        weights = self.estimate_weights(x0, x1, x2, counts, y)
 
         if weights is None:
             print('Invalid weight estimate')
@@ -1606,7 +1592,7 @@ class PeakEllipsoid:
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
-    def integrate_norm(self, x0, x1, x2, d, n, c, S):
+    def integrate_norm(self, x0, x1, x2, y, e, counts, c, S):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
@@ -1618,38 +1604,40 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
 
-        pk = (ellipsoid <= 1.1) & (d > 0)
-        bkg = (ellipsoid > 1.1) & (ellipsoid <= 2.1) & (d > 0)
+        pk = (ellipsoid <= 1.1) & (e > 0)
+        bkg = (ellipsoid > 1.1) & (ellipsoid <= 2.1) & (e > 0)
 
         d3x = dx0*dx1*dx2
 
-        d_pk = d[pk].copy()
-        n_pk = n[pk].copy()
+        y_pk = y[pk].copy()
+        e_pk = e[pk].copy()
 
-        d_bkg = d[bkg].copy()
+        y_bkg = y[bkg].copy()
+        e_bkg = e[bkg].copy()
 
-        scale = np.nansum(n_pk*d3x)/np.nansum(d_pk*d3x)
+        b = np.nanmean(y_bkg)
+        b_err = np.sqrt(np.nanmean(e_bkg**2))
 
-        b = np.nanmean(d_bkg)#/np.nansum(n_bkg*w_bkg)
-        b_err = np.sqrt(np.nanmean(d_bkg))#/np.nansum(n_bkg*w_bkg)
-
-        intens = np.nansum(d_pk-b)/scale
-        sig = np.sqrt(np.nansum(d_pk+b_err**2))/scale
+        intens = np.nansum(y_pk-b)
+        sig = np.sqrt(np.nansum(e_pk+b_err**2))
 
         # *(1+self.error_scale**2)
 
-        self.weights = (x0[pk], x1[pk], x2[pk]), d[pk].copy()
+        self.weights = (x0[pk], x1[pk], x2[pk]), counts[pk].copy()
 
         self.info = [d3x, b, b_err]
 
-        freq = (d-b)/(n/d)
+        freq = y-b
         freq[~(pk | bkg)] = np.nan
 
-        b_raw = np.nanmean(d_bkg)
-        b_raw_err = np.sqrt(np.nanmean(d_bkg))
+        c_pk = counts[pk].copy()
+        c_bkg = counts[bkg].copy()
 
-        intens_raw = np.nansum(d_pk-b_raw)
-        sig_raw = np.sqrt(np.nansum(d_pk+b_raw_err**2))
+        b_raw = np.nanmean(c_bkg)
+        b_raw_err = np.sqrt(np.nanmean(c_bkg))
+
+        intens_raw = np.nansum(c_pk-b_raw)
+        sig_raw = np.sqrt(np.nansum(c_pk+b_raw_err**2))
 
         self.info += [intens_raw, sig_raw]
 
