@@ -674,7 +674,7 @@ class Integration(SubPlan):
 
             ellipsoid = PeakEllipsoid()
 
-            params = ellipsoid.fit(Q0, Q1, Q2, d, n, dQ, l_cut, t_cut)
+            params = ellipsoid.fit(Q0, Q1, Q2, d, n, dQ)
 
             # ---
 
@@ -700,7 +700,7 @@ class Integration(SubPlan):
 
                     ellipsoid = PeakEllipsoid()
 
-                    params = ellipsoid.fit(Q0, Q1, Q2, d, n, dQ, l_cut, t_cut)
+                    params = ellipsoid.fit(Q0, Q1, Q2, d, n, dQ)
 
             if params is not None and det_id > 0:
 
@@ -1068,7 +1068,7 @@ class PeakEllipsoid:
 
         self._angle = scipy.interpolate.interp1d(cdf, t, kind='linear')
 
-    def update_constraints(self, x0, x1, x2, y, dx, l_cut, t_cut):
+    def update_constraints(self, x0, x1, x2, dx):
 
         r0 = (x0[:,0,0][-1]-x0[:,0,0][0])/4
         r1 = (x1[0,:,0][-1]-x1[0,:,0][0])/4
@@ -1246,12 +1246,11 @@ class PeakEllipsoid:
             d_int = d.copy()
             n_int = n.copy()/d_int
 
+        mask = (d_int > 0) & np.isfinite(d_int) \
+             & (n_int > 0) & np.isfinite(n_int)
 
         y_int = d_int/n_int
         e_int = np.sqrt(d_int)/n_int
-
-        mask = (y_int > 0) & np.isfinite(y_int) \
-             & (e_int > 0) & np.isfinite(e_int)
 
         y_int[~mask] = np.nan
         e_int[~mask] = np.nan
@@ -1414,6 +1413,10 @@ class PeakEllipsoid:
 
         self.params = result.params
 
+        self.params['A1'].set(value=2*y1_max)
+        self.params['A2'].set(value=2*y2_max)
+        self.params['A3'].set(value=2*y3_max)
+
         self.params['c0'].set(vary=True)
         self.params['c1'].set(vary=True)
         self.params['c2'].set(vary=True)
@@ -1493,11 +1496,11 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def fit(self, x0, x1, x2, d, n, dx, l_cut, t_cut):
+    def fit(self, x0, x1, x2, d, n, dx):
 
         y, e = d/(n/d), np.sqrt(d)/(n/d)
 
-        self.update_constraints(x0, x1, x2, y, dx, l_cut, t_cut)
+        self.update_constraints(x0, x1, x2, dx)
 
         mask = (e > 0) & (y > 0) & np.isfinite(e) & np.isfinite(y)
 
@@ -1535,6 +1538,11 @@ class PeakEllipsoid:
             return None
 
         d_val, n_val = d[i0:j0,i1:j1,i2:j2].copy(), n[i0:j0,i1:j1,i2:j2].copy()
+
+        # size = np.floor(dx/np.array([dx0, dx1, dx2])).astype(int)+1
+
+        # d_val = scipy.ndimage.median_filter(d_val, size=size, mode='nearest')
+        # n_val = scipy.ndimage.median_filter(n_val, size=size, mode='nearest')
 
         weights = self.estimate_weights(x0, x1, x2, d_val, n_val)
 
