@@ -1512,7 +1512,7 @@ class PeakEllipsoid:
         i0, i1, i2 = coords.min(axis=0)
         j0, j1, j2 = coords.max(axis=0)+1
 
-        y = y[i0:j0,i1:j1,i2:j2].copy(), 
+        y = y[i0:j0,i1:j1,i2:j2].copy()
         counts = counts[i0:j0,i1:j1,i2:j2].copy()
 
         # y_bin = y_bin[i0:j0,i1:j1,i2:j2].copy()
