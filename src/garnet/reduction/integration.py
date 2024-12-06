@@ -1222,18 +1222,15 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        d = counts.copy()
-        n  = counts/y
-
         if mode == '1d':
-            d_int = np.nansum(d, axis=(1,2))
-            n_int = np.nansum(n, axis=(1,2))/d_int
+            d_int = np.nansum(counts, axis=(1,2))
+            n_int = d_int/np.nansum(y, axis=(1,2))
         elif mode == '2d':
-            d_int = np.nansum(d, axis=0)
-            n_int = np.nansum(n, axis=0)/d_int
+            d_int = np.nansum(counts, axis=0)
+            n_int = d_int/np.nansum(y, axis=0)
         else:
-            d_int = d.copy()
-            n_int = n.copy()/d_int
+            d_int = counts.copy()
+            n_int = counts/y
 
         mask = (d_int > 0) & np.isfinite(d_int) \
              & (n_int > 0) & np.isfinite(n_int)
