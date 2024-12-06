@@ -107,8 +107,7 @@ class Integration(SubPlan):
 
             data.load_data('data',
                            self.plan['IPTS'],
-                           run,
-                           self.plan.get('Grouping'))
+                           run)
 
             data.apply_calibration('data',
                                    self.plan.get('DetectorCalibration'),
@@ -661,7 +660,7 @@ class Integration(SubPlan):
 
             ellipsoid = PeakEllipsoid()
 
-            params = ellipsoid.fit(Q0, Q1, Q2, counts, y, dQ)
+            params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
 
             # ---
 
@@ -684,7 +683,7 @@ class Integration(SubPlan):
 
                     ellipsoid = PeakEllipsoid()
 
-                    params = ellipsoid.fit(Q0, Q1, Q2, counts, y, dQ)
+                    params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
 
             if params is not None and det_id > 0:
 
@@ -733,7 +732,7 @@ class Integration(SubPlan):
                            np.sin(two_theta)*np.sin(az_phi),
                            np.cos(two_theta)])
 
-        ki_hat = np.array([0,0,1])
+        ki_hat = np.array([0, 0, 1])
 
         n = kf_hat-ki_hat
         n /= np.linalg.norm(n)
@@ -1218,41 +1217,45 @@ class PeakEllipsoid:
 
         return diff[mask]
 
-    def integrate(self, x0, x1, x2, counts, y, mode='1d'):
+    def integrate(self, x0, x1, x2, counts, y, e, mode='1d'):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         if mode == '1d':
-            d_int = np.nansum(counts, axis=(1,2))
-            n_int = d_int/np.nansum(y, axis=(1,2))
+            c_int = np.nansum(counts, axis=(1,2))
+            n_int = c_int/np.nansum(y, axis=(1,2))
+            m_int = c_int/np.nansum(e**2, axis=(1,2))
         elif mode == '2d':
-            d_int = np.nansum(counts, axis=0)
-            n_int = d_int/np.nansum(y, axis=0)
+            c_int = np.nansum(counts, axis=0)
+            n_int = c_int/np.nansum(y, axis=0)
+            m_int = c_int/np.nansum(e**2, axis=0)
         else:
-            d_int = counts.copy()
-            n_int = counts/y
+            c_int = counts.copy()
+            n_int = c_int/y
+            m_int = c_int/e**2
 
-        mask = (d_int > 0) & np.isfinite(d_int) \
-             & (n_int > 0) & np.isfinite(n_int)
+        mask = (c_int > 0) & np.isfinite(c_int) \
+             & (n_int > 0) & np.isfinite(n_int) \
+             & (m_int > 0) & np.isfinite(m_int)
 
-        y_int = d_int/n_int
-        e_int = np.sqrt(d_int)/n_int
+        y_int = c_int/n_int
+        e_int = np.sqrt(c_int/m_int)
 
         y_int[~mask] = np.nan
         e_int[~mask] = np.nan
 
         return y_int, e_int
 
-    def ellipsoid_covariance(self, inv_S, mode='3d', perc=0.997):
+    def ellipsoid_covariance(self, inv_S, mode='3d', perc=99.7):
 
         if mode == '3d':
-            scale = scipy.stats.chi2.ppf(perc, df=3)
+            scale = scipy.stats.chi2.ppf(perc/100, df=3)
             inv_var = scale*inv_S
         elif mode == '2d':
-            scale = scipy.stats.chi2.ppf(perc, df=2)
+            scale = scipy.stats.chi2.ppf(perc/100, df=2)
             inv_var = inv_S[1:,1:]*scale
         else: # mode == '1d'
-            scale = scipy.stats.chi2.ppf(perc, df=1)
+            scale = scipy.stats.chi2.ppf(perc/100, df=1)
             inv_var = inv_S[0,0]*scale
 
         return inv_var
@@ -1277,13 +1280,13 @@ class PeakEllipsoid:
 
         return A*np.exp(-0.5*d2)+B
 
-    def estimate_weights(self, x0, x1, x2, counts, y):
+    def estimate_weights(self, x0, x1, x2, counts, y, e):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        y1, e1 = self.integrate(x0, x1, x2, counts, y, mode='1d')
-        y2, e2 = self.integrate(x0, x1, x2, counts, y, mode='2d')
-        y3, e3 = self.integrate(x0, x1, x2, counts, y, mode='3d')
+        y1, e1 = self.integrate(x0, x1, x2, counts, y, e, mode='1d')
+        y2, e2 = self.integrate(x0, x1, x2, counts, y, e, mode='2d')
+        y3, e3 = self.integrate(x0, x1, x2, counts, y, e, mode='3d')
 
         y1_min = np.nanmin(y1)
         y2_min = np.nanmin(y2)
@@ -1490,11 +1493,11 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def fit(self, x0, x1, x2, counts, y, dx):
+    def fit(self, x0, x1, x2, counts, y, e, dx):
 
         self.update_constraints(x0, x1, x2, dx)
 
-        mask = (counts > 0) & (y > 0) & np.isfinite(counts) & np.isfinite(y)
+        mask = (counts > 0) & (e > 0) & np.isfinite(counts) & np.isfinite(e)
 
         counts[~mask] = np.nan
         y[~mask] = np.nan
@@ -1510,6 +1513,7 @@ class PeakEllipsoid:
         j0, j1, j2 = coords.max(axis=0)+1
 
         y = y[i0:j0,i1:j1,i2:j2].copy()
+        e = e[i0:j0,i1:j1,i2:j2].copy()
         counts = counts[i0:j0,i1:j1,i2:j2].copy()
 
         # y_bin = y_bin[i0:j0,i1:j1,i2:j2].copy()
@@ -1535,7 +1539,7 @@ class PeakEllipsoid:
         # d_val = scipy.ndimage.median_filter(d_val, size=size, mode='nearest')
         # n_val = scipy.ndimage.median_filter(n_val, size=size, mode='nearest')
 
-        weights = self.estimate_weights(x0, x1, x2, counts, y)
+        weights = self.estimate_weights(x0, x1, x2, counts, y, e)
 
         if weights is None:
             print('Invalid weight estimate')
@@ -1616,7 +1620,7 @@ class PeakEllipsoid:
         b_err = np.sqrt(np.nanmean(e_bkg**2))
 
         intens = np.nansum(y_pk-b)
-        sig = np.sqrt(np.nansum(e_pk+b_err**2))
+        sig = np.sqrt(np.nansum(e_pk**2+b_err**2))
 
         # *(1+self.error_scale**2)
 

@@ -1444,7 +1444,6 @@ class LaueData(BaseDataModel):
                       mtd['spectra'].getXDimension().getBinWidth(),
                       mtd['spectra'].getXDimension().getMaximum()]
 
-
             Rebin(InputWorkspace='efficiency',
                   OutputWorkspace='factor',
                   Params=params,
@@ -1452,7 +1451,7 @@ class LaueData(BaseDataModel):
 
             two_theta = np.array(mtd['detectors'].column(2))
             det_ids = np.array(mtd['detectors'].column(4))
-    
+
             y_sp = mtd['spectra'].extractY()
             y_ef = mtd['efficiency'].extractY()
 
