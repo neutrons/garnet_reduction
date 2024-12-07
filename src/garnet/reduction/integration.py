@@ -1518,6 +1518,16 @@ class PeakEllipsoid:
 
         self.params = result.params
 
+        self.params['A1'].set(value=2*y1_max)
+        self.params['A2'].set(value=2*y2_max)
+        self.params['A3'].set(value=2*y3_max)
+
+        self.params['A11'].set(value=2*y11_max)
+        self.params['A21'].set(value=2*y21_max)
+
+        self.params['A12'].set(value=2*y12_max)
+        self.params['A22'].set(value=2*y22_max)
+
         self.params['c0'].set(vary=False)
         self.params['c1'].set(vary=False)
         self.params['c2'].set(vary=False)
@@ -1538,6 +1548,16 @@ class PeakEllipsoid:
         result = out.minimize(method='least_squares')
 
         self.params = result.params
+
+        self.params['A1'].set(value=2*y1_max)
+        self.params['A2'].set(value=2*y2_max)
+        self.params['A3'].set(value=2*y3_max)
+
+        self.params['A11'].set(value=2*y11_max)
+        self.params['A21'].set(value=2*y21_max)
+
+        self.params['A12'].set(value=2*y12_max)
+        self.params['A22'].set(value=2*y22_max)
 
         self.params['c0'].set(vary=True)
         self.params['c1'].set(vary=True)
