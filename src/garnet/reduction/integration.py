@@ -1487,15 +1487,25 @@ class PeakEllipsoid:
 
         # ---
 
-        self.params['A1'].set(value=2*y1_max)
-        self.params['A2'].set(value=2*y2_max)
-        self.params['A3'].set(value=2*y3_max)
+        self.params['A1'].set(value=y1_max)
+        self.params['A2'].set(value=y2_max)
+        self.params['A3'].set(value=y3_max)
 
-        self.params['A11'].set(value=2*y11_max)
-        self.params['A21'].set(value=2*y21_max)
+        self.params['A11'].set(value=y11_max)
+        self.params['A21'].set(value=y21_max)
 
-        self.params['A12'].set(value=2*y12_max)
-        self.params['A22'].set(value=2*y22_max)
+        self.params['A12'].set(value=y12_max)
+        self.params['A22'].set(value=y22_max)
+
+        self.params['B1'].set(value=y1_min)
+        self.params['B2'].set(value=y2_min)
+        self.params['B3'].set(value=y3_min)
+
+        self.params['B11'].set(value=y11_min)
+        self.params['B21'].set(value=y21_min)
+
+        self.params['B12'].set(value=y12_min)
+        self.params['B22'].set(value=y22_min)
 
         self.params['c0'].set(vary=True)
         self.params['c1'].set(vary=True)
@@ -1518,15 +1528,25 @@ class PeakEllipsoid:
 
         self.params = result.params
 
-        self.params['A1'].set(value=2*y1_max)
-        self.params['A2'].set(value=2*y2_max)
-        self.params['A3'].set(value=2*y3_max)
+        self.params['A1'].set(value=y1_max)
+        self.params['A2'].set(value=y2_max)
+        self.params['A3'].set(value=y3_max)
 
-        self.params['A11'].set(value=2*y11_max)
-        self.params['A21'].set(value=2*y21_max)
+        self.params['A11'].set(value=y11_max)
+        self.params['A21'].set(value=y21_max)
 
-        self.params['A12'].set(value=2*y12_max)
-        self.params['A22'].set(value=2*y22_max)
+        self.params['A12'].set(value=y12_max)
+        self.params['A22'].set(value=y22_max)
+
+        self.params['B1'].set(value=y1_min)
+        self.params['B2'].set(value=y2_min)
+        self.params['B3'].set(value=y3_min)
+
+        self.params['B11'].set(value=y11_min)
+        self.params['B21'].set(value=y21_min)
+
+        self.params['B12'].set(value=y12_min)
+        self.params['B22'].set(value=y22_min)
 
         self.params['c0'].set(vary=False)
         self.params['c1'].set(vary=False)
@@ -1549,15 +1569,25 @@ class PeakEllipsoid:
 
         self.params = result.params
 
-        self.params['A1'].set(value=2*y1_max)
-        self.params['A2'].set(value=2*y2_max)
-        self.params['A3'].set(value=2*y3_max)
+        self.params['A1'].set(value=y1_max)
+        self.params['A2'].set(value=y2_max)
+        self.params['A3'].set(value=y3_max)
 
-        self.params['A11'].set(value=2*y11_max)
-        self.params['A21'].set(value=2*y21_max)
+        self.params['A11'].set(value=y11_max)
+        self.params['A21'].set(value=y21_max)
 
-        self.params['A12'].set(value=2*y12_max)
-        self.params['A22'].set(value=2*y22_max)
+        self.params['A12'].set(value=y12_max)
+        self.params['A22'].set(value=y22_max)
+
+        self.params['B1'].set(value=y1_min)
+        self.params['B2'].set(value=y2_min)
+        self.params['B3'].set(value=y3_min)
+
+        self.params['B11'].set(value=y11_min)
+        self.params['B21'].set(value=y21_min)
+
+        self.params['B12'].set(value=y12_min)
+        self.params['B22'].set(value=y22_min)
 
         self.params['c0'].set(vary=True)
         self.params['c1'].set(vary=True)
