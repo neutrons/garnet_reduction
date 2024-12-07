@@ -1451,7 +1451,7 @@ class LaueData(BaseDataModel):
 
             two_theta = np.array(mtd['detectors'].column(2))
             det_ids = np.array(mtd['detectors'].column(4))
-
+    
             y_sp = mtd['spectra'].extractY()
             y_ef = mtd['efficiency'].extractY()
 
@@ -1491,14 +1491,14 @@ class LaueData(BaseDataModel):
                                    XMax=self.k_max,
                                    OutputWorkspace=event_name)
 
-    def normalize_data(self, event_name, data_norm):
+    def normalize_data(self, event_name):
         """
         Normalize with detector efficiency and bank spectra.
 
         event_name : str
             Name of raw event data.
-        data_norm : str
-            Name of normalized data workspace.
+        ratio : str
+            Name of normalized ratio workspace.
 
         """
 
@@ -1513,13 +1513,13 @@ class LaueData(BaseDataModel):
 
         Divide(LHSWorkspace=event_name,
                RHSWorkspace='factor',
-               OutputWorkspace=data_norm,
+               OutputWorkspace=event_name,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 
-        Divide(LHSWorkspace=data_norm,
+        Divide(LHSWorkspace=event_name,
                RHSWorkspace='scale',
-               OutputWorkspace=data_norm,
+               OutputWorkspace=event_name,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
 

@@ -107,7 +107,8 @@ class Integration(SubPlan):
 
             data.load_data('data',
                            self.plan['IPTS'],
-                           run)
+                           run,
+                           self.plan.get('Grouping'))
 
             data.apply_calibration('data',
                                    self.plan.get('DetectorCalibration'),
@@ -125,11 +126,9 @@ class Integration(SubPlan):
 
             data.calculate_correction_factor()
 
-            data.normalize_data('data', 'data_norm')
+            data.normalize_data('data')
 
-            data.convert_to_Q_sample('data_norm', 'md_data_norm')
-
-            data.delete_workspace('data_norm')
+            data.convert_to_Q_sample('data', 'md')
 
             data.load_clear_UB(self.plan['UBFile'], 'data', run)
 
@@ -142,13 +141,13 @@ class Integration(SubPlan):
 
             r_cut = self.params['Radius']
 
-            peaks.integrate_peaks('md_data_norm', 'peaks', r_cut)
+            peaks.integrate_peaks('md', 'peaks', r_cut)
 
             peaks.remove_weak_peaks('peaks', 10)
 
             self.peaks, self.data = peaks, data
 
-            params = self.estimate_peak_size('peaks', 'md_data_norm', r_cut)
+            params = self.estimate_peak_size('peaks', 'md', r_cut)
 
             peaks.predict_peaks('data',
                                 'peaks',
@@ -160,7 +159,7 @@ class Integration(SubPlan):
             if self.params['MaxOrder'] > 0:
 
                 peaks.predict_satellite_peaks('peaks',
-                                              'md_data_norm',
+                                              'md',
                                               self.params['MinD'],
                                               lamda_max,
                                               self.params['ModVec1'],
@@ -173,7 +172,7 @@ class Integration(SubPlan):
 
             md_file = self.get_diagnostic_file('run#{}_data'.format(run))
 
-            data.save_histograms(md_file, 'md_data_norm', sample_logs=True)
+            data.save_histograms(md_file, 'md', sample_logs=True)
 
             self.fit_peaks('peaks', params)
 
@@ -187,7 +186,7 @@ class Integration(SubPlan):
 
             data.delete_workspace('peaks')
 
-            data.delete_workspace('md_data_norm')
+            data.delete_workspace('md')
 
         peaks.save_peaks(output_file, 'combine')
 
@@ -651,12 +650,9 @@ class Integration(SubPlan):
 
             bins, extents, projections = self.bin_extent(*params, *bin_params)
 
-            y, e, Q0, Q1, Q2 = data.bin_in_Q('md_data_norm',
-                                             extents,
-                                             bins,
-                                             projections)
+            y, e, Q0, Q1, Q2 = data.bin_in_Q('md', extents, bins, projections)
 
-            counts = data.extract_counts('md_data_norm_bin')
+            counts = data.extract_counts('md_bin')
 
             ellipsoid = PeakEllipsoid()
 
@@ -674,12 +670,12 @@ class Integration(SubPlan):
                     bins, extents, projections = self.bin_extent(*params,
                                                                  *bin_params)
 
-                    y, e, Q0, Q1, Q2 = data.bin_in_Q('md_data_norm',
+                    y, e, Q0, Q1, Q2 = data.bin_in_Q('md',
                                                      extents,
                                                      bins,
                                                      projections)
 
-                    counts = data.extract_counts('md_data_norm_bin')
+                    counts = data.extract_counts('md_bin')
 
                     ellipsoid = PeakEllipsoid()
 

@@ -7,7 +7,6 @@ sys.path.append(directory)
 directory = os.path.abspath(os.path.join(directory, '..'))
 sys.path.append(directory)
 
-from mantid.simpleapi import mtd
 from mantid import config
 
 config['Q.convention'] = 'Crystallography'
