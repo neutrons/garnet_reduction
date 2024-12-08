@@ -1438,7 +1438,7 @@ class LaueData(BaseDataModel):
 
     def calculate_correction_factor(self):
 
-        if not mtd.doesExist('correction'):
+        if not mtd.doesExist('factor'):
 
             params = [mtd['spectra'].getXDimension().getMinimum(),
                       mtd['spectra'].getXDimension().getBinWidth(),
