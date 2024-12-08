@@ -42,7 +42,7 @@ integrate.data = data
 integrate.peaks = peaks
 integrate.run = 0
 integrate.runs = 1
-cProfile.run("integrate.fit_peaks('peaks', params)", 'profile.stats')
+# cProfile.run("integrate.fit_peaks('peaks', params)", 'profile.stats')
 
 
 # @pytest.mark.skipif(not os.path.exists('/SNS/CORELLI/'), reason='file mount')
