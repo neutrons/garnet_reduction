@@ -705,8 +705,6 @@ class Integration(SubPlan):
 
                     plot.add_ellipsoid(c, S)
 
-                    plot.add_sphere(c, S)
-
                     goniometer = peak.get_goniometer_angles(i)
 
                     plot.add_peak_info(wavelength, angles, goniometer)
@@ -1258,45 +1256,25 @@ class PeakEllipsoid:
 
         args = x0, x1, x2, c, inv_S
 
-        ellipsoid1 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d')
-        ellipsoid2 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d')
-        ellipsoid3 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '3d')
+        pk1 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d')
+        pk2 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d')
+        pk3 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '3d')
 
-        ellipsoid11 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d1')
-        ellipsoid21 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d1')
+        pk11 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d1')
+        pk21 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d1')
 
-        ellipsoid12 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d2')
-        ellipsoid22 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d2')
+        pk12 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d2')
+        pk22 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d2')
 
-        sphere1 = self.sphere_mask(x0, x1, x2, c, inv_S, '1d')
-        sphere2 = self.sphere_mask(x0, x1, x2, c, inv_S, '2d')
-        sphere3 = self.sphere_mask(x0, x1, x2, c, inv_S, '3d')
+        bkg1 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '1d') & (~pk1)
+        bkg2 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '2d') & (~pk2)
+        bkg3 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '3d') & (~pk3)
 
-        sphere11 = self.sphere_mask(x0, x1, x2, c, inv_S, '1d1')
-        sphere21 = self.sphere_mask(x0, x1, x2, c, inv_S, '2d1')
+        bkg11 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '1d1') & (~pk11)
+        bkg21 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '2d1') & (~pk21)
 
-        sphere12 = self.sphere_mask(x0, x1, x2, c, inv_S, '1d2')
-        sphere22 = self.sphere_mask(x0, x1, x2, c, inv_S, '2d2')
-
-        pk1 = ellipsoid1
-        pk2 = ellipsoid2
-        pk3 = ellipsoid3
-
-        pk11 = ellipsoid11
-        pk21 = ellipsoid21
-
-        pk12 = ellipsoid12
-        pk22 = ellipsoid22
-
-        bkg1 = (~ellipsoid1) & sphere1
-        bkg2 = (~ellipsoid2) & sphere2
-        bkg3 = (~ellipsoid3) & sphere3
-
-        bkg11 = (~ellipsoid11) & sphere11
-        bkg21 = (~ellipsoid21) & sphere21
-
-        bkg12 = (~ellipsoid12) & sphere12
-        bkg22 = (~ellipsoid22) & sphere22
+        bkg12 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '1d2') & (~pk12)
+        bkg22 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '2d2') & (~pk22)
 
         b1 = np.nanmean(y1[bkg1])
         b2 = np.nanmean(y2[bkg2])
@@ -1443,44 +1421,45 @@ class PeakEllipsoid:
 
         return d2 < 1
 
-    def sphere_mask(self, x0, x1, x2, c, inv_S, mode='3d'):
+    # def sphere_mask(self, x0, x1, x2, c, inv_S, mode='3d'):
 
-        c0, c1, c2 = c
+    #     c0, c1, c2 = c
 
-        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2        
+    #     dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2        
 
-        r = 1.2*np.max(1/np.sqrt(np.linalg.eigvalsh(inv_S)))
+    #     # r = 1.2*np.max(1/np.sqrt(np.linalg.eigvalsh(inv_S)))
+    #     r = np.cbrt(2*np.sqrt(1/np.linalg.det(inv_S)))
 
-        if mode == '3d':
-            inv_s = np.diag([1/r**2]*3)
-        elif '2d' in mode:
-            inv_s = np.diag([1/r**2]*2)
-        elif '1d' in mode :
-            inv_s = 1/r**2
+    #     if mode == '3d':
+    #         inv_s = np.diag([1/r**2]*3)
+    #     elif '2d' in mode:
+    #         inv_s = np.diag([1/r**2]*2)
+    #     elif '1d' in mode :
+    #         inv_s = 1/r**2
 
-        if mode == '3d':
-            dx = [dx0, dx1, dx2]
-            d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
-        elif mode == '2d':
-            dx = [dx1[0,:,:], dx2[0,:,:]]
-            d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
-        elif mode == '1d':
-            dx = dx0[:,0,0]
-            d2 = inv_s*dx**2
-        elif mode == '2d1':
-            dx = [dx0[:,0,:], dx2[:,0,:]]
-            d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
-        elif mode == '2d2':
-            dx = [dx0[:,:,0], dx1[:,:,0]]
-            d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
-        elif mode == '1d1':
-            dx = dx1[0,:,0]
-            d2 = inv_s*dx**2
-        elif mode == '1d2':
-            dx = dx2[0,0,:]
-            d2 = inv_s*dx**2 
+    #     if mode == '3d':
+    #         dx = [dx0, dx1, dx2]
+    #         d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
+    #     elif mode == '2d':
+    #         dx = [dx1[0,:,:], dx2[0,:,:]]
+    #         d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
+    #     elif mode == '1d':
+    #         dx = dx0[:,0,0]
+    #         d2 = inv_s*dx**2
+    #     elif mode == '2d1':
+    #         dx = [dx0[:,0,:], dx2[:,0,:]]
+    #         d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
+    #     elif mode == '2d2':
+    #         dx = [dx0[:,:,0], dx1[:,:,0]]
+    #         d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
+    #     elif mode == '1d1':
+    #         dx = dx1[0,:,0]
+    #         d2 = inv_s*dx**2
+    #     elif mode == '1d2':
+    #         dx = dx2[0,0,:]
+    #         d2 = inv_s*dx**2 
 
-        return d2 < 1
+    #     return d2 < 1
 
     def ellipsoid_covariance(self, inv_S, mode='3d', perc=99.7):
 
@@ -1959,13 +1938,14 @@ class PeakEllipsoid:
 
         S_inv = np.linalg.inv(S)
 
-        r = 1.2*np.max(np.sqrt(np.linalg.eigvalsh(S)))
+        # r = 1.2*np.max(np.sqrt(np.linalg.eigvalsh(S)))
+        # r = np.cbrt(2*np.sqrt(np.linalg.det(S)))
 
         ellipsoid = np.einsum('ij,jklm,iklm->klm', S_inv, x, x)
-        sphere = np.einsum('ij,jklm,iklm->klm', np.diag([1/r**2]*3), x, x)
+        # sphere = np.einsum('ij,jklm,iklm->klm', np.diag([1/r**2]*3), x, x)
 
         pk = (ellipsoid <= 1.1**2) & (e > 0)
-        bkg = (ellipsoid > 1.1**2) & (sphere < 2**2) & (e > 0)
+        bkg = (ellipsoid > 1.1**2) & (ellipsoid < 2**2) & (e > 0)
 
         d3x = dx0*dx1*dx2
 

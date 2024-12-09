@@ -156,7 +156,7 @@ class PeakPlot(BasePlot):
         self.ellip = []
         self.ellip_im = []
         self.ellip_el = []
-        self.circle_sp = []
+        self.ellip_sp = []
 
         x = np.arange(5)
         y = np.arange(6)
@@ -181,9 +181,9 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
-        self.circle_sp.append(sp)
+        self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
@@ -206,9 +206,9 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
-        self.circle_sp.append(sp)
+        self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
@@ -230,9 +230,9 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
-        self.circle_sp.append(sp)
+        self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
@@ -255,9 +255,9 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
-        self.circle_sp.append(sp)
+        self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
@@ -280,9 +280,9 @@ class PeakPlot(BasePlot):
         # ax.set_ylabel(r'$Q_z$ [$\AA^{-1}$]')
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
-        self.circle_sp.append(sp)
+        self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
@@ -306,9 +306,9 @@ class PeakPlot(BasePlot):
         # ax.set_ylabel(r'$Q_z$ [$\AA^{-1}$]')
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.ellip_el.append(el)
-        self.circle_sp.append(sp)
+        self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
@@ -400,7 +400,7 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.norm_el.append(el)
         self.norm_sp.append(sp)
 
@@ -423,7 +423,7 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.norm_el.append(el)
         self.norm_sp.append(sp)
 
@@ -446,7 +446,7 @@ class PeakPlot(BasePlot):
         ax.yaxis.set_ticklabels([])
 
         el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_circle(ax, 2.5, 3, 1, 'r')
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
         self.norm_el.append(el)
         self.norm_sp.append(sp)
 
@@ -742,38 +742,59 @@ class PeakPlot(BasePlot):
         for el, ax in zip(self.norm_el[2:3], self.norm[2:3]):
             self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
 
-    def add_sphere(self, c, S):
-        """
-        Draw sphere envelopes.
+        r *= 2
 
-        Parameters
-        ----------
-        c : 1d-array
-            3 component center.
-        S : 2d-array
-            3x3 covariance matrix.
+        for el, ax in zip(self.ellip_sp[0:2], self.ellip[0:2]):
+            self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
 
-        """
+        for el, ax in zip(self.ellip_sp[2:4], self.ellip[2:4]):
+            self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
 
-        r = 1.2*np.max(np.sqrt(np.linalg.eigvalsh(S)))
+        for el, ax in zip(self.ellip_sp[4:6], self.ellip[4:6]):
+            self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
 
-        for sp, ax in zip(self.circle_sp[0:2], self.ellip[0:2]):
-            self._update_circle(sp, ax, c[0], c[1], r)
+        for el, ax in zip(self.norm_sp[0:1], self.norm[0:1]):
+            self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
 
-        for sp, ax in zip(self.circle_sp[2:4], self.ellip[2:4]):
-            self._update_circle(sp, ax, c[0], c[2], r)
+        for el, ax in zip(self.norm_sp[1:2], self.norm[1:2]):
+            self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
 
-        for sp, ax in zip(self.circle_sp[4:6], self.ellip[4:6]):
-            self._update_circle(sp, ax, c[1], c[2], r)
+        for el, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
+            self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
 
-        for sp, ax in zip(self.norm_sp[0:1], self.norm[0:1]):
-            self._update_circle(sp, ax, c[0], c[1], r)
+    # def add_sphere(self, c, S):
+    #     """
+    #     Draw sphere envelopes.
 
-        for sp, ax in zip(self.norm_sp[1:2], self.norm[1:2]):
-            self._update_circle(sp, ax, c[0], c[2], r)
+    #     Parameters
+    #     ----------
+    #     c : 1d-array
+    #         3 component center.
+    #     S : 2d-array
+    #         3x3 covariance matrix.
 
-        for sp, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
-            self._update_circle(sp, ax, c[1], c[2], r)
+    #     """
+
+    #     # r = 1.2*np.max(np.sqrt(np.linalg.eigvalsh(S)))
+    #     r = np.cbrt(2*np.sqrt(np.linalg.det(S)))
+
+    #     for sp, ax in zip(self.ellip_sp[0:2], self.ellip[0:2]):
+    #         self._update_circle(sp, ax, c[0], c[1], r)
+
+    #     for sp, ax in zip(self.ellip_sp[2:4], self.ellip[2:4]):
+    #         self._update_circle(sp, ax, c[0], c[2], r)
+
+    #     for sp, ax in zip(self.ellip_sp[4:6], self.ellip[4:6]):
+    #         self._update_circle(sp, ax, c[1], c[2], r)
+
+    #     for sp, ax in zip(self.norm_sp[0:1], self.norm[0:1]):
+    #         self._update_circle(sp, ax, c[0], c[1], r)
+
+    #     for sp, ax in zip(self.norm_sp[1:2], self.norm[1:2]):
+    #         self._update_circle(sp, ax, c[0], c[2], r)
+
+    #     for sp, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
+    #         self._update_circle(sp, ax, c[1], c[2], r)
 
     def _update_ellipse(self, ellipse, ax, cx, cy, rx, ry, rho):
 
@@ -795,20 +816,20 @@ class PeakPlot(BasePlot):
 
         ellipse.set_transform(trans+ax.transData)
 
-    def _update_circle(self, circle, ax, cx, cy, r):
+    # def _update_circle(self, circle, ax, cx, cy, r):
 
-        circle.set_center((0, 0))
+    #     circle.set_center((0, 0))
 
-        circle.width = 2
-        circle.height = 2
+    #     circle.width = 2
+    #     circle.height = 2
 
-        if np.isclose(r, 0):
-            r = 1
+    #     if np.isclose(r, 0):
+    #         r = 1
 
-        trans = Affine2D()
-        trans.rotate_deg(45).scale(r, r).translate(cx, cy)
+    #     trans = Affine2D()
+    #     trans.rotate_deg(45).scale(r, r).translate(cx, cy)
 
-        circle.set_transform(trans+ax.transData)
+    #     circle.set_transform(trans+ax.transData)
 
     def _draw_ellipse(self, ax, cx, cy, rx, ry, rho, color='w'):
         """
@@ -842,35 +863,35 @@ class PeakPlot(BasePlot):
 
         return peak
 
-    def _draw_circle(self, ax, cx, cy, r, color='w'):
-        """
-        Draw circle with center, size, and orientation.
+    # def _draw_circle(self, ax, cx, cy, r, color='w'):
+    #     """
+    #     Draw circle with center, size, and orientation.
 
-        Parameters
-        ----------
-        ax : axis
-            Plot axis.
-        cx, cy : float
-            Center.
-        r : float
-            Radius.
+    #     Parameters
+    #     ----------
+    #     ax : axis
+    #         Plot axis.
+    #     cx, cy : float
+    #         Center.
+    #     r : float
+    #         Radius.
 
-        """
+    #     """
 
-        peak = Ellipse((0, 0),
-                       width=2,
-                       height=2,
-                       linestyle='--',
-                       edgecolor=color,
-                       facecolor='none',
-                       rasterized=False,
-                       zorder=100)
+    #     peak = Ellipse((0, 0),
+    #                    width=2,
+    #                    height=2,
+    #                    linestyle='--',
+    #                    edgecolor=color,
+    #                    facecolor='none',
+    #                    rasterized=False,
+    #                    zorder=100)
 
-        self._update_circle(peak, ax, cx, cy, 1)
+    #     self._update_circle(peak, ax, cx, cy, 1)
 
-        ax.add_patch(peak)
+    #     ax.add_patch(peak)
 
-        return peak
+    #     return peak
 
     def _update_intersecting_line(self, line, ax, x0, y0):
 
