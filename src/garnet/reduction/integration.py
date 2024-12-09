@@ -1166,21 +1166,21 @@ class PeakEllipsoid:
         B2 = params['B2']
         B3 = params['B3']
 
-        B11 = params['B11']
-        B21 = params['B21']
+        # B11 = params['B11']
+        # B21 = params['B21']
 
-        B12 = params['B12']
-        B22 = params['B22']
+        # B12 = params['B12']
+        # B22 = params['B22']
 
         A1 = params['A1']
         A2 = params['A2']
         A3 = params['A3']
 
-        A11 = params['A11']
-        A21 = params['A21']
+        # A11 = params['A11']
+        # A21 = params['A21']
 
-        A12 = params['A12']
-        A22 = params['A22']
+        # A12 = params['A12']
+        # A22 = params['A22']
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1192,11 +1192,11 @@ class PeakEllipsoid:
         y2_gauss = self.gaussian(*args, '2d')
         y3_gauss = self.gaussian(*args, '3d')
 
-        y11_gauss = self.gaussian(*args, '1d1')
-        y21_gauss = self.gaussian(*args, '2d1')
+        # y11_gauss = self.gaussian(*args, '1d1')
+        # y21_gauss = self.gaussian(*args, '2d1')
 
-        y12_gauss = self.gaussian(*args, '1d2')
-        y22_gauss = self.gaussian(*args, '2d2')
+        # y12_gauss = self.gaussian(*args, '1d2')
+        # y22_gauss = self.gaussian(*args, '2d2')
 
         diff = []
 
@@ -1208,21 +1208,21 @@ class PeakEllipsoid:
         y2_fit = A2*y2_gauss+B2
         y3_fit = A3*y3_gauss+B3
 
-        y11_fit = A11*y11_gauss+B11
-        y21_fit = A21*y21_gauss+B21
+        # y11_fit = A11*y11_gauss+B11
+        # y21_fit = A21*y21_gauss+B21
 
-        y12_fit = A12*y12_gauss+B12
-        y22_fit = A22*y22_gauss+B22
+        # y12_fit = A12*y12_gauss+B12
+        # y22_fit = A22*y22_gauss+B22
 
         u1 = np.sqrt(1+y1_fit**2)
         u2 = np.sqrt(1+y2_fit**2)
         u3 = np.sqrt(1+y3_fit**2)
 
-        u11 = np.sqrt(1+y11_fit**2)
-        u21 = np.sqrt(1+y21_fit**2)
+        # u11 = np.sqrt(1+y11_fit**2)
+        # u21 = np.sqrt(1+y21_fit**2)
 
-        u12 = np.sqrt(1+y12_fit**2)
-        u22 = np.sqrt(1+y22_fit**2)
+        # u12 = np.sqrt(1+y12_fit**2)
+        # u22 = np.sqrt(1+y22_fit**2)
 
         res = np.arcsinh(y1*u1-y1_fit*v1)*w1
 
@@ -1238,21 +1238,21 @@ class PeakEllipsoid:
 
         # ---
 
-        res = np.arcsinh(y11*u11-y11_fit*v11)*w11
+        # res = np.arcsinh(y11*u11-y11_fit*v11)*w11
 
-        diff += res.flatten().tolist()
+        # diff += res.flatten().tolist()
 
-        res = np.arcsinh(y21*u21-y21_fit*v21)*w21
+        # res = np.arcsinh(y21*u21-y21_fit*v21)*w21
 
-        diff += res.flatten().tolist()
+        # diff += res.flatten().tolist()
 
-        res = np.arcsinh(y12*u12-y12_fit*v12)*w12
+        # res = np.arcsinh(y12*u12-y12_fit*v12)*w12
 
-        diff += res.flatten().tolist()
+        # diff += res.flatten().tolist()
 
-        res = np.arcsinh(y22*u22-y22_fit*v22)*w22
+        # res = np.arcsinh(y22*u22-y22_fit*v22)*w22
 
-        diff += res.flatten().tolist()
+        # diff += res.flatten().tolist()
 
         args = x0, x1, x2, c, inv_S
 
@@ -1260,64 +1260,64 @@ class PeakEllipsoid:
         pk2 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d')
         pk3 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '3d')
 
-        pk11 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d1')
-        pk21 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d1')
+        # pk11 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d1')
+        # pk21 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d1')
 
-        pk12 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d2')
-        pk22 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d2')
+        # pk12 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '1d2')
+        # pk22 = self.ellipsoid_mask(x0, x1, x2, c, inv_S, '2d2')
 
         bkg1 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '1d') & (~pk1)
         bkg2 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '2d') & (~pk2)
         bkg3 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '3d') & (~pk3)
 
-        bkg11 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '1d1') & (~pk11)
-        bkg21 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '2d1') & (~pk21)
+        # bkg11 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '1d1') & (~pk11)
+        # bkg21 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '2d1') & (~pk21)
 
-        bkg12 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '1d2') & (~pk12)
-        bkg22 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '2d2') & (~pk22)
+        # bkg12 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '1d2') & (~pk12)
+        # bkg22 = self.ellipsoid_mask(x0, x1, x2, c, 0.25*inv_S, '2d2') & (~pk22)
 
         b1 = np.nanmean(y1[bkg1])
         b2 = np.nanmean(y2[bkg2])
         b3 = np.nanmean(y3[bkg3])
 
-        b11 = np.nanmean(y11[bkg11])
-        b21 = np.nanmean(y21[bkg21])
+        # b11 = np.nanmean(y11[bkg11])
+        # b21 = np.nanmean(y21[bkg21])
 
-        b12 = np.nanmean(y12[bkg12])
-        b22 = np.nanmean(y22[bkg22])
+        # b12 = np.nanmean(y12[bkg12])
+        # b22 = np.nanmean(y22[bkg22])
 
         b1_err = np.sqrt(np.nanmean(y1[bkg1]**2))
         b2_err = np.sqrt(np.nanmean(y2[bkg2]**2))
         b3_err = np.sqrt(np.nanmean(y3[bkg3]**2))
 
-        b11_err = np.sqrt(np.nanmean(y11[bkg11]**2))
-        b21_err = np.sqrt(np.nanmean(y21[bkg21]**2))
+        # b11_err = np.sqrt(np.nanmean(y11[bkg11]**2))
+        # b21_err = np.sqrt(np.nanmean(y21[bkg21]**2))
 
-        b12_err = np.sqrt(np.nanmean(y12[bkg12]**2))
-        b22_err = np.sqrt(np.nanmean(y22[bkg22]**2))
+        # b12_err = np.sqrt(np.nanmean(y12[bkg12]**2))
+        # b22_err = np.sqrt(np.nanmean(y22[bkg22]**2))
 
         I1 = np.nansum(y1[pk1]-b1)
         I2 = np.nansum(y2[pk2]-b2)
         I3 = np.nansum(y3[pk3]-b3)
 
-        I11 = np.nansum(y11[pk11]-b11)
-        I21 = np.nansum(y21[pk21]-b21)
+        # I11 = np.nansum(y11[pk11]-b11)
+        # I21 = np.nansum(y21[pk21]-b21)
 
-        I12 = np.nansum(y12[pk12]-b12)
-        I22 = np.nansum(y22[pk22]-b22)
+        # I12 = np.nansum(y12[pk12]-b12)
+        # I22 = np.nansum(y22[pk22]-b22)
 
         sig1 = np.sqrt(np.nansum(e1[pk1]**2+b1_err**2))
         sig2 = np.sqrt(np.nansum(e2[pk2]**2+b2_err**2))
         sig3 = np.sqrt(np.nansum(e3[pk3]**2+b3_err**2))
 
-        sig11 = np.sqrt(np.nansum(e11[pk11]**2+b11_err**2))
-        sig21 = np.sqrt(np.nansum(e21[pk21]**2+b21_err**2))
+        # sig11 = np.sqrt(np.nansum(e11[pk11]**2+b11_err**2))
+        # sig21 = np.sqrt(np.nansum(e21[pk21]**2+b21_err**2))
 
-        sig12 = np.sqrt(np.nansum(e12[pk12]**2+b12_err**2))
-        sig22 = np.sqrt(np.nansum(e22[pk22]**2+b22_err**2))
+        # sig12 = np.sqrt(np.nansum(e12[pk12]**2+b12_err**2))
+        # sig22 = np.sqrt(np.nansum(e22[pk22]**2+b22_err**2))
 
-        sig = np.array([sig1,sig2,sig3,sig11,sig12,sig21,sig22])
-        I = np.array([I1,I2,I3,I11,I12,I21,I22])
+        sig = np.array([sig1,sig2,sig3])
+        I = np.array([I1,I2,I3])
 
         penalty = lamda*sig/I
         penalty[~np.isfinite(penalty)] = lamda
@@ -1602,21 +1602,21 @@ class PeakEllipsoid:
         self.params.add('A2', value=y2_max, min=0, max=5*y2_max)
         self.params.add('A3', value=y3_max, min=0, max=5*y3_max)
 
-        self.params.add('A11', value=y11_max, min=0, max=5*y11_max)
-        self.params.add('A21', value=y21_max, min=0, max=5*y21_max)
+        # self.params.add('A11', value=y11_max, min=0, max=5*y11_max)
+        # self.params.add('A21', value=y21_max, min=0, max=5*y21_max)
 
-        self.params.add('A12', value=y12_max, min=0, max=5*y12_max)
-        self.params.add('A22', value=y22_max, min=0, max=5*y22_max)
+        # self.params.add('A12', value=y12_max, min=0, max=5*y12_max)
+        # self.params.add('A22', value=y22_max, min=0, max=5*y22_max)
 
         self.params.add('B1', value=y1_min, min=-5*y1_max, max=5*y1_max)
         self.params.add('B2', value=y2_min, min=-5*y2_max, max=5*y2_max)
         self.params.add('B3', value=y3_min, min=-5*y3_max, max=5*y3_max)
 
-        self.params.add('B11', value=y11_min, min=-5*y11_max, max=5*y11_max)
-        self.params.add('B21', value=y21_min, min=-5*y21_max, max=5*y21_max)
+        # self.params.add('B11', value=y11_min, min=-5*y11_max, max=5*y11_max)
+        # self.params.add('B21', value=y21_min, min=-5*y21_max, max=5*y21_max)
 
-        self.params.add('B12', value=y12_min, min=-5*y12_max, max=5*y12_max)
-        self.params.add('B22', value=y22_min, min=-5*y22_max, max=5*y22_max)
+        # self.params.add('B12', value=y12_min, min=-5*y12_max, max=5*y12_max)
+        # self.params.add('B22', value=y22_min, min=-5*y22_max, max=5*y22_max)
 
         v1 = np.sqrt(1+y1**2)
         v2 = np.sqrt(1+y2**2)
@@ -1733,21 +1733,21 @@ class PeakEllipsoid:
         self.params['A2'].set(value=y2_max)
         self.params['A3'].set(value=y3_max)
 
-        self.params['A11'].set(value=y11_max)
-        self.params['A21'].set(value=y21_max)
+        # self.params['A11'].set(value=y11_max)
+        # self.params['A21'].set(value=y21_max)
 
-        self.params['A12'].set(value=y12_max)
-        self.params['A22'].set(value=y22_max)
+        # self.params['A12'].set(value=y12_max)
+        # self.params['A22'].set(value=y22_max)
 
         self.params['B1'].set(value=y1_min)
         self.params['B2'].set(value=y2_min)
         self.params['B3'].set(value=y3_min)
 
-        self.params['B11'].set(value=y11_min)
-        self.params['B21'].set(value=y21_min)
+        # self.params['B11'].set(value=y11_min)
+        # self.params['B21'].set(value=y21_min)
 
-        self.params['B12'].set(value=y12_min)
-        self.params['B22'].set(value=y22_min)
+        # self.params['B12'].set(value=y12_min)
+        # self.params['B22'].set(value=y22_min)
 
         self.params['c0'].set(vary=True)
         self.params['c1'].set(vary=True)
