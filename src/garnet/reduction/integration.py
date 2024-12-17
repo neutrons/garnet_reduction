@@ -120,6 +120,8 @@ class Integration(SubPlan):
 
             data.apply_mask('data', self.plan.get('MaskFile'))
 
+            data.load_background(self.plan['BackgroundFile'], 'data')
+
             data.calculate_correction_factor()
 
             data.normalize_data('data')
@@ -1333,8 +1335,6 @@ class PeakEllipsoid:
 
     def integrate(self, x0, x1, x2, counts, y, e, mode='1d'):
 
-        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
-
         if mode == '1d':
             c_int = np.nansum(counts, axis=(1,2))
             n_int = c_int/np.nansum(y, axis=(1,2))
@@ -1647,9 +1647,9 @@ class PeakEllipsoid:
 
         # ---
 
-        # self.params['A1'].set(value=y1_max)
-        # self.params['A2'].set(value=y2_max)
-        # self.params['A3'].set(value=y3_max)
+        self.params['A1'].set(value=y1_max)
+        self.params['A2'].set(value=y2_max)
+        self.params['A3'].set(value=y3_max)
 
         # self.params['A11'].set(value=y11_max)
         # self.params['A21'].set(value=y21_max)
@@ -1657,9 +1657,9 @@ class PeakEllipsoid:
         # self.params['A12'].set(value=y12_max)
         # self.params['A22'].set(value=y22_max)
 
-        # self.params['B1'].set(value=y1_min)
-        # self.params['B2'].set(value=y2_min)
-        # self.params['B3'].set(value=y3_min)
+        self.params['B1'].set(value=y1_min)
+        self.params['B2'].set(value=y2_min)
+        self.params['B3'].set(value=y3_min)
 
         # self.params['B11'].set(value=y11_min)
         # self.params['B21'].set(value=y21_min)
@@ -1667,30 +1667,30 @@ class PeakEllipsoid:
         # self.params['B12'].set(value=y12_min)
         # self.params['B22'].set(value=y22_min)
 
-        # self.params['c0'].set(vary=True)
-        # self.params['c1'].set(vary=True)
-        # self.params['c2'].set(vary=True)
+        self.params['c0'].set(vary=True)
+        self.params['c1'].set(vary=True)
+        self.params['c2'].set(vary=True)
 
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=True)
-        # self.params['r2'].set(vary=True)
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
 
-        # self.params['u0'].set(vary=False)
-        # self.params['u1'].set(vary=False)
-        # self.params['u2'].set(vary=False)
+        self.params['u0'].set(vary=False)
+        self.params['u1'].set(vary=False)
+        self.params['u2'].set(vary=False)
 
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args,
-        #                 nan_policy='omit')
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        nan_policy='omit')
 
-        # result = out.minimize(method='least_squares')
+        result = out.minimize(method='least_squares')
 
-        # self.params = result.params
+        self.params = result.params
 
-        # self.params['A1'].set(value=y1_max)
-        # self.params['A2'].set(value=y2_max)
-        # self.params['A3'].set(value=y3_max)
+        self.params['A1'].set(value=y1_max)
+        self.params['A2'].set(value=y2_max)
+        self.params['A3'].set(value=y3_max)
 
         # self.params['A11'].set(value=y11_max)
         # self.params['A21'].set(value=y21_max)
@@ -1698,9 +1698,9 @@ class PeakEllipsoid:
         # self.params['A12'].set(value=y12_max)
         # self.params['A22'].set(value=y22_max)
 
-        # self.params['B1'].set(value=y1_min)
-        # self.params['B2'].set(value=y2_min)
-        # self.params['B3'].set(value=y3_min)
+        self.params['B1'].set(value=y1_min)
+        self.params['B2'].set(value=y2_min)
+        self.params['B3'].set(value=y3_min)
 
         # self.params['B11'].set(value=y11_min)
         # self.params['B21'].set(value=y21_min)
@@ -1708,24 +1708,24 @@ class PeakEllipsoid:
         # self.params['B12'].set(value=y12_min)
         # self.params['B22'].set(value=y22_min)
 
-        # self.params['c0'].set(vary=False)
-        # self.params['c1'].set(vary=False)
-        # self.params['c2'].set(vary=False)
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
 
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=True)
-        # self.params['r2'].set(vary=True)
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
 
-        # self.params['u0'].set(vary=True)
-        # self.params['u1'].set(vary=True)
-        # self.params['u2'].set(vary=True)
+        self.params['u0'].set(vary=True)
+        self.params['u1'].set(vary=True)
+        self.params['u2'].set(vary=True)
 
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args,
-        #                 nan_policy='omit')
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        nan_policy='omit')
 
-        # result = out.minimize(method='least_squares')
+        result = out.minimize(method='least_squares')
 
         # self.params = result.params
 
@@ -1834,8 +1834,36 @@ class PeakEllipsoid:
 
         mask = (counts > 0) & (e > 0) & np.isfinite(counts) & np.isfinite(e)
 
+        w = 0*counts.copy()+1
+        v = e**2
+
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
+        # scale = np.sqrt(scipy.stats.chi2.ppf(99.7/100, df=3))
+
+        sigma = np.round(dx/np.array([dx0, dx1, dx2])/3).astype(int)
+
+        counts[~mask] = 0
+        counts = scipy.ndimage.gaussian_filter(counts, sigma=sigma)
+
+        y[~mask] = 0
+        y = scipy.ndimage.gaussian_filter(y, sigma=sigma)
+
+        v[~mask] = 0
+        v = scipy.ndimage.gaussian_filter(v, sigma=sigma)
+
+        w[~mask] = 0
+        w = scipy.ndimage.gaussian_filter(w, sigma=sigma)
+
+        counts /= w
+        y /= w
+        v /= w
+
+        e = np.sqrt(v)
+
         counts[~mask] = np.nan
         y[~mask] = np.nan
+        e[~mask] = np.nan
 
         y_max = np.nanmax(y)
 

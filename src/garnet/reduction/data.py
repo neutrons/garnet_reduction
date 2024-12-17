@@ -1127,12 +1127,6 @@ class LaueData(BaseDataModel):
                 LoadIsawDetCal(InputWorkspace=event_name,
                                Filename=detector_calibration)
 
-        if mtd.doesExist('bkg'):
-
-            Minus(LHSWorkspace=event_name,
-                  RHSWorkspace='bkg',
-                  OutputWorkspace=event_name)
-
     def preprocess_detectors(self, ws=None):
         """
         Generate detector coordinates.
@@ -1502,23 +1496,21 @@ class LaueData(BaseDataModel):
 
         """
 
-        pc = mtd[event_name].run().getProperty('gd_prtn_chrg').value
-
-        CreateSingleValuedWorkspace(OutputWorkspace='scale',
-                                    DataValue=pc)
+        NormaliseByCurrent(InputWorkspace=event_name,
+                           OutputWorkspace=event_name)
 
         ConvertUnits(InputWorkspace=event_name,
                      OutputWorkspace=event_name,
                      Target='Wavelength')
 
-        Divide(LHSWorkspace=event_name,
-               RHSWorkspace='factor',
-               OutputWorkspace=event_name,
-               WarnOnZeroDivide=False,
-               AllowDifferentNumberSpectra=True)
+        if mtd.doesExist('bkg'):
+
+            Minus(LHSWorkspace=event_name,
+                  RHSWorkspace='bkg',
+                  OutputWorkspace=event_name)
 
         Divide(LHSWorkspace=event_name,
-               RHSWorkspace='scale',
+               RHSWorkspace='factor',
                OutputWorkspace=event_name,
                WarnOnZeroDivide=False,
                AllowDifferentNumberSpectra=True)
@@ -1577,20 +1569,24 @@ class LaueData(BaseDataModel):
 
                 if mtd.doesExist('spectra'):
 
-                    Divide(LHSWorkspace='bkg',
-                           RHSWorkspace='sa',
-                           OutputWorkspace='bkg',
-                           WarnOnZeroDivide=False,
-                           AllowDifferentNumberSpectra=True)
-
                     ConvertUnits(InputWorkspace='bkg',
                                  OutputWorkspace='bkg',
                                  Target='Wavelength')
 
-                    Divide(LHSWorkspace='bkg',
-                            RHSWorkspace='spectra',
-                            OutputWorkspace='bkg',
-                            AllowDifferentNumberSpectra=True)
+                #     Divide(LHSWorkspace='bkg',
+                #            RHSWorkspace='sa',
+                #            OutputWorkspace='bkg',
+                #            WarnOnZeroDivide=False,
+                #            AllowDifferentNumberSpectra=True)
+
+                #     ConvertUnits(InputWorkspace='bkg',
+                #                  OutputWorkspace='bkg',
+                #                  Target='Wavelength')
+
+                #     Divide(LHSWorkspace='bkg',
+                #             RHSWorkspace='spectra',
+                #             OutputWorkspace='bkg',
+                #             AllowDifferentNumberSpectra=True)
 
             if not mtd.doesExist('spectra'):
 
