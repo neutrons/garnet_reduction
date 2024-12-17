@@ -198,15 +198,13 @@ class Integration(SubPlan):
 
             data.delete_workspace('md')
 
-        peaks.save_peaks(output_file, 'combine')
+        result_file = self.get_file(output_file, '')
+
+        peaks.save_peaks(result_file, 'combine')
 
         # ---
 
-        # result_file = self.get_file(output_file, '')
-
         if mtd.doesExist('combine'):
-
-            peaks.save_peaks(output_file, 'combine')
 
             opt = Optimization('combine')
             opt.optimize_lattice(self.params['Cell'])
@@ -584,139 +582,6 @@ class Integration(SubPlan):
         plot.save_plot(self.get_plot_file(peaks_name))
 
         return lo, lc, to, tc
-
-    # def fit_peaks(self, peaks_ws, params, make_plot=True):
-    #     """
-    #     Integrate peaks.
-
-    #     Parameters
-    #     ----------
-    #     peaks_ws : str
-    #         Peaks table.
-    #     params : list
-    #         Cutoff radius parameters.
-
-    #     """
-
-    #     data = self.data
-
-    #     peak = PeakModel(peaks_ws)
-
-    #     n_peak = peak.get_number_peaks()
-
-    #     if make_plot:
-
-    #         plot = PeakPlot()
-
-    #     UB = self.peaks.get_UB(peaks_ws)
-
-    #     lo, lc, to, tc = params
-
-    #     for i in range(n_peak):
-
-    #         comp = '{:3.0f}%'.format(i/n_peak*100)
-    #         iters = '({:}/{:})'.format(self.run, self.runs)
-    #         proc = 'Proc {:2}:'.format(self.proc)
-
-    #         print(proc+' '+iters+' '+comp)
-
-    #         # d = peak.get_d_spacing(i)
-
-    #         h, k, l = peak.get_hkl(i)
-
-    #         wavelength = peak.get_wavelength(i)
-
-    #         angles = peak.get_angles(i)
-
-    #         two_theta, az_phi = angles
-
-    #         l_cut = lo+lc*wavelength
-    #         t_cut = to+tc*two_theta/2
-
-    #         params = peak.get_peak_shape(i, l_cut)
-
-    #         peak.set_peak_intensity(i, 0, 0)
-
-    #         det_id = peak.get_detector_id(i)
-
-    #         dQ = data.get_resolution_in_Q(wavelength, two_theta)
-
-    #         R = peak.get_goniometer_matrix(i)
-
-    #         bin_params = l_cut, t_cut, dQ, R, two_theta, az_phi, UB
-
-    #         # ---
-
-    #         bins, extents, projections = self.bin_extent(*params, *bin_params)
-
-    #         y, e, Q0, Q1, Q2 = data.bin_in_Q('md', extents, bins, projections)
-
-    #         counts = data.extract_counts('md_bin')
-
-    #         ellipsoid = PeakEllipsoid()
-
-    #         params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
-
-    #         # ---
-
-    #         for _ in range(2):
-
-    #             if params is not None:
-
-    #                 params = self.revert_ellipsoid_parameters(params,
-    #                                                           projections)
-
-    #                 bins, extents, projections = self.bin_extent(*params,
-    #                                                              *bin_params)
-
-    #                 y, e, Q0, Q1, Q2 = data.bin_in_Q('md',
-    #                                                  extents,
-    #                                                  bins,
-    #                                                  projections)
-
-    #                 counts = data.extract_counts('md_bin')
-
-    #                 ellipsoid = PeakEllipsoid()
-
-    #                 params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
-
-    #         if params is not None and det_id > 0:
-
-    #             c, S, *fitting = ellipsoid.best_fit
-
-    #             params = self.revert_ellipsoid_parameters(params, projections)
-
-    #             peak.set_peak_shape(i, *params)
-
-    #             norm_params = Q0, Q1, Q2, y, e, counts, c, S
-
-    #             I, sigma = ellipsoid.integrate_norm(*norm_params)
-
-    #             peak.set_peak_intensity(i, I, sigma)
-
-    #             peak.add_diagonstic_info(i, ellipsoid.info)
-
-    #             if make_plot:
-
-    #                 plot.add_fitting(*fitting)
-
-    #                 plot.add_profile_fit(*ellipsoid.best_prof)
-
-    #                 plot.add_projection_fit(*ellipsoid.best_proj)
-
-    #                 plot.add_ellipsoid(c, S)
-
-    #                 goniometer = peak.get_goniometer_angles(i)
-
-    #                 plot.add_peak_info(wavelength, angles, goniometer)
-
-    #                 plot.add_peak_stats(ellipsoid.redchi2)
-
-    #                 plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
-
-    #                 peak_name = peak.get_peak_name(i)
-
-    #                 plot.save_plot(self.get_plot_file(peak_name))
 
     def fit_peaks(self, key_value, make_plot=True):
 

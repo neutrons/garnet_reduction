@@ -3,7 +3,9 @@ import sys
 import traceback
 
 import multiprocess as multiprocessing
-multiprocessing.set_start_method('spawn', force=True)
+# multiprocessing.set_start_method('spawn', force=True)
+
+# from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
