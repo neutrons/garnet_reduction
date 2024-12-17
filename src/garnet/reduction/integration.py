@@ -1164,7 +1164,7 @@ class PeakEllipsoid:
 
         phi, theta, omega = self.angles(u0, u1, u2)
 
-        # C1 = params['C1']
+        C1 = params['C1']
         # C2 = params['C2']
         # C3 = params['C3']
 
@@ -1210,7 +1210,7 @@ class PeakEllipsoid:
         # b2 = B2#+C2*x1[0,:,:]+C3*x2[0,:,:]
         # b3 = B3
 
-        y1_fit = A1*y1_gauss+B1
+        y1_fit = A1*y1_gauss+B1+C1*(x0[:,0,0]-c0)
         y2_fit = A2*y2_gauss+B2
         y3_fit = A3*y3_gauss+B3
 
@@ -1595,10 +1595,10 @@ class PeakEllipsoid:
             if np.isfinite(value):
                 self.params[param].set(value=value)
 
-        # C1_max = (y1_max-y1_min)/dx0
+        C1_max = (y1_max-y1_min)/(x0[:,0,0].max()-x0[:,0,0].min())
         # C2_max = (y2_max-y2_min)/np.min([dx1,dx2])
 
-        # self.params.add('C1', value=0, min=-5*C1_max, max=5*C1_max, vary=True)
+        self.params.add('C1', value=0, min=-5*C1_max, max=5*C1_max, vary=True)
         # self.params.add('C2', value=0, min=-5*C2_max, max=5*C2_max, vary=True)
         # self.params.add('C3', value=0, min=-5*C2_max, max=5*C2_max, vary=True)
 
@@ -1692,9 +1692,9 @@ class PeakEllipsoid:
 
         self.params = result.params
 
-        self.params['A1'].set(value=y1_max)
-        self.params['A2'].set(value=y2_max)
-        self.params['A3'].set(value=y3_max)
+        # self.params['A1'].set(value=y1_max)
+        # self.params['A2'].set(value=y2_max)
+        # self.params['A3'].set(value=y3_max)
 
         # self.params['A11'].set(value=y11_max)
         # self.params['A21'].set(value=y21_max)
@@ -1702,9 +1702,9 @@ class PeakEllipsoid:
         # self.params['A12'].set(value=y12_max)
         # self.params['A22'].set(value=y22_max)
 
-        self.params['B1'].set(value=y1_min)
-        self.params['B2'].set(value=y2_min)
-        self.params['B3'].set(value=y3_min)
+        # self.params['B1'].set(value=y1_min)
+        # self.params['B2'].set(value=y2_min)
+        # self.params['B3'].set(value=y3_min)
 
         # self.params['B11'].set(value=y11_min)
         # self.params['B21'].set(value=y21_min)
@@ -1733,9 +1733,9 @@ class PeakEllipsoid:
 
         # self.params = result.params
 
-        self.params['A1'].set(value=y1_max)
-        self.params['A2'].set(value=y2_max)
-        self.params['A3'].set(value=y3_max)
+        # self.params['A1'].set(value=y1_max)
+        # self.params['A2'].set(value=y2_max)
+        # self.params['A3'].set(value=y3_max)
 
         # self.params['A11'].set(value=y11_max)
         # self.params['A21'].set(value=y21_max)
@@ -1743,9 +1743,9 @@ class PeakEllipsoid:
         # self.params['A12'].set(value=y12_max)
         # self.params['A22'].set(value=y22_max)
 
-        self.params['B1'].set(value=y1_min)
-        self.params['B2'].set(value=y2_min)
-        self.params['B3'].set(value=y3_min)
+        # self.params['B1'].set(value=y1_min)
+        # self.params['B2'].set(value=y2_min)
+        # self.params['B3'].set(value=y3_min)
 
         # self.params['B11'].set(value=y11_min)
         # self.params['B21'].set(value=y21_min)
@@ -1788,7 +1788,7 @@ class PeakEllipsoid:
 
         phi, theta, omega = self.angles(u0, u1, u2)
 
-        # C1 = self.params['C1'].value
+        C1 = self.params['C1'].value
         # C2 = self.params['C2'].value
         # C3 = self.params['C3'].value
 
@@ -1810,7 +1810,7 @@ class PeakEllipsoid:
         y2_gauss = self.gaussian(*args, '2d')
         y3_gauss = self.gaussian(*args, '3d')
 
-        y1_fit = A1*y1_gauss+B1#+C1*x0[:,0,0]
+        y1_fit = A1*y1_gauss+B1+C1*(x0[:,0,0]-c0)
         y2_fit = A2*y2_gauss+B2#+C2*x1[0,:,:]+C3*x2[0,:,:]
         y3_fit = A3*y3_gauss+B3
 
