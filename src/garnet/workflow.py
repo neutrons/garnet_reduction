@@ -18,7 +18,7 @@ from garnet.reduction.normalization import Normalization
 from garnet.reduction.data import DataModel
 from garnet.config.instruments import beamlines
 
-inst_dict = {'corelli': 'CORELLI', 
+inst_dict = {'corelli': 'CORELLI',
              'bl9': 'CORELLI',
              'topaz': 'TOPAZ',
              'bl12': 'TOPAZ',
@@ -63,8 +63,6 @@ if __name__ == '__main__':
         rp.load_plan(filename)
 
         if reduction == 'int':
-            func = Integration.integrate_parallel
-            comb = Integration.combine_parallel
             inst = Integration(rp.plan)
         elif reduction == 'norm':
             func = Normalization.normalize_parallel
@@ -80,16 +78,27 @@ if __name__ == '__main__':
 
         data = DataModel(beamlines[rp.plan['Instrument']])
         data.update_raw_path(rp.plan)
-    
-        pt = ParallelTasks(func, comb)
 
-        n_runs = len(rp.plan['Runs'])
+        if reduction == 'norm':
 
-        max_proc = min(os.cpu_count(), n_runs)
+            pt = ParallelTasks(func, comb)
 
-        if n_proc > max_proc:
-            n_proc = max_proc
+            n_runs = len(rp.plan['Runs'])
 
-        pt.run_tasks(rp.plan, n_proc)
+            max_proc = min(os.cpu_count(), n_runs)
+
+            if n_proc > max_proc:
+                n_proc = max_proc
+
+            pt.run_tasks(rp.plan, n_proc)
+
+        else:
+
+            max_proc = os.cpu_count()
+
+            if n_proc > max_proc:
+                n_proc = max_proc            
+
+            inst.integrate(n_proc)
 
         rp.save_plan(filename.replace('.yaml', '_'+reduction+'.json'))

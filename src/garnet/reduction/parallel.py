@@ -53,7 +53,7 @@ class ParallelTasks:
         os.environ['TBB_THREAD_ENABLED'] = '0'
 
         try:
-            result = pool.starmap_async(self.safe_function_wrapper, 
+            result = pool.starmap_async(self.safe_function_wrapper,
                                         join_args,
                                         error_callback=terminate_pool)
             self.results = result.get()
@@ -84,3 +84,26 @@ class ParallelTasks:
             print('Exception in worker function: {}'.format(e))
             traceback.print_exc()
             raise
+
+class ParallelProcessor:
+
+    def __init__(self, n_proc=1):
+
+        self.n_proc = n_proc
+
+    def process_item(self, key_value):
+
+        key, value = key_value
+        return key, value + 1
+
+    def process_dict(self, data, func):
+
+        func = func
+
+        if self.n_proc > 1:
+            with multiprocessing.Pool(processes=self.n_proc) as pool:
+                results = pool.map(func, data.items())
+        else:
+            results = map(func, data.items())
+
+        return dict(results)

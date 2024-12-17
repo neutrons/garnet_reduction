@@ -29,6 +29,7 @@ from garnet.reduction.ub import UBModel, Optimization, lattice_group
 from garnet.reduction.peaks import PeaksModel, PeakModel, centering_reflection
 from garnet.reduction.data import DataModel
 from garnet.reduction.plan import SubPlan
+from garnet.reduction.parallel import ParallelProcessor
 
 class Integration(SubPlan):
 
@@ -67,21 +68,22 @@ class Integration(SubPlan):
         assert self.params['MaxOrder'] >= 0
         assert type(self.params['CrossTerms']) is bool
 
-    @staticmethod
-    def integrate_parallel(plan, runs, proc):
+    def integrate(self, n_proc=1):
 
-        plan['Runs'] = runs
-        plan['ProcName'] = '_p{}'.format(proc)
+        data = DataModel(beamlines[self.plan['Instrument']])
 
-        data = DataModel(beamlines[plan['Instrument']])
-
-        instance = Integration(plan)
-        instance.proc = proc
+        instance = Integration(self.plan)
+        instance.n_proc = n_proc
 
         if data.laue:
             return instance.laue_integrate()
         else:
             return instance.monochromatic_integrate()
+
+    def integrate_peaks(self, data):
+
+        pp = ParallelProcessor(n_proc=self.n_proc)
+        return pp.process_dict(data, self.fit_peaks)
 
     def laue_integrate(self):
 
@@ -100,6 +102,8 @@ class Integration(SubPlan):
         for run in runs:
 
             self.run += 1
+
+            print('{:3}/{:3}'.format(self.run, len(runs)))
 
             data.load_data('data',
                            self.plan['IPTS'],
@@ -174,7 +178,13 @@ class Integration(SubPlan):
 
             data.save_histograms(md_file, 'md', sample_logs=True)
 
-            self.fit_peaks('peaks', params)
+            peak_dict = self.extract_peak_info('peaks', params)
+
+            results = self.integrate_peaks(peak_dict)
+
+            peak_dict = dict(results)
+
+            self.update_peak_info('peaks', peak_dict)
 
             peaks.remove_weak_peaks('peaks')
 
@@ -190,36 +200,25 @@ class Integration(SubPlan):
 
         peaks.save_peaks(output_file, 'combine')
 
-        mtd.clear()
+        # ---
 
-        return output_file
-
-    def laue_combine(self, files):
-
-        output_file = self.get_output_file()
-        result_file = self.get_file(output_file, '')
-
-        peaks = PeaksModel()
-
-        for file in files:
-
-            peaks.load_peaks(file, 'tmp')
-            peaks.combine_peaks('tmp', 'combine')
-
-        for file in files:
-            os.remove(file)
+        # result_file = self.get_file(output_file, '')
 
         if mtd.doesExist('combine'):
 
-            peaks.save_peaks(result_file, 'combine')
+            peaks.save_peaks(output_file, 'combine')
 
             opt = Optimization('combine')
             opt.optimize_lattice(self.params['Cell'])
 
-            ub_file = os.path.splitext(result_file)[0]+'.mat'
+            ub_file = os.path.splitext(output_file)[0]+'.mat'
 
             ub = UBModel('combine')
             ub.save_UB(ub_file)
+
+        mtd.clear()
+
+
 
     def monochromatic_integrate(self):
 
@@ -586,9 +585,194 @@ class Integration(SubPlan):
 
         return lo, lc, to, tc
 
-    def fit_peaks(self, peaks_ws, params, make_plot=True):
+    # def fit_peaks(self, peaks_ws, params, make_plot=True):
+    #     """
+    #     Integrate peaks.
+
+    #     Parameters
+    #     ----------
+    #     peaks_ws : str
+    #         Peaks table.
+    #     params : list
+    #         Cutoff radius parameters.
+
+    #     """
+
+    #     data = self.data
+
+    #     peak = PeakModel(peaks_ws)
+
+    #     n_peak = peak.get_number_peaks()
+
+    #     if make_plot:
+
+    #         plot = PeakPlot()
+
+    #     UB = self.peaks.get_UB(peaks_ws)
+
+    #     lo, lc, to, tc = params
+
+    #     for i in range(n_peak):
+
+    #         comp = '{:3.0f}%'.format(i/n_peak*100)
+    #         iters = '({:}/{:})'.format(self.run, self.runs)
+    #         proc = 'Proc {:2}:'.format(self.proc)
+
+    #         print(proc+' '+iters+' '+comp)
+
+    #         # d = peak.get_d_spacing(i)
+
+    #         h, k, l = peak.get_hkl(i)
+
+    #         wavelength = peak.get_wavelength(i)
+
+    #         angles = peak.get_angles(i)
+
+    #         two_theta, az_phi = angles
+
+    #         l_cut = lo+lc*wavelength
+    #         t_cut = to+tc*two_theta/2
+
+    #         params = peak.get_peak_shape(i, l_cut)
+
+    #         peak.set_peak_intensity(i, 0, 0)
+
+    #         det_id = peak.get_detector_id(i)
+
+    #         dQ = data.get_resolution_in_Q(wavelength, two_theta)
+
+    #         R = peak.get_goniometer_matrix(i)
+
+    #         bin_params = l_cut, t_cut, dQ, R, two_theta, az_phi, UB
+
+    #         # ---
+
+    #         bins, extents, projections = self.bin_extent(*params, *bin_params)
+
+    #         y, e, Q0, Q1, Q2 = data.bin_in_Q('md', extents, bins, projections)
+
+    #         counts = data.extract_counts('md_bin')
+
+    #         ellipsoid = PeakEllipsoid()
+
+    #         params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
+
+    #         # ---
+
+    #         for _ in range(2):
+
+    #             if params is not None:
+
+    #                 params = self.revert_ellipsoid_parameters(params,
+    #                                                           projections)
+
+    #                 bins, extents, projections = self.bin_extent(*params,
+    #                                                              *bin_params)
+
+    #                 y, e, Q0, Q1, Q2 = data.bin_in_Q('md',
+    #                                                  extents,
+    #                                                  bins,
+    #                                                  projections)
+
+    #                 counts = data.extract_counts('md_bin')
+
+    #                 ellipsoid = PeakEllipsoid()
+
+    #                 params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
+
+    #         if params is not None and det_id > 0:
+
+    #             c, S, *fitting = ellipsoid.best_fit
+
+    #             params = self.revert_ellipsoid_parameters(params, projections)
+
+    #             peak.set_peak_shape(i, *params)
+
+    #             norm_params = Q0, Q1, Q2, y, e, counts, c, S
+
+    #             I, sigma = ellipsoid.integrate_norm(*norm_params)
+
+    #             peak.set_peak_intensity(i, I, sigma)
+
+    #             peak.add_diagonstic_info(i, ellipsoid.info)
+
+    #             if make_plot:
+
+    #                 plot.add_fitting(*fitting)
+
+    #                 plot.add_profile_fit(*ellipsoid.best_prof)
+
+    #                 plot.add_projection_fit(*ellipsoid.best_proj)
+
+    #                 plot.add_ellipsoid(c, S)
+
+    #                 goniometer = peak.get_goniometer_angles(i)
+
+    #                 plot.add_peak_info(wavelength, angles, goniometer)
+
+    #                 plot.add_peak_stats(ellipsoid.redchi2)
+
+    #                 plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
+
+    #                 peak_name = peak.get_peak_name(i)
+
+    #                 plot.save_plot(self.get_plot_file(peak_name))
+
+    def fit_peaks(self, key_value, make_plot=True):
+
+        if make_plot:
+
+            plot = PeakPlot()
+
+        key, value = key_value
+
+        data_info, peak_info = value
+
+        Q0, Q1, Q2, counts, y, e, dQ, projections = data_info
+
+        peak_name, wavelength, angles, goniometer = peak_info
+
+        ellipsoid = PeakEllipsoid()
+
+        params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
+
+        value = None
+
+        if params is not None:
+
+            c, S, *fitting = ellipsoid.best_fit
+
+            shape = self.revert_ellipsoid_parameters(params, projections)
+
+            norm_params = Q0, Q1, Q2, y, e, counts, c, S
+
+            I, sigma = ellipsoid.integrate_norm(*norm_params)
+
+            if make_plot:
+
+                plot.add_fitting(*fitting)
+
+                plot.add_profile_fit(*ellipsoid.best_prof)
+
+                plot.add_projection_fit(*ellipsoid.best_proj)
+
+                plot.add_ellipsoid(c, S)
+
+                plot.add_peak_info(wavelength, angles, goniometer)
+
+                plot.add_peak_stats(ellipsoid.redchi2)
+
+                plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
+
+                plot.save_plot(self.get_plot_file(peak_name))
+
+            value = I, sigma, shape, ellipsoid.info
+
+        return key, value
+
+    def extract_peak_info(self, peaks_ws, params):
         """
-        Integrate peaks.
+        Obtain peak information for envelope determination.
 
         Parameters
         ----------
@@ -605,21 +789,13 @@ class Integration(SubPlan):
 
         n_peak = peak.get_number_peaks()
 
-        if make_plot:
-
-            plot = PeakPlot()
-
         UB = self.peaks.get_UB(peaks_ws)
 
         lo, lc, to, tc = params
 
+        peak_dict = {}
+
         for i in range(n_peak):
-
-            comp = '{:3.0f}%'.format(i/n_peak*100)
-            iters = '({:}/{:})'.format(self.run, self.runs)
-            proc = 'Proc {:2}:'.format(self.proc)
-
-            print(proc+' '+iters+' '+comp)
 
             # d = peak.get_d_spacing(i)
 
@@ -638,7 +814,11 @@ class Integration(SubPlan):
 
             peak.set_peak_intensity(i, 0, 0)
 
-            det_id = peak.get_detector_id(i)
+            goniometer = peak.get_goniometer_angles(i)
+
+            peak_name = peak.get_peak_name(i)
+
+            # det_id = peak.get_detector_id(i)
 
             dQ = data.get_resolution_in_Q(wavelength, two_theta)
 
@@ -654,70 +834,29 @@ class Integration(SubPlan):
 
             counts = data.extract_counts('md_bin')
 
-            ellipsoid = PeakEllipsoid()
+            data_info = (Q0, Q1, Q2, counts, y, e, dQ, projections)
 
-            params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
+            peak_info = (peak_name, wavelength, angles, goniometer)
 
-            # ---
+            peak_dict[i] = data_info, peak_info
 
-            for _ in range(2):
+        return peak_dict
 
-                if params is not None:
+    def update_peak_info(self, peaks_ws, peak_dict):
 
-                    params = self.revert_ellipsoid_parameters(params,
-                                                              projections)
+        peak = PeakModel(peaks_ws)
 
-                    bins, extents, projections = self.bin_extent(*params,
-                                                                 *bin_params)
+        for i, value in peak_dict.items():
 
-                    y, e, Q0, Q1, Q2 = data.bin_in_Q('md',
-                                                     extents,
-                                                     bins,
-                                                     projections)
+            if value is not None:
 
-                    counts = data.extract_counts('md_bin')
-
-                    ellipsoid = PeakEllipsoid()
-
-                    params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
-
-            if params is not None and det_id > 0:
-
-                c, S, *fitting = ellipsoid.best_fit
-
-                params = self.revert_ellipsoid_parameters(params, projections)
-
-                peak.set_peak_shape(i, *params)
-
-                norm_params = Q0, Q1, Q2, y, e, counts, c, S
-
-                I, sigma = ellipsoid.integrate_norm(*norm_params)
+                I, sigma, shape, info = value
 
                 peak.set_peak_intensity(i, I, sigma)
 
-                peak.add_diagonstic_info(i, ellipsoid.info)
+                peak.set_peak_shape(i, *shape)
 
-                if make_plot:
-
-                    plot.add_fitting(*fitting)
-
-                    plot.add_profile_fit(*ellipsoid.best_prof)
-
-                    plot.add_projection_fit(*ellipsoid.best_proj)
-
-                    plot.add_ellipsoid(c, S)
-
-                    goniometer = peak.get_goniometer_angles(i)
-
-                    plot.add_peak_info(wavelength, angles, goniometer)
-
-                    plot.add_peak_stats(ellipsoid.redchi2)
-
-                    plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
-
-                    peak_name = peak.get_peak_name(i)
-
-                    plot.save_plot(self.get_plot_file(peak_name))
+                peak.add_diagonstic_info(i, info)
 
     def bin_axes(self, R, two_theta, az_phi):
 
@@ -1137,7 +1276,7 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def residual(self, params, x0, x1, x2, ys, es, vs, ws, lamda=1):
+    def residual(self, params, x0, x1, x2, ys, es, vs, ws, lamda=0.01):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
@@ -1380,7 +1519,7 @@ class PeakEllipsoid:
 
         c0, c1, c2 = c
 
-        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2        
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
 
         if mode == '3d':
             inv_s = inv_S
@@ -1417,7 +1556,7 @@ class PeakEllipsoid:
             d2 = inv_s*dx**2
         elif mode == '1d2':
             dx = dx2[0,0,:]
-            d2 = inv_s*dx**2 
+            d2 = inv_s*dx**2
 
         return d2 < 1
 
@@ -1425,7 +1564,7 @@ class PeakEllipsoid:
 
     #     c0, c1, c2 = c
 
-    #     dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2        
+    #     dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
 
     #     # r = 1.2*np.max(1/np.sqrt(np.linalg.eigvalsh(inv_S)))
     #     r = np.cbrt(2*np.sqrt(1/np.linalg.det(inv_S)))
@@ -1457,7 +1596,7 @@ class PeakEllipsoid:
     #         d2 = inv_s*dx**2
     #     elif mode == '1d2':
     #         dx = dx2[0,0,:]
-    #         d2 = inv_s*dx**2 
+    #         d2 = inv_s*dx**2
 
     #     return d2 < 1
 
@@ -1828,7 +1967,11 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def fit(self, x0, x1, x2, counts, y, e, dx):
+    def fit(self, x0, x1, x2, c, y_norm, e_norm, dx):
+
+        counts = c.copy()
+        y = y_norm.copy()
+        e = e_norm.copy()
 
         self.update_constraints(x0, x1, x2, dx)
 
@@ -1839,9 +1982,9 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        # scale = np.sqrt(scipy.stats.chi2.ppf(99.7/100, df=3))
+        scale = np.sqrt(scipy.stats.chi2.ppf(99.7/100, df=3))
 
-        sigma = np.round(dx/np.array([dx0, dx1, dx2])/3).astype(int)
+        sigma = np.floor(dx/np.array([dx0, dx1, dx2])/scale).astype(int)+1
 
         counts[~mask] = 0
         counts = scipy.ndimage.gaussian_filter(counts, sigma=sigma)

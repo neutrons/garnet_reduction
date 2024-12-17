@@ -73,6 +73,7 @@ class SubPlan:
         self.plan = plan
         self.output = 'test'
         self.proc = 0
+        self.n_proc = 1
 
     def create_directories(self):
 
