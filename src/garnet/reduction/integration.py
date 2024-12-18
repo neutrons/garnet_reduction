@@ -840,19 +840,19 @@ class Integration(SubPlan):
 
         return bins, extents, projections
 
-    @staticmethod
-    def combine_parallel(plan, files):
+    # @staticmethod
+    # def combine_parallel(plan, files):
 
-        instance = Integration(plan)
+    #     instance = Integration(plan)
 
-        data = DataModel(beamlines[plan['Instrument']])
+    #     data = DataModel(beamlines[plan['Instrument']])
 
-        instance = Integration(plan)
+    #     instance = Integration(plan)
 
-        if data.laue:
-            return instance.laue_combine(files)
-        else:
-            return instance.monochromatic_combine(files)
+    #     if data.laue:
+    #         return instance.laue_combine(files)
+    #     else:
+    #         return instance.monochromatic_combine(files)
 
 
 class PeakSphere:

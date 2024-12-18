@@ -5,7 +5,7 @@ import traceback
 import multiprocess as multiprocessing
 # multiprocessing.set_start_method('spawn', force=True)
 
-# from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
@@ -93,19 +93,12 @@ class ParallelProcessor:
 
         self.n_proc = n_proc
 
-    def process_item(self, key_value):
-
-        key, value = key_value
-        return key, value + 1
-
     def process_dict(self, data, func):
 
-        func = func
-
         if self.n_proc > 1:
-            with multiprocessing.Pool(processes=self.n_proc) as pool:
-                results = pool.map(func, data.items())
+            with ProcessPoolExecutor(max_workers=self.n_proc) as executor:
+                results = executor.map(func, data.items())
         else:
-            results = map(func, data.items())
+            results = [func(k, v) for k, v in data.items()]
 
         return dict(results)
