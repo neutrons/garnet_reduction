@@ -1742,32 +1742,32 @@ class PeakEllipsoid:
 
         mask = (counts > 0) & (e > 0) & np.isfinite(counts) & np.isfinite(e)
 
-        w = 0*counts.copy()+1
-        v = e**2
+        # w = 0*counts.copy()+1
+        # v = e**2
 
-        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+        # dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        scale = np.sqrt(scipy.stats.chi2.ppf(99.7/100, df=3))
+        # scale = np.sqrt(scipy.stats.chi2.ppf(99.7/100, df=3))
 
-        sigma = np.floor(dx/np.array([dx0, dx1, dx2])/scale).astype(int)+1
+        # sigma = np.floor(dx/np.array([dx0, dx1, dx2])/scale).astype(int)+1
 
-        counts[~mask] = 0
-        counts = scipy.ndimage.gaussian_filter(counts, sigma=sigma)
+        # counts[~mask] = 0
+        # counts = scipy.ndimage.gaussian_filter(counts, sigma=sigma)
 
-        y[~mask] = 0
-        y = scipy.ndimage.gaussian_filter(y, sigma=sigma)
+        # y[~mask] = 0
+        # y = scipy.ndimage.gaussian_filter(y, sigma=sigma)
 
-        v[~mask] = 0
-        v = scipy.ndimage.gaussian_filter(v, sigma=sigma)
+        # v[~mask] = 0
+        # v = scipy.ndimage.gaussian_filter(v, sigma=sigma)
 
-        w[~mask] = 0
-        w = scipy.ndimage.gaussian_filter(w, sigma=sigma)
+        # w[~mask] = 0
+        # w = scipy.ndimage.gaussian_filter(w, sigma=sigma)
 
-        counts /= w
-        y /= w
-        v /= w
+        # counts /= w
+        # y /= w
+        # v /= w
 
-        e = np.sqrt(v)
+        # e = np.sqrt(v)
 
         counts[~mask] = np.nan
         y[~mask] = np.nan
