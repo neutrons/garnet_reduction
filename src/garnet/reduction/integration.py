@@ -1301,10 +1301,8 @@ class PeakEllipsoid:
         # penalty[~np.isfinite(penalty)] = lamda
         # penalty[np.isclose(sig, 0)] = lamda
 
-        penalty = lamda*np.array([A1, A2, A3,
-                                  B1, B2, B3,
-                                  C1, C2, C3,
-                                  r0, r1, r2])
+        penalty = lamda*np.array([B1/A1, B2/A2, B3/A3,
+                                  C1, C2, C3, r0*r1*r2])
 
         diff += penalty.tolist()
 
