@@ -1141,13 +1141,11 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def residual(self, params, x0, x1, x2, ys, es, vs, ws, lamda=1):
+    def residual(self, params, x0, x1, x2, ys, ws, lamda=1):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         y1, y2, y3, y11, y12, y21, y22 = ys
-        e1, e2, e3, e11, e12, e21, e22 = es
-        v1, v2, v3, v11, v12, v21, v22 = vs
         w1, w2, w3, w11, w12, w21, w22 = ws
 
         c0 = params['c0']
@@ -1198,47 +1196,21 @@ class PeakEllipsoid:
         y2_gauss = self.gaussian(*args, '2d')
         y3_gauss = self.gaussian(*args, '3d')
 
-        # y11_gauss = self.gaussian(*args, '1d1')
-        # y21_gauss = self.gaussian(*args, '2d1')
-
-        # y12_gauss = self.gaussian(*args, '1d2')
-        # y22_gauss = self.gaussian(*args, '2d2')
-
         diff = []
-
-        # b1 = B1#+C1*x0[:,0,0]
-        # b2 = B2#+C2*x1[0,:,:]+C3*x2[0,:,:]
-        # b3 = B3
 
         y1_fit = A1*y1_gauss+B1+C1*(x0[:,0,0]-c0)
         y2_fit = A2*y2_gauss+B2+C2*(x1[0,:,:]-c1)+C3*(x2[0,:,:]-c2)
         y3_fit = A3*y3_gauss+B3
 
-        # y11_fit = A11*y11_gauss+B11
-        # y21_fit = A21*y21_gauss+B21
-
-        # y12_fit = A12*y12_gauss+B12
-        # y22_fit = A22*y22_gauss+B22
-
-        u1 = np.sqrt(1+y1_fit**2)
-        u2 = np.sqrt(1+y2_fit**2)
-        u3 = np.sqrt(1+y3_fit**2)
-
-        # u11 = np.sqrt(1+y11_fit**2)
-        # u21 = np.sqrt(1+y21_fit**2)
-
-        # u12 = np.sqrt(1+y12_fit**2)
-        # u22 = np.sqrt(1+y22_fit**2)
-
-        res = np.arcsinh(y1*u1-y1_fit*v1)*w1
+        res = (y1-y1_fit)*w1
 
         diff += res.flatten().tolist()
 
-        res = np.arcsinh(y2*u2-y2_fit*v2)*w2
+        res = (y2-y2_fit)*w2
 
         diff += res.flatten().tolist()
 
-        res = np.arcsinh(y3*u3-y3_fit*v3)*w3
+        res = (y3-y3_fit)*w3
 
         diff += res.flatten().tolist()
 
@@ -1627,32 +1599,20 @@ class PeakEllipsoid:
         # self.params.add('B12', value=y12_min, min=-5*y12_max, max=5*y12_max)
         # self.params.add('B22', value=y22_min, min=-5*y22_max, max=5*y22_max)
 
-        v1 = np.sqrt(1+y1**2)
-        v2 = np.sqrt(1+y2**2)
-        v3 = np.sqrt(1+y3**2)
+        w1 = 1/e1/np.sqrt(e1.size)
+        w2 = 1/e2/np.sqrt(e2.size)
+        w3 = 1/e3/np.sqrt(e3.size)
 
-        v11 = np.sqrt(1+y11**2)
-        v21 = np.sqrt(1+y21**2)
+        w11 = 1/e11/np.sqrt(e11.size)
+        w21 = 1/e21/np.sqrt(e21.size)
 
-        v12 = np.sqrt(1+y12**2)
-        v22 = np.sqrt(1+y22**2)
-
-        w1 = v1/e1/np.sqrt(e1.size)
-        w2 = v2/e2/np.sqrt(e2.size)
-        w3 = v3/e3/np.sqrt(e3.size)
-
-        w11 = v11/e11/np.sqrt(e11.size)
-        w21 = v21/e21/np.sqrt(e21.size)
-
-        w12 = v12/e12/np.sqrt(e12.size)
-        w22 = v22/e22/np.sqrt(e22.size)
+        w12 = 1/e12/np.sqrt(e12.size)
+        w22 = 1/e22/np.sqrt(e22.size)
 
         ys = (y1, y2, y3, y11, y12, y21, y22)
-        es = (e1, e2, e3, e11, e12, e21, e22)
-        vs = (v1, v2, v3, v11, v12, v21, v22)
         ws = (w1, w2, w3, w11, w12, w21, w22)
 
-        args = [x0, x1, x2, ys, es, vs, ws]
+        args = [x0, x1, x2, ys, ws]
 
         # ---
 
