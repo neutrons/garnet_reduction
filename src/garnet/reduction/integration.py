@@ -1165,8 +1165,8 @@ class PeakEllipsoid:
         phi, theta, omega = self.angles(u0, u1, u2)
 
         C1 = params['C1']
-        # C2 = params['C2']
-        # C3 = params['C3']
+        C2 = params['C2']
+        C3 = params['C3']
 
         B1 = params['B1']
         B2 = params['B2']
@@ -1211,7 +1211,7 @@ class PeakEllipsoid:
         # b3 = B3
 
         y1_fit = A1*y1_gauss+B1+C1*(x0[:,0,0]-c0)
-        y2_fit = A2*y2_gauss+B2
+        y2_fit = A2*y2_gauss+B2+C2*(x1[0,:,:]-c1)+C3*(x2[0,:,:]-c2)
         y3_fit = A3*y3_gauss+B3
 
         # y11_fit = A11*y11_gauss+B11
@@ -1329,7 +1329,10 @@ class PeakEllipsoid:
         # penalty[~np.isfinite(penalty)] = lamda
         # penalty[np.isclose(sig, 0)] = lamda
 
-        penalty = lamda*np.array([A1, A2, A3, B1, B2, B3, C1, r0, r1, r2])
+        penalty = lamda*np.array([A1, A2, A3,
+                                  B1, B2, B3,
+                                  C1, C2, C3,
+                                  r0, r1, r2])
 
         diff += penalty.tolist()
 
@@ -1598,11 +1601,11 @@ class PeakEllipsoid:
                 self.params[param].set(value=value)
 
         C1_max = (y1_max-y1_min)/(x0[:,0,0].max()-x0[:,0,0].min())
-        # C2_max = (y2_max-y2_min)/np.min([dx1,dx2])
+        C2_max = (y2_max-y2_min)/np.min([dx1,dx2])
 
         self.params.add('C1', value=0, min=-5*C1_max, max=5*C1_max, vary=True)
-        # self.params.add('C2', value=0, min=-5*C2_max, max=5*C2_max, vary=True)
-        # self.params.add('C3', value=0, min=-5*C2_max, max=5*C2_max, vary=True)
+        self.params.add('C2', value=0, min=-5*C2_max, max=5*C2_max, vary=True)
+        self.params.add('C3', value=0, min=-5*C2_max, max=5*C2_max, vary=True)
 
         self.params.add('A1', value=y1_max, min=0, max=5*y1_max)
         self.params.add('A2', value=y2_max, min=0, max=5*y2_max)
@@ -1689,8 +1692,8 @@ class PeakEllipsoid:
         phi, theta, omega = self.angles(u0, u1, u2)
 
         C1 = self.params['C1'].value
-        # C2 = self.params['C2'].value
-        # C3 = self.params['C3'].value
+        C2 = self.params['C2'].value
+        C3 = self.params['C3'].value
 
         B1 = self.params['B1'].value
         B2 = self.params['B2'].value
@@ -1711,7 +1714,7 @@ class PeakEllipsoid:
         y3_gauss = self.gaussian(*args, '3d')
 
         y1_fit = A1*y1_gauss+B1+C1*(x0[:,0,0]-c0)
-        y2_fit = A2*y2_gauss+B2#+C2*x1[0,:,:]+C3*x2[0,:,:]
+        y2_fit = A2*y2_gauss+B2+C2*(x1[0,:,:]-c1)+C3*(x2[0,:,:]-c2)
         y3_fit = A3*y3_gauss+B3
 
         self.redchi2 = np.nanmean((y1_fit-y1)**2/e1**2),\
