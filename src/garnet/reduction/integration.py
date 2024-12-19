@@ -1620,6 +1620,27 @@ class PeakEllipsoid:
         self.params['c1'].set(vary=True)
         self.params['c2'].set(vary=True)
 
+        self.params['r0'].set(vary=False)
+        self.params['r1'].set(vary=False)
+        self.params['r2'].set(vary=False)
+
+        self.params['u0'].set(vary=False)
+        self.params['u1'].set(vary=False)
+        self.params['u2'].set(vary=False)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=args,
+                        nan_policy='omit')
+
+        result = out.minimize(method='least_squares')
+
+        self.params = result.params
+
+        self.params['c0'].set(vary=True)
+        self.params['c1'].set(vary=True)
+        self.params['c2'].set(vary=True)
+
         self.params['r0'].set(vary=True)
         self.params['r1'].set(vary=True)
         self.params['r2'].set(vary=True)
