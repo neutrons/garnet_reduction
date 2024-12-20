@@ -3,6 +3,7 @@ from mantid.simpleapi import (FindPeaksMD,
                               PredictSatellitePeaks,
                               CentroidPeaksMD,
                               IntegratePeaksMD,
+                              BinMD,
                               PeakIntensityVsRadius,
                               FilterPeaks,
                               SortPeaksWorkspace,
@@ -425,6 +426,57 @@ class PeaksModel:
         x = np.array(radius)
 
         return x, y, theta
+
+    def extract_peaks_roi(self, md, peaks, r_cut, n_bins=21):
+            
+        signals = []
+        weights = []
+        d2s = []
+        lamdas = []
+        
+        for peak in mtd[peaks]:
+         
+            Q = peak.getQSampleFrame()
+            lamda = peak.getWavelength()
+
+            extents = [Q[0]-r_cut, Q[0]+r_cut,
+                       Q[1]-r_cut, Q[1]+r_cut,
+                       Q[2]-r_cut, Q[2]+r_cut]
+
+            BinMD(InputWorkspace=md,
+                  AxisAligned=False,
+                  BasisVector0='Q_sample_x,Angstrom^-1,1.0,0.0,0.0',
+                  BasisVector1='Q_sample_y,Angstrom^-1,0.0,1.0,0.0',
+                  BasisVector2='Q_sample_z,Angstrom^-1,0.0,0.0,1.0',
+                  OutputExtents=extents,
+                  OutputBins=[n_bins,n_bins,n_bins],
+                  OutputWorkspace='_md_bin')
+        
+            signal = mtd['_md_bin'].getSignalArray().copy()
+            weight = 1/mtd['_md_bin'].getErrorSquaredArray()
+        
+            dims = [mtd['_md_bin'].getDimension(i)\
+                    for i in range(mtd['_md_bin'].getNumDims())]
+        
+            xs = [np.linspace(dim.getMinimum(),
+                              dim.getMaximum(),
+                              dim.getNBoundaries()) for dim in dims]
+        
+            xs = [0.5*(x[1:]+x[:-1])-Q[i] for i, x in enumerate(xs)]
+        
+            x, y, z = np.meshgrid(*xs, indexing='ij')
+        
+            mask = (signal > 0) & np.isfinite(weight)
+        
+            if mask.sum() > 5:
+        
+                d2s.append(x[mask]**2+y[mask]**2+z[mask]**2)
+                lamdas.append(lamda)
+        
+                signals.append(signal[mask])
+                weights.append(weight[mask])
+
+        return signals, weights, d2s, lamdas
 
     def get_max_d_spacing(self, ws):
         """
