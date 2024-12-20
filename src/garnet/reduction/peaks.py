@@ -268,15 +268,16 @@ class PeaksModel:
         peak_radius = mtd[peaks+'_sig/noise_vs_rad/strong'].extractX().ravel()
         sig_noise = mtd[peaks+'_sig/noise_vs_rad/strong'].extractY().ravel()
 
-        ol = mtd['peaks'].sample().getOrientedLattice()
-        hkls = mtd[peaks+'_intens_vs_rad'].getAxis(1).extractValues()
-        hkls = [np.array(hkl.split(' ')).astype(float) for hkl in hkls]
-        Q = np.array([2*np.pi/ol.d(*hkl) for hkl in hkls])
+        # ol = mtd['peaks'].sample().getOrientedLattice()
+        # hkls = mtd[peaks+'_intens_vs_rad'].getAxis(1).extractValues()
+        # hkls = [np.array(hkl.split(' ')).astype(float) for hkl in hkls]
+        lamda = np.array([peak.getWavelength() for peak in mtd['peaks']])
 
         y = mtd[peaks+'_intens_vs_rad'].extractY()
         x = mtd[peaks+'_intens_vs_rad'].extractX()
+        e = mtd[peaks+'_intens_vs_rad'].extractE()
 
-        return peak_radius, sig_noise, x, y, Q
+        return peak_radius, sig_noise, x, y, e, lamda
 
     def intensity_profile(self, md,
                                 peaks,

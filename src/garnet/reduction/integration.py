@@ -520,11 +520,21 @@ class Integration(SubPlan):
 
     def estimate_peak_size(self, peaks_ws, data_ws, r_cut):
 
-        values = self.peaks.extract_peaks_roi(data_ws, peaks_ws, r_cut)
+        params = self.peaks.intensity_vs_radius(data_ws, peaks_ws, r_cut)
+
+        r, sig_noise, x, y, e, lamda = params
+        
+        sphere = PeakSphere(r_cut)
+        
+        r_cut = sphere.fit(r, sig_noise)
+        
+        sig_noise_fit, *vals = sphere.best_fit(r)
+
+        # values = self.peaks.extract_peaks_roi(data_ws, peaks_ws, r_cut)
 
         roi = PeakRegionOfInterest(r_cut)
 
-        r = roi.fit(*values)
+        r = roi.fit(x, y, e, lamda)
 
         return r
 
@@ -765,7 +775,7 @@ class Integration(SubPlan):
                             [Q1-dQ1, Q1+dQ1],
                             [Q2-dQ2, Q2+dQ2]])
 
-        bin_sizes = np.array(dQ)/15
+        bin_sizes = np.array(dQ)/10
         #bin_sizes[bin_sizes < bin_size/2] = bin_size/2
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
@@ -796,6 +806,64 @@ class Integration(SubPlan):
     #     else:
     #         return instance.monochromatic_combine(files)
 
+# class PeakRegionOfInterest:
+
+#     def __init__(self, r_cut):
+
+#         self.params = Parameters()
+
+#         self.params.add('r0', value=r_cut/2, min=0.001, max=r_cut)
+#         self.params.add('r1', value=0, min=-r_cut, max=r_cut)
+
+#     def objective(self, params, signals, weights, d2s, lamdas):
+
+#         r0 = params['r0']
+#         r1 = params['r1']
+
+#         cost = []
+
+#         for signal, weight, d2, lamda in zip(signals, weights, d2s, lamdas):
+
+#             mu = (r0+r1*lamda)/3.76205
+
+#             fit = np.exp(-0.5*d2/mu**2)
+
+#             S = np.nansum(weight)
+#             M = np.nansum(weight*fit)
+#             M2 = np.nansum(weight*fit**2)
+#             S1 = np.nansum(weight*signal)
+#             S2 = np.nansum(weight*fit*signal)
+#             W = np.nansum(signal)
+
+#             denominator = M2*S-M**2
+#             A = (S2*S-S1*M)/denominator
+#             B = (M2*S1-S2*M)/denominator
+
+#             residuals = A*fit+B-signal
+
+#             cost.append(np.nansum(weight*residuals**2)/(fit.size-2)*W)
+
+#         cost = np.array(cost)
+
+#         return cost
+
+#     def fit(self, signals, weights, d2s, lamdas):
+
+#         if np.max(lamdas)-np.min(lamdas) < 0.2:
+#             self.params['r1'].set(vary=False)
+
+#         out = Minimizer(self.objective,
+#                         self.params,
+#                         fcn_args=(signals, weights, d2s, lamdas),
+#                         nan_policy='omit')
+
+#         result = out.minimize(method='least_squares')
+
+#         self.params = result.params
+
+#         return result.params['r0'].value, result.params['r1'].value
+
+
 class PeakRegionOfInterest:
 
     def __init__(self, r_cut):
@@ -805,53 +873,105 @@ class PeakRegionOfInterest:
         self.params.add('r0', value=r_cut/2, min=0.001, max=r_cut)
         self.params.add('r1', value=0, min=-r_cut, max=r_cut)
 
-    def objective(self, params, signals, weights, d2s, lamdas):
+    def objective(self, params, x, y, e, lamda):
 
         r0 = params['r0']
         r1 = params['r1']
 
-        cost = []
+        sigma = (r0+r1*lamda[:,np.newaxis])/3.76205
 
-        for signal, weight, d2, lamda in zip(signals, weights, d2s, lamdas):
+        z = x/sigma
 
-            mu = (r0+r1*lamda)/3.76205
+        y_hat = scipy.special.erf(z/np.sqrt(2))\
+              - np.sqrt(2/np.pi)*z*np.exp(-0.5*z**2)
 
-            fit = np.exp(-0.5*d2/mu**2)
+        num = np.nansum(1/e**2*y_hat*y, axis=1)
+        den = np.nansum(1/e**2*y_hat**2, axis=1)
+        # wgt = np.nanmax(y, axis=1)
 
-            S = np.nansum(weight)
-            M = np.nansum(weight*fit)
-            M2 = np.nansum(weight*fit**2)
-            S1 = np.nansum(weight*signal)
-            S2 = np.nansum(weight*fit*signal)
-            W = np.nansum(signal)
+        A = num/den
 
-            denominator = M2*S-M**2
-            A = (S2*S-S1*M)/denominator
-            B = (M2*S1-S2*M)/denominator
+        residuals = A[:,np.newaxis]*y_hat-y
 
-            residuals = A*fit+B-signal
+        return residuals#*wgt[:,np.newaxis]
 
-            cost.append(np.nansum(weight*residuals**2)/(fit.size-2)*W)
+        # cost = np.nansum((weight*residuals**2)/(fit.size-2)*wgt)
 
-        cost = np.array(cost)
+    def fit(self, x, y, e, lamda):
 
-        return cost
-
-    def fit(self, signals, weights, d2s, lamdas):
-
-        if np.max(lamdas)-np.min(lamdas) < 0.2:
+        if np.max(lamda)-np.min(lamda) < 0.2:
             self.params['r1'].set(vary=False)
 
         out = Minimizer(self.objective,
                         self.params,
-                        fcn_args=(signals, weights, d2s, lamdas),
+                        fcn_args=(x, y, e, lamda),
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares')
+        result = out.minimize(method='least_squares', loss='soft_l1')
 
         self.params = result.params
 
         return result.params['r0'].value, result.params['r1'].value
+
+
+class PeakSphere:
+
+    def __init__(self, r_cut):
+
+        self.params = Parameters()
+
+        if np.isclose(r_cut, 0.04) or r_cut < 0.04:
+            r_cut = 0.2
+
+        self.params.add('sigma', value=r_cut/6, min=0.01, max=r_cut/4)
+
+    def model(self, x, A, sigma):
+
+        z = x/sigma
+
+        return A*(scipy.special.erf(z/np.sqrt(2)) -
+                  np.sqrt(2/np.pi)*z*np.exp(-0.5*z**2))
+
+    def residual(self, params, x, y):
+
+        A = params['A']
+        sigma = params['sigma']
+
+        y_fit = self.model(x, A, sigma)
+
+        diff = y_fit-y
+        diff[~np.isfinite(diff)] = 1e9
+
+        return diff
+
+    def fit(self, x, y):
+
+        y_max = np.max(y)
+
+        y[y < 0] = 0
+
+        if np.isclose(y_max, 0):
+            y_max = np.inf
+
+        self.params.add('A', value=y_max, min=0, max=100*y_max, vary=True)
+
+        out = Minimizer(self.residual,
+                        self.params,
+                        fcn_args=(x, y),
+                        nan_policy='omit')
+
+        result = out.minimize(method='least_squares', loss='soft_l1')
+
+        self.params = result.params
+
+        return 3.76205*result.params['sigma'].value
+
+    def best_fit(self, r):
+
+        A = self.params['A'].value
+        sigma = self.params['sigma'].value
+
+        return self.model(r, A, sigma), A, sigma
 
 
 class PeakEllipsoid:
@@ -1475,7 +1595,7 @@ class PeakEllipsoid:
 
         out = Minimizer(self.residual,
                         self.params,
-                        fcn_args=args+[0.001],
+                        fcn_args=args+[0.0001],
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares')
