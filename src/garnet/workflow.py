@@ -63,6 +63,8 @@ if __name__ == '__main__':
         rp.load_plan(filename)
 
         if reduction == 'int':
+            func = Integration.integrate_parallel
+            comb = Integration.combine_parallel
             inst = Integration(rp.plan)
         elif reduction == 'norm':
             func = Normalization.normalize_parallel
@@ -79,26 +81,40 @@ if __name__ == '__main__':
         data = DataModel(beamlines[rp.plan['Instrument']])
         data.update_raw_path(rp.plan)
 
-        if reduction == 'norm':
+        pt = ParallelTasks(func, comb)
 
-            pt = ParallelTasks(func, comb)
+        n_runs = len(rp.plan['Runs'])
 
-            n_runs = len(rp.plan['Runs'])
+        max_proc = min(os.cpu_count(), n_runs)
 
-            max_proc = min(os.cpu_count(), n_runs)
+        if n_proc > max_proc:
+            n_proc = max_proc
 
-            if n_proc > max_proc:
-                n_proc = max_proc
+        # n_proc_1 = (n_proc + 1) // 2
+        # n_proc_2 = n_proc // 2 
 
-            pt.run_tasks(rp.plan, n_proc)
+        pt.run_tasks(rp.plan, n_proc)
 
-        else:
+        # if reduction == 'norm':
 
-            max_proc = os.cpu_count()
+        #     pt = ParallelTasks(func, comb)
 
-            if n_proc > max_proc:
-                n_proc = max_proc            
+        #     n_runs = len(rp.plan['Runs'])
 
-            inst.integrate(n_proc)
+        #     max_proc = min(os.cpu_count(), n_runs)
+
+        #     if n_proc > max_proc:
+        #         n_proc = max_proc
+
+        #     pt.run_tasks(rp.plan, n_proc)
+
+        # else:
+
+        #     max_proc = os.cpu_count()
+
+        #     if n_proc > max_proc:
+        #         n_proc = max_proc            
+
+        #     inst.integrate(n_proc)
 
         rp.save_plan(filename.replace('.yaml', '_'+reduction+'.json'))

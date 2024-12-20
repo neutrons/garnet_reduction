@@ -3,7 +3,7 @@ import sys
 import traceback
 
 import multiprocess as multiprocessing
-# multiprocessing.set_start_method('spawn', force=True)
+multiprocessing.set_start_method('spawn', force=True)
 
 from concurrent.futures import ProcessPoolExecutor
 
@@ -12,7 +12,7 @@ np.seterr(divide='ignore', invalid='ignore')
 
 from mantid import config
 config['Q.convention'] = 'Crystallography'
-config.setLogLevel(0, quiet=True)
+# config.setLogLevel(0, quiet=True)
 
 class ParallelTasks:
 
@@ -99,6 +99,6 @@ class ParallelProcessor:
             with ProcessPoolExecutor(max_workers=self.n_proc) as executor:
                 results = executor.map(func, data.items())
         else:
-            results = [func(k, v) for k, v in data.items()]
+            results = [func(kv) for kv in data.items()]
 
         return dict(results)

@@ -429,14 +429,14 @@ class PeaksModel:
         return x, y, theta
 
     def extract_peaks_roi(self, md, peaks, r_cut, n_bins=21):
-            
+
         signals = []
         weights = []
         d2s = []
         lamdas = []
-        
+
         for peak in mtd[peaks]:
-         
+
             Q = peak.getQSampleFrame()
             lamda = peak.getWavelength()
 
@@ -452,28 +452,28 @@ class PeaksModel:
                   OutputExtents=extents,
                   OutputBins=[n_bins,n_bins,n_bins],
                   OutputWorkspace='_md_bin')
-        
+
             signal = mtd['_md_bin'].getSignalArray().copy()
             weight = 1/mtd['_md_bin'].getErrorSquaredArray()
-        
+
             dims = [mtd['_md_bin'].getDimension(i)\
                     for i in range(mtd['_md_bin'].getNumDims())]
-        
+
             xs = [np.linspace(dim.getMinimum(),
                               dim.getMaximum(),
                               dim.getNBoundaries()) for dim in dims]
-        
+
             xs = [0.5*(x[1:]+x[:-1])-Q[i] for i, x in enumerate(xs)]
-        
+
             x, y, z = np.meshgrid(*xs, indexing='ij')
-        
+
             mask = (signal > 0) & np.isfinite(weight)
-        
+
             if mask.sum() > 5:
-        
+
                 d2s.append(x[mask]**2+y[mask]**2+z[mask]**2)
                 lamdas.append(lamda)
-        
+
                 signals.append(signal[mask])
                 weights.append(weight[mask])
 
@@ -587,7 +587,7 @@ class PeaksModel:
 
         for i, refl_cond in enumerate(refl_conds):
 
-            peaks_cond = peaks+'_{}'.format(refl_cond)            
+            peaks_cond = peaks+'_{}'.format(refl_cond)
 
             PredictPeaks(InputWorkspace=ws,
                          WavelengthMin=lamda_min,
@@ -911,7 +911,7 @@ class PeaksModel:
             merge_run = mtd[merge].run()
             peaks_run = mtd[peaks].run()
 
-            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p', 
+            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
                     'vol', 'bkg', 'bkg_err', 'intens', 'sig']
 
             for key in keys:

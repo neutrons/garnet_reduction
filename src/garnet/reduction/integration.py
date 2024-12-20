@@ -23,7 +23,7 @@ os.environ['NUMEXPR_NUM_THREADS'] = '1'
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['TBB_THREAD_ENABLED'] = '0'
 
-from garnet.plots.peaks import RadiusPlot, PeakPlot
+from garnet.plots.peaks import PeakPlot
 from garnet.config.instruments import beamlines
 from garnet.reduction.ub import UBModel, Optimization, lattice_group
 from garnet.reduction.peaks import PeaksModel, PeakModel, centering_reflection
@@ -68,17 +68,34 @@ class Integration(SubPlan):
         assert self.params['MaxOrder'] >= 0
         assert type(self.params['CrossTerms']) is bool
 
-    def integrate(self, n_proc=1):
+    @staticmethod
+    def integrate_parallel(plan, runs, proc):
 
-        data = DataModel(beamlines[self.plan['Instrument']])
+        plan['Runs'] = runs
+        plan['ProcName'] = '_p{}'.format(proc)
 
-        instance = Integration(self.plan)
-        instance.n_proc = n_proc
+        data = DataModel(beamlines[plan['Instrument']])
+
+        instance = Integration(plan)
+        instance.proc = proc
+        instance.n_proc = 1
 
         if data.laue:
             return instance.laue_integrate()
         else:
             return instance.monochromatic_integrate()
+
+    # def integrate(self, n_proc=1):
+
+    #     data = DataModel(beamlines[self.plan['Instrument']])
+
+    #     instance = Integration(self.plan)
+    #     instance.n_proc = n_proc
+
+    #     if data.laue:
+    #         return instance.laue_integrate()
+    #     else:
+    #         return instance.monochromatic_integrate()
 
     def integrate_peaks(self, data):
 
@@ -103,7 +120,7 @@ class Integration(SubPlan):
 
             self.run += 1
 
-            print('{:3}/{:3}'.format(self.run, len(runs)))
+            print('{}: {:}/{:}'.format(self.proc, self.run, len(runs)))
 
             data.load_data('data',
                            self.plan['IPTS'],
@@ -198,25 +215,45 @@ class Integration(SubPlan):
 
             data.delete_workspace('md')
 
-        result_file = self.get_file(output_file, '')
+        # result_file = self.get_file(output_file, '')
 
-        peaks.save_peaks(result_file, 'combine')
+        peaks.save_peaks(output_file, 'combine')
 
         # ---
 
-        if mtd.doesExist('combine'):
+        # if mtd.doesExist('combine'):
 
-            opt = Optimization('combine')
-            opt.optimize_lattice(self.params['Cell'])
+        #     opt = Optimization('combine')
+        #     opt.optimize_lattice(self.params['Cell'])
 
-            ub_file = os.path.splitext(output_file)[0]+'.mat'
+        #     ub_file = os.path.splitext(output_file)[0]+'.mat'
 
-            ub = UBModel('combine')
-            ub.save_UB(ub_file)
+        #     ub = UBModel('combine')
+        #     ub.save_UB(ub_file)
 
         mtd.clear()
 
+    def laue_combine(self, files):
 
+        output_file = self.get_output_file()
+
+        peaks = PeaksModel()
+
+        for file in files:
+            peaks.load_peaks(file, "tmp")
+            peaks.combine_peaks("tmp", "combine")
+            os.remove(file)
+
+        if mtd.doesExist("combine"):
+            peaks.save_peaks(output_file, "combine")
+
+            opt = Optimization("combine")
+            opt.optimize_lattice(self.params["Cell"])
+
+            ub_file = os.path.splitext(output_file)[0] + ".mat"
+
+            ub = UBModel("combine")
+            ub.save_UB(ub_file)
 
     def monochromatic_integrate(self):
 
@@ -776,7 +813,7 @@ class Integration(SubPlan):
                             [Q2-dQ2, Q2+dQ2]])
 
         bin_sizes = np.array(dQ)/10
-        #bin_sizes[bin_sizes < bin_size/2] = bin_size/2
+        bin_sizes[bin_sizes < bin_size/2] = bin_size/2
 
         min_adjusted = np.floor(extents[:,0]/bin_sizes)*bin_sizes
         max_adjusted = np.ceil(extents[:,1]/bin_sizes)*bin_sizes
@@ -792,19 +829,19 @@ class Integration(SubPlan):
 
         return bins, extents, projections
 
-    # @staticmethod
-    # def combine_parallel(plan, files):
+    @staticmethod
+    def combine_parallel(plan, files):
 
-    #     instance = Integration(plan)
+        instance = Integration(plan)
 
-    #     data = DataModel(beamlines[plan['Instrument']])
+        data = DataModel(beamlines[plan['Instrument']])
 
-    #     instance = Integration(plan)
+        instance = Integration(plan)
 
-    #     if data.laue:
-    #         return instance.laue_combine(files)
-    #     else:
-    #         return instance.monochromatic_combine(files)
+        if data.laue:
+            return instance.laue_combine(files)
+        else:
+            return instance.monochromatic_combine(files)
 
 # class PeakRegionOfInterest:
 
@@ -870,7 +907,7 @@ class PeakRegionOfInterest:
 
         self.params = Parameters()
 
-        self.params.add('r0', value=r_cut/2, min=0.001, max=r_cut)
+        self.params.add('r0', value=r_cut/2, min=0.001, max=2*r_cut)
         self.params.add('r1', value=0, min=-r_cut, max=r_cut)
 
     def objective(self, params, x, y, e, lamda):
@@ -1595,7 +1632,7 @@ class PeakEllipsoid:
 
         out = Minimizer(self.residual,
                         self.params,
-                        fcn_args=args+[0.0001],
+                        fcn_args=args+[0.1],
                         nan_policy='omit')
 
         result = out.minimize(method='least_squares')
