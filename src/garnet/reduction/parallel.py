@@ -2,8 +2,8 @@ import os
 import sys
 import traceback
 
-import multiprocess as multiprocessing
-multiprocessing.set_start_method('spawn', force=True)
+import concurrent.futures
+import multiprocessing
 
 from concurrent.futures import ProcessPoolExecutor
 
@@ -12,19 +12,18 @@ np.seterr(divide='ignore', invalid='ignore')
 
 from mantid import config
 config['Q.convention'] = 'Crystallography'
-# config.setLogLevel(0, quiet=True)
+config.setLogLevel(0, quiet=True)
 
 class ParallelTasks:
 
     def __init__(self, function, combine=None):
-
         self.function = function
         self.combine = combine
         self.results = None
 
     def run_tasks(self, plan, n_proc):
         """
-        Run parallel tasks with processing pool.
+        Run parallel tasks with concurrent futures.
 
         Parameters
         ----------
@@ -37,53 +36,57 @@ class ParallelTasks:
 
         runs = plan['Runs']
 
-        pool = multiprocessing.Pool(processes=n_proc)
-
-        def terminate_pool(e):
-            print(e)
-            pool.terminate()
-
         split = [split.tolist() for split in np.array_split(runs, n_proc)]
-
         join_args = [(plan, s, proc) for proc, s in enumerate(split)]
 
-        config['MultiThreaded.MaxCores'] == '1'
+        config['MultiThreaded.MaxCores'] = '1'
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
         os.environ['MKL_NUM_THREADS'] = '1'
         os.environ['NUMEXPR_NUM_THREADS'] = '1'
         os.environ['OMP_NUM_THREADS'] = '1'
         os.environ['TBB_THREAD_ENABLED'] = '0'
 
+        mp_context = multiprocessing.get_context('spawn')
+                                       
         try:
-            result = pool.starmap_async(self.safe_function_wrapper,
-                                        join_args,
-                                        error_callback=terminate_pool)
-            self.results = result.get()
+            with ProcessPoolExecutor(max_workers=n_proc,
+                                     mp_context=mp_context) as executor:
+                future_to_task = {
+                    executor.submit(self.safe_function_wrapper, *args):
+                        args for args in join_args
+                    }
+                self.results = []
+
+                for future in concurrent.futures.as_completed(future_to_task):
+                    try:
+                        self.results.append(future.result())
+                    except Exception as e:
+                        print(f"Exception in worker function: {e}")
+                        traceback.print_exc()
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        sys.exit(1)
+
         except Exception as e:
-            print('Exception in pool: {}'.format(e))
+            print(f"Exception in pool: {e}")
             traceback.print_exc()
-            pool.terminate()
-            sys.exit()
+            sys.exit(1)
 
-        pool.close()
-        pool.join()
-
-        config['MultiThreaded.MaxCores'] == '4'
-        os.environ.pop('OPENBLAS_NUM_THREADS')
-        os.environ.pop('MKL_NUM_THREADS')
-        os.environ.pop('NUMEXPR_NUM_THREADS')
-        os.environ.pop('OMP_NUM_THREADS')
-        os.environ.pop('TBB_THREAD_ENABLED')
+        finally:
+            config['MultiThreaded.MaxCores'] = '4'
+            os.environ.pop('OPENBLAS_NUM_THREADS', None)
+            os.environ.pop('MKL_NUM_THREADS', None)
+            os.environ.pop('NUMEXPR_NUM_THREADS', None)
+            os.environ.pop('OMP_NUM_THREADS', None)
+            os.environ.pop('TBB_THREAD_ENABLED', None)
 
         if self.combine is not None:
             self.combine(plan, self.results)
 
     def safe_function_wrapper(self, *args, **kwargs):
-
         try:
             return self.function(*args, **kwargs)
         except Exception as e:
-            print('Exception in worker function: {}'.format(e))
+            print(f"Exception in worker function: {e}")
             traceback.print_exc()
             raise
 
