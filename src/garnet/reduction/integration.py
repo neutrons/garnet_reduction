@@ -233,6 +233,8 @@ class Integration(SubPlan):
 
         mtd.clear()
 
+        return output_file
+
     def laue_combine(self, files):
 
         output_file = self.get_output_file()
