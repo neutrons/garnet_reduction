@@ -236,23 +236,28 @@ class Integration(SubPlan):
     def laue_combine(self, files):
 
         output_file = self.get_output_file()
+        result_file = self.get_file(output_file, '')
 
         peaks = PeaksModel()
 
         for file in files:
-            peaks.load_peaks(file, "tmp")
-            peaks.combine_peaks("tmp", "combine")
+
+            peaks.load_peaks(file, 'tmp')
+            peaks.combine_peaks('tmp', 'combine')
+
+        for file in files:
             os.remove(file)
 
-        if mtd.doesExist("combine"):
-            peaks.save_peaks(output_file, "combine")
+        if mtd.doesExist('combine'):
 
-            opt = Optimization("combine")
-            opt.optimize_lattice(self.params["Cell"])
+            peaks.save_peaks(result_file, 'combine')
 
-            ub_file = os.path.splitext(output_file)[0] + ".mat"
+            opt = Optimization('combine')
+            opt.optimize_lattice(self.params['Cell'])
 
-            ub = UBModel("combine")
+            ub_file = os.path.splitext(result_file)[0]+'.mat'
+
+            ub = UBModel('combine')
             ub.save_UB(ub_file)
 
     def monochromatic_integrate(self):
