@@ -575,7 +575,7 @@ class Integration(SubPlan):
 
         return r
 
-    def fit_peaks(self, key_value, make_plot=True):
+    def fit_peaks(self, key_value, make_plot=False):
 
         if make_plot:
 
@@ -967,15 +967,17 @@ class PeakEllipsoid:
 
     def update_constraints(self, x0, x1, x2, dx):
 
-        r0 = (x0[:,0,0][-1]-x0[:,0,0][0])/4
-        r1 = (x1[0,:,0][-1]-x1[0,:,0][0])/4
-        r2 = (x2[0,0,:][-1]-x2[0,0,:][0])/4
+        r0 = (x0[:,0,0][-1]-x0[:,0,0][0])/8
+        r1 = (x1[0,:,0][-1]-x1[0,:,0][0])/8
+        r2 = (x2[0,0,:][-1]-x2[0,0,:][0])/8
 
-        r0_max = (x0[:,0,0][-1]-x0[:,0,0][0])#/2
-        r1_max = (x1[0,:,0][-1]-x1[0,:,0][0])#/2
-        r2_max = (x2[0,0,:][-1]-x2[0,0,:][0])#/2
+        r0_max = (x0[:,0,0][-1]-x0[:,0,0][0])/2
+        r1_max = (x1[0,:,0][-1]-x1[0,:,0][0])/2
+        r2_max = (x2[0,0,:][-1]-x2[0,0,:][0])/2
 
-        c0, c1, c2 = x0[:,0,0].mean(), x1[0,:,0].mean(), x2[0,0,:].mean()
+        c0 = (x0[:,0,0][-1]+x0[:,0,0][0])/2
+        c1 = (x1[0,:,0][-1]+x1[0,:,0][0])/2
+        c2 = (x2[0,0,:][-1]+x2[0,0,:][0])/2
 
         c0_min, c1_min, c2_min = x0[0,0,0], x1[0,0,0], x2[0,0,0]
         c0_max, c1_max, c2_max = x0[-1,0,0], x1[0,-1,0], x2[0,0,-1]
@@ -1053,7 +1055,7 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def residual(self, params, x0, x1, x2, ys, ws, ss, lamda=0.1):
+    def residual(self, params, x0, x1, x2, ys, ws, ss, lamda=0.001):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
@@ -1537,7 +1539,7 @@ class PeakEllipsoid:
                         fcn_args=args+ss,
                         nan_policy='omit')
 
-        result = out.minimize(method='leastsq')
+        result = out.minimize(method='least_squares')
 
         self.params = result.params
 
