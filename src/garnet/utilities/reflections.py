@@ -23,8 +23,6 @@ filename = '/SNS/CORELLI/IPTS-31429/shared/Fe2Mo3O8/integration_base/Fe2Mo3O8_in
 LoadNexus(Filename=filename,
           OutputWorkspace='peaks')
 
-
-
 for i, peak in enumerate(mtd['peaks']):
     row = peak.getRow()
     col = peak.getCol()

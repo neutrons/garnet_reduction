@@ -352,24 +352,43 @@ class PeakPlot(BasePlot):
         x, y = np.meshgrid(x, y)
         z = np.sin(np.sqrt(x**2+y**2))
 
-        ax = self.fig.add_subplot(gs[0], projection='3d')
+        ax = self.fig.add_subplot(gs[0])
         ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
         ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
 
-        surf = ax.plot_surface(x, y, z, cmap='viridis', edgecolor='none')
-        ax.set_aspect('equalxy')
+        surf = ax.imshow(z.T,
+                         extent=(0, 5, 0, 6),
+                         origin='lower',
+                         interpolation='nearest')
+        ax.set_aspect(1)
+        ax.minorticks_on()
 
         self.proj.append(ax)
         self.proj_surf.append(surf)
 
-        ax = self.fig.add_subplot(gs[1], projection='3d')
+        ax = self.fig.add_subplot(gs[1])
         ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
-        ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
+        # ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
 
-        surf = ax.plot_surface(x, y, z, cmap='viridis', edgecolor='none')
+        surf = ax.imshow(z.T,
+                         extent=(0, 5, 0, 6),
+                         origin='lower',
+                         interpolation='nearest')
+        ax.set_aspect(1)
+        ax.minorticks_on()
 
         self.proj.append(ax)
         self.proj_surf.append(surf)
+
+        norm = Normalize(0, 29)
+        im = ScalarMappable(norm=norm)
+
+        self.cb_surf = self.fig.colorbar(im,
+                                         ax=self.proj,
+                                         orientation='vertical')
+        self.cb_surf.ax.minorticks_on()
+        self.cb_surf.formatter.set_powerlimits((0, 0))
+        self.cb_surf.formatter.set_useMathText(True)
 
     def __init_norm(self):
 
@@ -493,29 +512,31 @@ class PeakPlot(BasePlot):
         mask = np.isfinite(y)
         y_fit[~mask] = np.nan
 
-        self.proj_surf[0].remove()
-        self.proj_surf[1].remove()
+        d0 = 0.5*(x0[1,0]-x0[0,0])
+        d1 = 0.5*(x1[0,1]-x1[0,0])
 
-        self.proj_surf[0] = self.proj[0].plot_surface(x0,
-                                                      x1,
-                                                      y,
-                                                      cmap='viridis',
-                                                      edgecolor='none')
+        x0_min, x0_max = x0[0,0]-d0, x0[-1,0]+d0
+        x1_min, x1_max = x1[0,0]-d1, x1[0,-1]+d1
 
-        self.proj_surf[1] = self.proj[1].plot_surface(x0,
-                                                      x1,
-                                                      y_fit,
-                                                      cmap='viridis',
-                                                      edgecolor='none')
+        vmin, vmax = np.nanmin(y), np.nanmax(y)
 
-        self.proj[0].set_aspect('equalxy')
-        self.proj[1].set_aspect('equalxy')
+        self.proj_surf[0].set_data(y.T)
+        self.proj_surf[0].set_extent((x0_min, x0_max, x1_min, x1_max))
+        self.proj_surf[0].set_clim(vmin, vmax)
 
-        vmin, vmax = self._color_limits(y)
+        # ---
 
-        self.proj[0].set_zlim(vmin, vmax)
-        self.proj[1].set_zlim(vmin, vmax)
+        vmin, vmax = np.nanmin(y_fit), np.nanmax(y_fit)
 
+        self.proj_surf[1].set_data(y_fit.T)
+        self.proj_surf[1].set_extent((x0_min, x0_max, x1_min, x1_max))
+        self.proj_surf[1].set_clim(vmin, vmax)
+
+        self.cb_surf.update_normal(self.proj_surf[1])
+        self.cb_surf.ax.minorticks_on()
+        self.cb_surf.formatter.set_powerlimits((0, 0))
+        self.cb_surf.formatter.set_useMathText(True)
+        
     def add_data_norm_fit(self, xye, params):
 
         axes, bins, y = xye
@@ -763,40 +784,6 @@ class PeakPlot(BasePlot):
         for el, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
             self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
 
-    # def add_sphere(self, c, S):
-    #     """
-    #     Draw sphere envelopes.
-
-    #     Parameters
-    #     ----------
-    #     c : 1d-array
-    #         3 component center.
-    #     S : 2d-array
-    #         3x3 covariance matrix.
-
-    #     """
-
-    #     # r = 1.2*np.max(np.sqrt(np.linalg.eigvalsh(S)))
-    #     r = np.cbrt(2*np.sqrt(np.linalg.det(S)))
-
-    #     for sp, ax in zip(self.ellip_sp[0:2], self.ellip[0:2]):
-    #         self._update_circle(sp, ax, c[0], c[1], r)
-
-    #     for sp, ax in zip(self.ellip_sp[2:4], self.ellip[2:4]):
-    #         self._update_circle(sp, ax, c[0], c[2], r)
-
-    #     for sp, ax in zip(self.ellip_sp[4:6], self.ellip[4:6]):
-    #         self._update_circle(sp, ax, c[1], c[2], r)
-
-    #     for sp, ax in zip(self.norm_sp[0:1], self.norm[0:1]):
-    #         self._update_circle(sp, ax, c[0], c[1], r)
-
-    #     for sp, ax in zip(self.norm_sp[1:2], self.norm[1:2]):
-    #         self._update_circle(sp, ax, c[0], c[2], r)
-
-    #     for sp, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
-    #         self._update_circle(sp, ax, c[1], c[2], r)
-
     def _update_ellipse(self, ellipse, ax, cx, cy, rx, ry, rho):
 
         ellipse.set_center((0, 0))
@@ -816,21 +803,6 @@ class PeakPlot(BasePlot):
         trans.rotate_deg(45).scale(rx, ry).translate(cx, cy)
 
         ellipse.set_transform(trans+ax.transData)
-
-    # def _update_circle(self, circle, ax, cx, cy, r):
-
-    #     circle.set_center((0, 0))
-
-    #     circle.width = 2
-    #     circle.height = 2
-
-    #     if np.isclose(r, 0):
-    #         r = 1
-
-    #     trans = Affine2D()
-    #     trans.rotate_deg(45).scale(r, r).translate(cx, cy)
-
-    #     circle.set_transform(trans+ax.transData)
 
     def _draw_ellipse(self, ax, cx, cy, rx, ry, rho, color='w'):
         """
@@ -863,36 +835,6 @@ class PeakPlot(BasePlot):
         ax.add_patch(peak)
 
         return peak
-
-    # def _draw_circle(self, ax, cx, cy, r, color='w'):
-    #     """
-    #     Draw circle with center, size, and orientation.
-
-    #     Parameters
-    #     ----------
-    #     ax : axis
-    #         Plot axis.
-    #     cx, cy : float
-    #         Center.
-    #     r : float
-    #         Radius.
-
-    #     """
-
-    #     peak = Ellipse((0, 0),
-    #                    width=2,
-    #                    height=2,
-    #                    linestyle='--',
-    #                    edgecolor=color,
-    #                    facecolor='none',
-    #                    rasterized=False,
-    #                    zorder=100)
-
-    #     self._update_circle(peak, ax, cx, cy, 1)
-
-    #     ax.add_patch(peak)
-
-    #     return peak
 
     def _update_intersecting_line(self, line, ax, x0, y0):
 

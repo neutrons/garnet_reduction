@@ -16,12 +16,12 @@ from mantid.simpleapi import mtd
 from mantid import config
 config['Q.convention'] = 'Crystallography'
 
-config['MultiThreaded.MaxCores'] == '1'
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-os.environ['MKL_NUM_THREADS'] = '1'
-os.environ['NUMEXPR_NUM_THREADS'] = '1'
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['TBB_THREAD_ENABLED'] = '0'
+# config['MultiThreaded.MaxCores'] == '1'
+# os.environ['OPENBLAS_NUM_THREADS'] = '1'
+# os.environ['MKL_NUM_THREADS'] = '1'
+# os.environ['NUMEXPR_NUM_THREADS'] = '1'
+# os.environ['OMP_NUM_THREADS'] = '1'
+# os.environ['TBB_THREAD_ENABLED'] = '0'
 
 from garnet.plots.peaks import PeakPlot
 from garnet.config.instruments import beamlines
@@ -85,17 +85,17 @@ class Integration(SubPlan):
         else:
             return instance.monochromatic_integrate()
 
-    # def integrate(self, n_proc=1):
+    def integrate(self, n_proc=1):
 
-    #     data = DataModel(beamlines[self.plan['Instrument']])
+        data = DataModel(beamlines[self.plan['Instrument']])
 
-    #     instance = Integration(self.plan)
-    #     instance.n_proc = n_proc
+        instance = Integration(self.plan)
+        instance.n_proc = n_proc
 
-    #     if data.laue:
-    #         return instance.laue_integrate()
-    #     else:
-    #         return instance.monochromatic_integrate()
+        if data.laue:
+            return instance.laue_integrate()
+        else:
+            return instance.monochromatic_integrate()
 
     def integrate_peaks(self, data):
 
@@ -141,7 +141,7 @@ class Integration(SubPlan):
 
             data.apply_mask('data', self.plan.get('MaskFile'))
 
-            data.load_background(self.plan['BackgroundFile'], 'data')
+            data.load_background(self.plan.get('BackgroundFile'), 'data')
 
             data.calculate_correction_factor()
 
@@ -199,9 +199,7 @@ class Integration(SubPlan):
 
             results = self.integrate_peaks(peak_dict)
 
-            peak_dict = dict(results)
-
-            self.update_peak_info('peaks', peak_dict)
+            self.update_peak_info('peaks', results)
 
             peaks.remove_weak_peaks('peaks')
 
@@ -582,23 +580,19 @@ class Integration(SubPlan):
 
         return r
 
-    def fit_peaks(self, key_value, make_plot=False):
-
-        if make_plot:
-
-            plot = PeakPlot()
+    def fit_peaks(self, key_value):
 
         key, value = key_value
 
         data_info, peak_info = value
 
-        Q0, Q1, Q2, counts, y, e, dQ, projections = data_info
+        Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = data_info
 
         peak_name, wavelength, angles, goniometer = peak_info
 
         ellipsoid = PeakEllipsoid()
 
-        params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ)
+        params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ, Qmod)
 
         value = None
 
@@ -610,31 +604,31 @@ class Integration(SubPlan):
 
             norm_params = Q0, Q1, Q2, y, e, counts, c, S
 
-            I, sigma = ellipsoid.integrate_norm(*norm_params)
+            I, sigma = ellipsoid.integrate(*norm_params)
 
-            if make_plot:
+            if self.make_plot:
 
-                plot.add_fitting(*fitting)
+                self.peak_plot.add_fitting(*fitting)
 
-                plot.add_profile_fit(*ellipsoid.best_prof)
+                self.peak_plot.add_profile_fit(*ellipsoid.best_prof)
 
-                plot.add_projection_fit(*ellipsoid.best_proj)
+                self.peak_plot.add_projection_fit(*ellipsoid.best_proj)
 
-                plot.add_ellipsoid(c, S)
+                self.peak_plot.add_ellipsoid(c, S)
 
-                plot.add_peak_info(wavelength, angles, goniometer)
+                self.peak_plot.add_peak_info(wavelength, angles, goniometer)
 
-                plot.add_peak_stats(ellipsoid.redchi2)
+                self.peak_plot.add_peak_stats(ellipsoid.redchi2)
 
-                plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
+                self.peak_plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 
-                plot.save_plot(self.get_plot_file(peak_name))
+                self.peak_plot.save_plot(self.get_plot_file(peak_name))
 
             value = I, sigma, shape, ellipsoid.info
 
         return key, value
 
-    def extract_peak_info(self, peaks_ws, r):
+    def extract_peak_info(self, peaks_ws, r, make_plot=True):
         """
         Obtain peak information for envelope determination.
 
@@ -647,6 +641,12 @@ class Integration(SubPlan):
 
         """
 
+        if make_plot:
+
+            self.peak_plot = PeakPlot()
+
+        self.make_plot = make_plot
+    
         data = self.data
 
         peak = PeakModel(peaks_ws)
@@ -659,7 +659,7 @@ class Integration(SubPlan):
 
         for i in range(n_peak):
 
-            # d = peak.get_d_spacing(i)
+            Qmod = 2*np.pi/peak.get_d_spacing(i)
 
             h, k, l = peak.get_hkl(i)
 
@@ -693,7 +693,7 @@ class Integration(SubPlan):
 
             counts = data.extract_counts('md_bin')
 
-            data_info = (Q0, Q1, Q2, counts, y, e, dQ, projections)
+            data_info = (Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections)
 
             peak_info = (peak_name, wavelength, angles, goniometer)
 
@@ -960,7 +960,6 @@ class PeakSphere:
 
         return self.model(r, A, sigma), A, sigma
 
-
 class PeakEllipsoid:
 
     def __init__(self):
@@ -986,8 +985,8 @@ class PeakEllipsoid:
         c1 = (x1[0,:,0][-1]+x1[0,:,0][0])/2
         c2 = (x2[0,0,:][-1]+x2[0,0,:][0])/2
 
-        c0_min, c1_min, c2_min = x0[0,0,0], x1[0,0,0], x2[0,0,0]
-        c0_max, c1_max, c2_max = x0[-1,0,0], x1[0,-1,0], x2[0,0,-1]
+        c0_min, c1_min, c2_min = c0-r0_max/2, c1-r1_max/2, c2-r2_max/2
+        c0_max, c1_max, c2_max = c0+r0_max/2, c1+r1_max/2, c2+r2_max/2
 
         self.params.add('c0', value=c0, min=c0_min, max=c0_max)
         self.params.add('c1', value=c1, min=c1_min, max=c1_max)
@@ -1062,189 +1061,39 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def residual(self, params, x0, x1, x2, ys, ws, ss, lamda=0.001):
 
-        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+    def normalize(self, x0, x1, x2, counts, y, e, mode='3d'):
 
-        y1, y2, y3, y11, y12, y21, y22 = ys
-        # v1, v2, v3, v11, v12, v21, v22 = vs
-        w1, w2, w3, w11, w12, w21, w22 = ws
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)        
 
-        c0 = params['c0']
-        c1 = params['c1']
-        c2 = params['c2']
-
-        r0 = params['r0']
-        r1 = params['r1']
-        r2 = params['r2']
-
-        u0 = params['u0']
-        u1 = params['u1']
-        u2 = params['u2']
-
-        phi, theta, omega = self.angles(u0, u1, u2)
-
-        A = params['A']
-
-        B1 = params['B1']
-        B2 = params['B2']
-        B3 = params['B3']
-
-        B11 = params['B11']
-        B21 = params['B21']
-
-        B12 = params['B12']
-        B22 = params['B22']
-
-        C1_0 = params['C1_0']
-        C2_1 = params['C2_1']
-        C2_2 = params['C2_2']
-
-        C1_1 = params['C1_1']
-        C1_2 = params['C1_2']
-
-        C21_0 = params['C21_0']
-        C21_2 = params['C21_2']
-
-        C22_0 = params['C22_0']
-        C22_1 = params['C22_1']
-
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
-                                                    r0, r1, r2,
-                                                    phi, theta, omega)
-
-        args = x0, x1, x2, 1, 0, c, inv_S
-
-        y1_gauss = self.gaussian(*args, '1d')
-        y2_gauss = self.gaussian(*args, '2d')
-        y3_gauss = self.gaussian(*args, '3d')
-
-        d1_0 = 1/self.ellipsoid_covariance(inv_S, mode='1d')
-        d1_1 = 1/self.ellipsoid_covariance(inv_S, mode='1d1')
-        d1_2 = 1/self.ellipsoid_covariance(inv_S, mode='1d2')
-
-        d2_12 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d'))
-        d2_02 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d1'))
-        d2_01 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d2'))
-
-        d3 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='3d'))
-
-        I = A*np.sqrt((2*np.pi)**3*d3)/(dx0*dx1*dx2)
-
-        A1 = (I*dx0)/np.sqrt((2*np.pi)*d1_0)
-        A2 = (I*dx1*dx2)/np.sqrt((2*np.pi)**2*d2_12)
-        A3 = (I*dx0*dx1*dx2)/np.sqrt((2*np.pi)**3*d3)
-
-        A11 = (I*dx1)/np.sqrt((2*np.pi)*d1_1)
-        A12 = (I*dx2)/np.sqrt((2*np.pi)*d1_2)
-        A21 = (I*dx0*dx2)/np.sqrt((2*np.pi)**2*d2_02)
-        A22 = (I*dx0*dx1)/np.sqrt((2*np.pi)**2*d2_01)
-
-        diff = []
-
-        y1_fit = A1*y1_gauss+B1+C1_0*(x0[:,0,0]-c0)
-        y2_fit = A2*y2_gauss+B2+C2_1*(x1[0,:,:]-c1)+C2_2*(x2[0,:,:]-c2)
-        y3_fit = A3*y3_gauss+B3
-
-        # u1 = np.sqrt(1+y1_fit**2)
-        # u2 = np.sqrt(1+y2_fit**2)
-        # u3 = np.sqrt(1+y3_fit**2)
-
-        # res = np.arcsinh(y1*u1-y1_fit*v1)*w1
-
-        # diff += res.flatten().tolist()
-
-        # res = np.arcsinh(y2*u2-y2_fit*v2)*w2
-
-        # diff += res.flatten().tolist()
-
-        # res = np.arcsinh(y3*u3-y3_fit*v3)*w3
-
-        s1, s2, s3 = ss
-
-        res = (y1-y1_fit)*w1*s1
-
-        diff += res.flatten().tolist()
-
-        res = (y2-y2_fit)*w2*s2
-
-        diff += res.flatten().tolist()
-
-        res = (y3-y3_fit)*w3*s3
-
-        diff += res.flatten().tolist()
-
-        y11_gauss = self.gaussian(*args, '1d1')
-        y12_gauss = self.gaussian(*args, '1d2')
-        y21_gauss = self.gaussian(*args, '2d1')
-        y22_gauss = self.gaussian(*args, '2d2')
-
-        y11_fit = A11*y11_gauss+B11+C1_1*(x1[0,:,0]-c1)
-        y12_fit = A12*y12_gauss+B12+C1_2*(x2[0,0,:]-c2)
-        y21_fit = A21*y21_gauss+B21+C21_0*(x0[:,0,:]-c0)+C21_2*(x2[:,0,:]-c2)
-        y22_fit = A22*y22_gauss+B22+C22_0*(x0[:,:,0]-c0)+C22_1*(x1[:,:,0]-c1)
-
-        res = (y11-y11_fit)*w11*s1
-
-        diff += res.flatten().tolist()
-
-        res = (y12-y12_fit)*w12*s1
-
-        diff += res.flatten().tolist()
-
-        res = (y21-y21_fit)*w21*s2
-
-        diff += res.flatten().tolist()
-
-        res = (y22-y22_fit)*w22*s2
-
-        diff += res.flatten().tolist()
-
-        penalty = np.array([A, r0, r1, r2, B1, B2, B3, B11, B12, B21, B22,
-                            C1_0, C2_1, C2_2, C1_1, C1_2,
-                            C21_0, C21_2, C22_0, C22_1])
-
-        diff += (lamda*penalty).tolist()
-
-        # ---
-
-        diff = np.array(diff)
-
-        mask = np.isfinite(diff)
-
-        return diff[mask]
-
-    def integrate(self, x0, x1, x2, counts, y, e, mode='1d'):
-
-        c_int = 1        
-
-        if mode == '1d':
-            # c_int = np.nansum(counts > 0, axis=(1,2))
+        if mode == '1d_0':
+            c_int = dx0*np.mean(counts > 0, axis=(1,2))
             y_int = np.nansum(y, axis=(1,2))/c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(1,2)))/c_int
-        elif mode == '2d':
-            # c_int = np.nansum(counts > 0, axis=0)
-            y_int = np.nansum(y, axis=0)/c_int
-            e_int = np.sqrt(np.nansum(e**2, axis=0))/c_int
-        elif mode == '3d':
-            y_int = y.copy()
-            e_int = e.copy()
-        elif mode == '1d1':
-            # c_int = np.nansum(counts > 0, axis=(0,2))
+        elif mode == '1d_1':
+            c_int = dx1*np.mean(counts > 0, axis=(0,2))
             y_int = np.nansum(y, axis=(0,2))/c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(0,2)))/c_int
-        elif mode == '1d2':
-            # c_int = np.nansum(counts > 0, axis=(0,1))
+        elif mode == '1d_2':
+            c_int = dx2*np.mean(counts > 0, axis=(0,1))
             y_int = np.nansum(y, axis=(0,1))/c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(0,1)))/c_int
-        elif mode == '2d1':
-            # c_int = np.nansum(counts > 0, axis=1)
+        elif mode == '2d_0':
+            c_int = dx1*dx2*np.mean(counts > 0, axis=0)
+            y_int = np.nansum(y, axis=0)/c_int
+            e_int = np.sqrt(np.nansum(e**2, axis=0))/c_int
+        elif mode == '2d_1':
+            c_int = dx0*dx2*np.mean(counts > 0, axis=1)
             y_int = np.nansum(y, axis=1)/c_int
             e_int = np.sqrt(np.nansum(e**2, axis=1))/c_int
-        elif mode == '2d2':
-            # c_int = np.nansum(counts > 0, axis=2)
+        elif mode == '2d_2':
+            c_int = dx0*dx1*np.mean(counts > 0, axis=2)
             y_int = np.nansum(y, axis=2)/c_int
             e_int = np.sqrt(np.nansum(e**2, axis=2))/c_int
+        elif mode == '3d':
+            c_int = dx0*dx1*dx2
+            y_int = y.copy()/c_int
+            e_int = e.copy()/c_int
 
         mask = (y_int > 0) & np.isfinite(y_int) \
              & (e_int > 0) & np.isfinite(e_int)
@@ -1254,72 +1103,27 @@ class PeakEllipsoid:
 
         return y_int, e_int
 
-    def ellipsoid_mask(self, x0, x1, x2, c, inv_S, mode='3d'):
-
-        c0, c1, c2 = c
-
-        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
-
-        if mode == '3d':
-            inv_s = inv_S
-        elif mode == '2d':
-            inv_s = inv_S[1:,1:]
-        elif mode == '1d':
-            inv_s = inv_S[0,0]
-        elif mode == '2d1':
-            inv_s = inv_S[0::2,0::2]
-        elif mode == '2d2':
-            inv_s = inv_S[:2,:2]
-        elif mode == '1d1':
-            inv_s = inv_S[1,1]
-        elif mode == '1d2':
-            inv_s = inv_S[2,2]
-
-        if mode == '3d':
-            dx = [dx0, dx1, dx2]
-            d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
-        elif mode == '2d':
-            dx = [dx1[0,:,:], dx2[0,:,:]]
-            d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
-        elif mode == '1d':
-            dx = dx0[:,0,0]
-            d2 = inv_s*dx**2
-        elif mode == '2d1':
-            dx = [dx0[:,0,:], dx2[:,0,:]]
-            d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
-        elif mode == '2d2':
-            dx = [dx0[:,:,0], dx1[:,:,0]]
-            d2 = np.einsum('i...,ij,j...->...', dx, inv_s, dx)
-        elif mode == '1d1':
-            dx = dx1[0,:,0]
-            d2 = inv_s*dx**2
-        elif mode == '1d2':
-            dx = dx2[0,0,:]
-            d2 = inv_s*dx**2
-
-        return d2 < 1
-
     def ellipsoid_covariance(self, inv_S, mode='3d', perc=99.7):
 
         if mode == '3d':
             scale = scipy.stats.chi2.ppf(perc/100, df=3)
             inv_var = scale*inv_S
-        elif mode == '2d':
+        elif mode == '2d_0':
             scale = scipy.stats.chi2.ppf(perc/100, df=2)
             inv_var = inv_S[1:,1:]*scale
-        elif mode == '1d':
-            scale = scipy.stats.chi2.ppf(perc/100, df=1)
-            inv_var = inv_S[0,0]*scale
-        elif mode == '2d1':
+        elif mode == '2d_1':
             scale = scipy.stats.chi2.ppf(perc/100, df=2)
             inv_var = inv_S[0::2,0::2]*scale
-        elif mode == '2d2':
+        elif mode == '2d_2':
             scale = scipy.stats.chi2.ppf(perc/100, df=2)
             inv_var = inv_S[:2,:2]*scale
-        elif mode == '1d1':
+        elif mode == '1d_0':
+            scale = scipy.stats.chi2.ppf(perc/100, df=1)
+            inv_var = inv_S[0,0]*scale
+        elif mode == '1d_1':
             scale = scipy.stats.chi2.ppf(perc/100, df=1)
             inv_var = inv_S[1,1]*scale
-        elif mode == '1d2':
+        elif mode == '1d_2':
             scale = scipy.stats.chi2.ppf(perc/100, df=1)
             inv_var = inv_S[2,2]*scale
 
@@ -1336,219 +1140,401 @@ class PeakEllipsoid:
         if mode == '3d':
             dx = [dx0, dx1, dx2]
             d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
-        elif mode == '2d':
+        elif mode == '2d_0':
             dx = [dx1[0,:,:], dx2[0,:,:]]
             d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
-        elif mode == '1d':
-            dx = dx0[:,0,0]
-            d2 = inv_var*dx**2
-        elif mode == '2d1':
+        elif mode == '2d_1':
             dx = [dx0[:,0,:], dx2[:,0,:]]
             d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
-        elif mode == '2d2':
+        elif mode == '2d_2':
             dx = [dx0[:,:,0], dx1[:,:,0]]
             d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
-        elif mode == '1d1':
+        elif mode == '1d_0':
+            dx = dx0[:,0,0]
+            d2 = inv_var*dx**2
+        elif mode == '1d_1':
             dx = dx1[0,:,0]
             d2 = inv_var*dx**2
-        elif mode == '1d2':
+        elif mode == '1d_2':
             dx = dx2[0,0,:]
             d2 = inv_var*dx**2
 
         return A*np.exp(-0.5*d2)+B
 
-    def estimate_weights(self, x0, x1, x2, counts, y, e):
+    def residual_1d(self, params, x0, x1, x2, ys, es):
 
-        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+        y0, y1, y2 = ys
+        e0, e1, e2 = es
 
-        y1, e1 = self.integrate(x0, x1, x2, counts, y, e, mode='1d')
-        y2, e2 = self.integrate(x0, x1, x2, counts, y, e, mode='2d')
-        y3, e3 = self.integrate(x0, x1, x2, counts, y, e, mode='3d')
+        c0 = params['c0']
+        c1 = params['c1']
+        c2 = params['c2']
 
-        y11, e11 = self.integrate(x0, x1, x2, counts, y, e, mode='1d1')
-        y12, e12 = self.integrate(x0, x1, x2, counts, y, e, mode='1d2')
+        r0 = params['r0']
+        r1 = params['r1']
+        r2 = params['r2']
 
-        y21, e21 = self.integrate(x0, x1, x2, counts, y, e, mode='2d1')
-        y22, e22 = self.integrate(x0, x1, x2, counts, y, e, mode='2d2')
+        u0 = params['u0']
+        u1 = params['u1']
+        u2 = params['u2']
 
-        y1_min = np.nanmin(y1)
-        y2_min = np.nanmin(y2)
-        y3_min = np.nanmin(y3)
+        phi, theta, omega = self.angles(u0, u1, u2)
 
-        y1_max = np.nanmax(y1)
-        y2_max = np.nanmax(y2)
-        y3_max = np.nanmax(y3)
+        A0 = params['A1d_0']
+        A1 = params['A1d_1']
+        A2 = params['A1d_2']
 
-        y11_min = np.nanmin(y11)
-        y21_min = np.nanmin(y21)
+        B0 = params['B1d_0']
+        B1 = params['B1d_1']
+        B2 = params['B1d_2']
 
-        y12_min = np.nanmin(y12)
-        y22_min = np.nanmin(y22)
+        C0 = params['C1d_0']
+        C1 = params['C1d_1']
+        C2 = params['C1d_2']
 
-        y11_max = np.nanmax(y11)
-        y21_max = np.nanmax(y21)
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    phi, theta, omega)
 
-        y12_max = np.nanmax(y12)
-        y22_max = np.nanmax(y22)
+        args = x0, x1, x2, 1, 0, c, inv_S
 
-        if np.isclose(y1_max, y1_min):
-            return None
+        y0_gauss = self.gaussian(*args, '1d_0')
+        y1_gauss = self.gaussian(*args, '1d_1')
+        y2_gauss = self.gaussian(*args, '1d_2')
 
-        if np.isclose(y2_max, y2_min):
-            return None
+        # det_0 = 1/self.ellipsoid_covariance(inv_S, mode='1d_0')
+        # det_1 = 1/self.ellipsoid_covariance(inv_S, mode='1d_1')
+        # det_2 = 1/self.ellipsoid_covariance(inv_S, mode='1d_2')
 
-        if np.isclose(y3_max, y3_min):
-            return None
+        # A0 = I/np.sqrt((2*np.pi)**1*det_0)
+        # A1 = I/np.sqrt((2*np.pi)**1*det_1)
+        # A2 = I/np.sqrt((2*np.pi)**1*det_2)
 
-        if np.isclose(y11_max, y11_min):
-            return None
+        diff = []
 
-        if np.isclose(y21_max, y21_min):
-            return None
+        y0_fit = A0*y0_gauss+B0+C0*(x0[:,0,0]-c0)
+        y1_fit = A1*y1_gauss+B1+C1*(x1[0,:,0]-c1)
+        y2_fit = A2*y2_gauss+B2+C2*(x2[0,0,:]-c2)
 
-        if np.isclose(y12_max, y12_min):
-            return None
+        res = (y0-y0_fit)/e0
 
-        if np.isclose(y22_max, y22_min):
-            return None
+        diff += res.flatten().tolist()
 
-        w1 = y1-y1_min
-        w11 = y11-y11_min
-        w12 = y12-y12_min
+        res = (y1-y1_fit)/e1
 
-        # c0 = np.nansum(x0[:,0,0]*w1)/np.nansum(w1)
-        # c1 = np.nansum(x1[0,:,0]*w11)/np.nansum(w11)
-        # c2 = np.nansum(x2[0,0,:]*w12)/np.nansum(w12)
+        diff += res.flatten().tolist()
 
-        # r0 = 3*np.sqrt(np.nansum((x0[:,0,0]-c0)**2*w1)/np.nansum(w1))
-        # r1 = 3*np.sqrt(np.nansum((x1[0,:,0]-c1)**2*w11)/np.nansum(w11))
-        # r2 = 3*np.sqrt(np.nansum((x2[0,0,:]-c2)**2*w12)/np.nansum(w12))
+        res = (y2-y2_fit)/e2
 
-        # for param in ['c0', 'c1', 'c2', 'r0', 'r1', 'r2']:
-        #     value = eval(param)
-        #     if np.isfinite(value):
-        #         self.params[param].set(value=value)
-
-        C1_0_max = (y1_max-y1_min)/(x0[:,0,0].max()-x0[:,0,0].min())
-        C2_1_max = (y2_max-y2_min)/(x1[0,:,0].max()-x1[0,:,0].min())
-        C2_2_max = (y2_max-y2_min)/(x2[0,0,:].max()-x2[0,0,:].min())
-
-        self.params.add('C1_0', value=0, min=-5*C1_0_max, max=5*C1_0_max)
-        self.params.add('C2_1', value=0, min=-5*C2_1_max, max=5*C2_1_max)
-        self.params.add('C2_2', value=0, min=-5*C2_2_max, max=5*C2_2_max)
-
-        C1_1_max = (y11_max-y11_min)/(x1[0,:,0].max()-x1[0,:,0].min())
-        C1_2_max = (y11_max-y11_min)/(x2[0,0,:].max()-x2[0,0,:].min())
-
-        C21_0_max = (y21_max-y21_min)/(x0[:,0,0].max()-x0[:,0,0].min())
-        C21_2_max = (y21_max-y21_min)/(x2[0,0,:].max()-x2[0,0,:].min())
-
-        C22_0_max = (y22_max-y22_min)/(x0[:,0,0].max()-x0[:,0,0].min())
-        C22_1_max = (y22_max-y22_min)/(x1[0,:,0].max()-x1[0,:,0].min())
-
-        self.params.add('C1_1', value=0, min=-5*C1_1_max, max=5*C1_1_max)
-        self.params.add('C1_2', value=0, min=-5*C1_2_max, max=5*C1_2_max)
-
-        self.params.add('C21_0', value=0, min=-5*C21_0_max, max=5*C21_0_max)
-        self.params.add('C21_2', value=0, min=-5*C21_2_max, max=5*C21_2_max)
-
-        self.params.add('C22_0', value=0, min=-5*C22_0_max, max=5*C22_0_max)
-        self.params.add('C22_1', value=0, min=-5*C22_1_max, max=5*C22_1_max)
-
-        self.params.add('A', value=y3_max, min=0, max=2*y3_max)
-
-        self.params.add('B1', value=y1_min, min=-5*y1_max, max=5*y1_max)
-        self.params.add('B2', value=y2_min, min=-5*y2_max, max=5*y2_max)
-        self.params.add('B3', value=y3_min, min=-5*y3_max, max=5*y3_max)
-
-        self.params.add('B11', value=y11_min, min=-5*y11_max, max=5*y11_max)
-        self.params.add('B21', value=y21_min, min=-5*y21_max, max=5*y21_max)
-
-        self.params.add('B12', value=y12_min, min=-5*y12_max, max=5*y12_max)
-        self.params.add('B22', value=y22_min, min=-5*y22_max, max=5*y22_max)
-
-        # self.params['B11'].set(vary=False)
-        # self.params['B12'].set(vary=False)
-
-        # self.params['B21'].set(vary=False)
-        # self.params['B22'].set(vary=False)
-
-        # self.params['C1_1'].set(vary=False)
-        # self.params['C1_2'].set(vary=False)
-
-        # self.params['C21_0'].set(vary=False)
-        # self.params['C21_2'].set(vary=False)
-
-        # self.params['C22_0'].set(vary=False)
-        # self.params['C22_1'].set(vary=False)
-
-        w1 = 1/e1/np.sqrt(e1.size)
-        w2 = 1/e2/np.sqrt(e2.size)
-        w3 = 1/e3/np.sqrt(e3.size)
-
-        w11 = 1/e11/np.sqrt(e11.size)
-        w21 = 1/e21/np.sqrt(e21.size)
-
-        w12 = 1/e12/np.sqrt(e12.size)
-        w22 = 1/e22/np.sqrt(e22.size)
-
-        # v1 = np.sqrt(1+y1**2)
-        # v2 = np.sqrt(1+y2**2)
-        # v3 = np.sqrt(1+y3**2)
-
-        # v11 = np.sqrt(1+y11**2)
-        # v21 = np.sqrt(1+y21**2)
-
-        # v12 = np.sqrt(1+y12**2)
-        # v22 = np.sqrt(1+y22**2)
-
-        # w1 = v1/e1#/np.sqrt(e1.size)
-        # w2 = v2/e2#/np.sqrt(e2.size)
-        # w3 = v3/e3#/np.sqrt(e3.size)
-
-        # w11 = v11/e11#/np.sqrt(e11.size)
-        # w21 = v21/e21#/np.sqrt(e21.size)
-
-        # w12 = v12/e12#/np.sqrt(e12.size)
-        # w22 = v22/e22#/np.sqrt(e22.size)
-
-        ys = (y1, y2, y3, y11, y12, y21, y22)
-        # vs = (v1, v2, v3, v11, v12, v21, v22)
-        ws = (w1, w2, w3, w11, w12, w21, w22)
-
-        args = [x0, x1, x2, ys, ws]
+        diff += res.flatten().tolist()
 
         # ---
 
-        # self.params['u0'].set(vary=False)
-        # self.params['u1'].set(vary=False)
-        # self.params['u2'].set(vary=False)
+        diff += [A0, A1, A2, B0, B1, B2, r0, r1, r2, c0, c1, c2]
 
-        # ss = [(1,1,1)]
+        diff = np.array(diff)
 
-        # out = Minimizer(self.residual,
-        #                 self.params,
-        #                 fcn_args=args+ss,
-        #                 nan_policy='omit')
+        mask = np.isfinite(diff)
 
-        # result = out.minimize(method='leastsq')
+        return diff[mask]
 
-        ss = [(1,1,1)]
+    def residual_2d(self, params, x0, x1, x2, ys, es):
 
-        # self.params = result.params
+        y0, y1, y2 = ys
+        e0, e1, e2 = es
 
-        # self.params['u0'].set(vary=True)
-        # self.params['u1'].set(vary=True)
-        # self.params['u2'].set(vary=True)
+        c0 = params['c0']
+        c1 = params['c1']
+        c2 = params['c2']
 
-        out = Minimizer(self.residual,
+        r0 = params['r0']
+        r1 = params['r1']
+        r2 = params['r2']
+
+        u0 = params['u0']
+        u1 = params['u1']
+        u2 = params['u2']
+
+        phi, theta, omega = self.angles(u0, u1, u2)
+
+        A0 = params['A2d_0']
+        A1 = params['A2d_1']
+        A2 = params['A2d_2']
+
+        B0 = params['B2d_0']
+        B1 = params['B2d_1']
+        B2 = params['B2d_2']
+
+        C01 = params['C2d_01']
+        C02 = params['C2d_02']
+
+        C10 = params['C2d_10']
+        C12 = params['C2d_12']
+
+        C20 = params['C2d_20']
+        C21 = params['C2d_21']
+
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    phi, theta, omega)
+
+        args = x0, x1, x2, 1, 0, c, inv_S
+
+        y0_gauss = self.gaussian(*args, '2d_0')
+        y1_gauss = self.gaussian(*args, '2d_1')
+        y2_gauss = self.gaussian(*args, '2d_2')
+
+        # det_0 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_0'))
+        # det_1 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_1'))
+        # det_2 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_2'))
+
+        # A0 = I/np.sqrt((2*np.pi)**2*det_0)
+        # A1 = I/np.sqrt((2*np.pi)**2*det_1)
+        # A2 = I/np.sqrt((2*np.pi)**2*det_2)
+
+        diff = []
+
+        y0_fit = A0*y0_gauss+B0+C01*(x1[0,:,:]-c1)+C02*(x2[0,:,:]-c2)
+        y1_fit = A1*y1_gauss+B1+C10*(x0[:,0,:]-c0)+C12*(x2[:,0,:]-c2)
+        y2_fit = A2*y2_gauss+B2+C20*(x0[:,:,0]-c0)+C21*(x1[:,:,0]-c1)
+
+        res = (y0-y0_fit)/e0
+
+        diff += res.flatten().tolist()
+
+        res = (y1-y1_fit)/e1
+
+        diff += res.flatten().tolist()
+
+        res = (y2-y2_fit)/e2
+
+        diff += res.flatten().tolist()
+
+        # ---
+
+        diff += [A0, A1, A2, B0, B1, B2, r0, r1, r2, c0, c1, c2]
+
+        diff = np.array(diff)
+
+        mask = np.isfinite(diff)
+
+        return diff[mask]
+
+    def residual_3d(self, params, x0, x1, x2, y, e):
+
+        c0 = params['c0']
+        c1 = params['c1']
+        c2 = params['c2']
+
+        r0 = params['r0']
+        r1 = params['r1']
+        r2 = params['r2']
+
+        u0 = params['u0']
+        u1 = params['u1']
+        u2 = params['u2']
+
+        phi, theta, omega = self.angles(u0, u1, u2)
+
+        A = params['A3d']
+        B = params['B3d']
+
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    phi, theta, omega)
+
+        args = x0, x1, x2, 1, 0, c, inv_S
+
+        y_gauss = self.gaussian(*args, '3d')
+
+        # det = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='3d'))
+
+        # A = I/np.sqrt((2*np.pi)**3*det)
+
+        diff = []
+
+        y_fit = A*y_gauss+B
+
+        res = (y-y_fit)/e
+
+        diff += res.flatten().tolist()
+
+        # ---
+
+        diff += [A, B, r0, r1, r2, c0, c1, c2]
+
+        diff = np.array(diff)
+
+        mask = np.isfinite(diff)
+
+        return diff[mask]
+
+    def estimate_envelope(self, x0, x1, x2, counts, y, e):
+
+        y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode='1d_0')
+        y1d_1, e1d_1 = self.normalize(x0, x1, x2, counts, y, e, mode='1d_1')
+        y1d_2, e1d_2 = self.normalize(x0, x1, x2, counts, y, e, mode='1d_2')
+
+        y0, y1, y2 = y1d_0, y1d_1, y1d_2
+
+        y0_min = np.nanmin(y0)
+        y0_max = np.nanmax(y0)
+
+        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 13:
+            return None
+
+        y1_min = np.nanmin(y1)
+        y1_max = np.nanmax(y1)
+
+        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 13:
+            return None
+
+        y2_min = np.nanmin(y2)
+        y2_max = np.nanmax(y2)
+
+        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 13:
+            return None
+
+        self.params.add('A1d_0', value=y0_max, min=0, max=2*y0_max)
+        self.params.add('A1d_1', value=y1_max, min=0, max=2*y1_max)
+        self.params.add('A1d_2', value=y2_max, min=0, max=2*y2_max)
+
+        self.params.add('B1d_0', value=y0_min, min=-y0_max, max=5*y0_max)
+        self.params.add('B1d_1', value=y1_min, min=-y1_max, max=5*y1_max)
+        self.params.add('B1d_2', value=y2_min, min=-y2_max, max=5*y2_max)
+
+        C0_max = (y0_max-y0_min)/(x0[-1,0,0]-x0[0,0,0])
+        C1_max = (y1_max-y1_min)/(x1[0,-1,0]-x1[0,0,0])
+        C2_max = (y2_max-y2_min)/(x2[0,0,-1]-x2[0,0,0])
+
+        self.params.add('C1d_0', value=0, min=-2*C0_max, max=2*C0_max)
+        self.params.add('C1d_1', value=0, min=-2*C1_max, max=2*C1_max)
+        self.params.add('C1d_2', value=0, min=-2*C2_max, max=2*C2_max)
+
+        args_1d = [x0, x1, x2, (y1d_0, y1d_1, y1d_2), (e1d_0, e1d_1, e1d_2)]
+
+        y2d_0, e2d_0 = self.normalize(x0, x1, x2, counts, y, e, mode='2d_0')
+        y2d_1, e2d_1 = self.normalize(x0, x1, x2, counts, y, e, mode='2d_1')
+        y2d_2, e2d_2 = self.normalize(x0, x1, x2, counts, y, e, mode='2d_2')
+
+        y0, y1, y2 = y2d_0, y2d_1, y2d_2
+
+        y0_min = np.nanmin(y0)
+        y0_max = np.nanmax(y0)
+
+        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 13:
+            return None
+
+        y1_min = np.nanmin(y1)
+        y1_max = np.nanmax(y1)
+
+        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 13:
+            return None
+
+        y2_min = np.nanmin(y2)
+        y2_max = np.nanmax(y2)
+
+        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 13:
+            return None
+
+        self.params.add('A2d_0', value=y0_max, min=0, max=2*y0_max)
+        self.params.add('A2d_1', value=y1_max, min=0, max=2*y1_max)
+        self.params.add('A2d_2', value=y2_max, min=0, max=2*y2_max)
+
+        self.params.add('B2d_0', value=y0_min, min=-y0_max, max=5*y0_max)
+        self.params.add('B2d_1', value=y1_min, min=-y1_max, max=5*y1_max)
+        self.params.add('B2d_2', value=y2_min, min=-y2_max, max=5*y2_max)
+
+        C01_max = (y0_max-y0_min)/(x1[0,-1,0]-x1[0,0,0])
+        C02_max = (y0_max-y0_min)/(x2[0,0,-1]-x2[0,0,0])
+
+        C10_max = (y1_max-y1_min)/(x0[-1,0,0]-x0[0,0,0])
+        C12_max = (y1_max-y1_min)/(x2[0,0,-1]-x2[0,0,0])
+
+        C20_max = (y2_max-y2_min)/(x0[-1,0,0]-x0[0,0,0])
+        C21_max = (y2_max-y2_min)/(x1[0,-1,0]-x1[0,0,0])
+
+        self.params.add('C2d_01', value=0, min=-2*C01_max, max=2*C01_max)
+        self.params.add('C2d_02', value=0, min=-2*C02_max, max=2*C02_max)
+
+        self.params.add('C2d_10', value=0, min=-2*C10_max, max=2*C10_max)
+        self.params.add('C2d_12', value=0, min=-2*C12_max, max=2*C12_max)
+
+        self.params.add('C2d_20', value=0, min=-2*C20_max, max=2*C20_max)
+        self.params.add('C2d_21', value=0, min=-2*C21_max, max=2*C21_max)
+
+        args_2d = [x0, x1, x2, (y2d_0, y2d_1, y2d_2), (e2d_0, e2d_1, e2d_2)]
+
+        y3d, e3d = self.normalize(x0, x1, x2, counts, y, e, mode='3d')
+
+        y_min = np.nanmin(y3d)
+        y_max = np.nanmax(y3d)
+
+        if np.isclose(y_max, y_min) or (y > 0).sum() <= 13:
+            return None
+
+        # y_sum = np.nansum(y3d)
+
+        self.params.add('A3d', value=y_max, min=0, max=2*y_max)
+
+        self.params.add('B3d', value=y_min, min=-2*y_max, max=2*y_max)
+
+        args_3d = [x0, x1, x2, y3d, e3d]
+
+        self.redchi2 = []
+
+        y1, y2, y3 = y1d_0, y2d_0, y3d
+        e1, e2, e3 = e1d_0, e2d_0, e3d
+
+        # ---
+
+        self.params['B1d_0'].set(vary=True)
+        self.params['B1d_1'].set(vary=True)
+        self.params['B1d_2'].set(vary=True)
+
+        self.params['C1d_0'].set(vary=False)
+        self.params['C1d_1'].set(vary=False)
+        self.params['C1d_2'].set(vary=False)
+
+        self.params['B2d_0'].set(vary=False)
+        self.params['B2d_1'].set(vary=False)
+        self.params['B2d_2'].set(vary=False)
+
+        self.params['C2d_01'].set(vary=False)
+        self.params['C2d_02'].set(vary=False)
+
+        self.params['C2d_10'].set(vary=False)
+        self.params['C2d_12'].set(vary=False)
+
+        self.params['C2d_20'].set(vary=False)
+        self.params['C2d_21'].set(vary=False)
+
+        self.params['B3d'].set(vary=False)
+
+        # ---
+
+        self.params['c0'].set(vary=True)
+        self.params['c1'].set(vary=True)
+        self.params['c2'].set(vary=True)
+
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
+
+        self.params['u0'].set(vary=False)
+        self.params['u1'].set(vary=False)
+        self.params['u2'].set(vary=False)
+
+        out = Minimizer(self.residual_1d,
                         self.params,
-                        fcn_args=args+ss,
+                        fcn_args=args_1d,
                         nan_policy='omit')
 
-        result = out.minimize(method='least_squares')
+        result = out.minimize(method='leastsq')
 
         self.params = result.params
+
+        # ---
 
         c0 = self.params['c0'].value
         c1 = self.params['c1'].value
@@ -1564,54 +1550,213 @@ class PeakEllipsoid:
 
         phi, theta, omega = self.angles(u0, u1, u2)
 
-        C1_0 = self.params['C1_0'].value
-        C2_1 = self.params['C2_1'].value
-        C2_2 = self.params['C2_2'].value
+        C1_0 = self.params['C1d_0'].value
+        C2_1 = self.params['C2d_01'].value
+        C2_2 = self.params['C2d_02'].value
 
-        B1 = self.params['B1'].value
-        B2 = self.params['B2'].value
-        B3 = self.params['B3'].value
-
-        # A1 = self.params['A1'].value
-        # A2 = self.params['A2'].value
-        # A3 = self.params['A3'].value
+        B1 = self.params['B1d_0'].value
+        B2 = self.params['B2d_0'].value
+        B3 = self.params['B3d'].value
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
                                                     phi, theta, omega)
 
+        # det_0 = 1/self.ellipsoid_covariance(inv_S, mode='1d_0')
 
-        d1_0 = 1/self.ellipsoid_covariance(inv_S, mode='1d')
-        # d1_1 = 1/self.ellipsoid_covariance(inv_S, mode='1d1')
-        # d1_2 = 1/self.ellipsoid_covariance(inv_S, mode='1d2')
+        A1 = self.params['A1d_0'].value
 
-        d2_12 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d'))
-        # d2_02 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d1'))
-        # d2_01 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d2'))
-
-        d3 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='3d'))
-
-        A = self.params['A'].value
-
-        I = A*np.sqrt((2*np.pi)**3*d3)/(dx0*dx1*dx2)
-
-        A1 = (I*dx0)/np.sqrt((2*np.pi)*d1_0)
-        A2 = (I*dx1*dx2)/np.sqrt((2*np.pi)**2*d2_12)
-        A3 = (I*dx0*dx1*dx2)/np.sqrt((2*np.pi)**3*d3)
+        # A1 = I/np.sqrt((2*np.pi)*det_0)
 
         args = x0, x1, x2, 1, 0, c, inv_S
 
-        y1_gauss = self.gaussian(*args, '1d')
-        y2_gauss = self.gaussian(*args, '2d')
-        y3_gauss = self.gaussian(*args, '3d')
+        y1_gauss = self.gaussian(*args, '1d_0')
 
         y1_fit = A1*y1_gauss+B1+C1_0*(x0[:,0,0]-c0)
+
+        self.redchi2.append(np.nanmean((y1_fit-y1)**2/e1**2))
+
+        # ---
+
+        self.params['B1d_0'].set(vary=False)
+        self.params['B1d_1'].set(vary=False)
+        self.params['B1d_2'].set(vary=False)
+
+        self.params['C1d_0'].set(vary=False)
+        self.params['C1d_1'].set(vary=False)
+        self.params['C1d_2'].set(vary=False)
+
+        self.params['B2d_0'].set(vary=True)
+        self.params['B2d_1'].set(vary=True)
+        self.params['B2d_2'].set(vary=True)
+
+        self.params['C2d_01'].set(vary=False)
+        self.params['C2d_02'].set(vary=False)
+
+        self.params['C2d_10'].set(vary=False)
+        self.params['C2d_12'].set(vary=False)
+
+        self.params['C2d_20'].set(vary=False)
+        self.params['C2d_21'].set(vary=False)
+
+        self.params['B3d'].set(vary=False)
+
+        # ---
+
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
+
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
+
+        self.params['u0'].set(vary=True)
+        self.params['u1'].set(vary=True)
+        self.params['u2'].set(vary=True)
+
+        out = Minimizer(self.residual_2d,
+                        self.params,
+                        fcn_args=args_2d,
+                        nan_policy='omit')
+
+        result = out.minimize(method='leastsq')
+
+        self.params = result.params
+
+        # ---
+
+        c0 = self.params['c0'].value
+        c1 = self.params['c1'].value
+        c2 = self.params['c2'].value
+
+        r0 = self.params['r0'].value
+        r1 = self.params['r1'].value
+        r2 = self.params['r2'].value
+
+        u0 = self.params['u0'].value
+        u1 = self.params['u1'].value
+        u2 = self.params['u2'].value
+
+        phi, theta, omega = self.angles(u0, u1, u2)
+
+        C1_0 = self.params['C1d_0'].value
+        C2_1 = self.params['C2d_01'].value
+        C2_2 = self.params['C2d_02'].value
+
+        B1 = self.params['B1d_0'].value
+        B2 = self.params['B2d_0'].value
+        B3 = self.params['B3d'].value
+
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    phi, theta, omega)
+
+        # det_12 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_0'))
+
+        A2 = self.params['A1d_0'].value
+
+        # A2 = I/np.sqrt((2*np.pi)**2*det_12)
+
+        args = x0, x1, x2, 1, 0, c, inv_S
+
+        y2_gauss = self.gaussian(*args, '2d_0')
+
         y2_fit = A2*y2_gauss+B2+C2_1*(x1[0,:,:]-c1)+C2_2*(x2[0,:,:]-c2)
+
+        self.redchi2.append(np.nanmean((y2_fit-y2)**2/e2**2))
+
+        # ---
+
+        self.params['B1d_0'].set(vary=False)
+        self.params['B1d_1'].set(vary=False)
+        self.params['B1d_2'].set(vary=False)
+
+        self.params['C1d_0'].set(vary=False)
+        self.params['C1d_1'].set(vary=False)
+        self.params['C1d_2'].set(vary=False)
+
+        self.params['B2d_0'].set(vary=False)
+        self.params['B2d_1'].set(vary=False)
+        self.params['B2d_2'].set(vary=False)
+
+        self.params['C2d_01'].set(vary=False)
+        self.params['C2d_02'].set(vary=False)
+
+        self.params['C2d_10'].set(vary=False)
+        self.params['C2d_12'].set(vary=False)
+
+        self.params['C2d_20'].set(vary=False)
+        self.params['C2d_21'].set(vary=False)
+
+        self.params['B3d'].set(vary=True)
+
+        # ---
+
+        self.params['c0'].set(vary=False)
+        self.params['c1'].set(vary=False)
+        self.params['c2'].set(vary=False)
+
+        self.params['r0'].set(vary=False)
+        self.params['r1'].set(vary=False)
+        self.params['r2'].set(vary=False)
+
+        self.params['u0'].set(vary=True)
+        self.params['u1'].set(vary=True)
+        self.params['u2'].set(vary=True)
+
+        out = Minimizer(self.residual_3d,
+                        self.params,
+                        fcn_args=args_3d,
+                        nan_policy='omit')
+
+        result = out.minimize(method='leastsq')
+
+        self.params = result.params
+
+        # ---
+
+        c0 = self.params['c0'].value
+        c1 = self.params['c1'].value
+        c2 = self.params['c2'].value
+
+        r0 = self.params['r0'].value
+        r1 = self.params['r1'].value
+        r2 = self.params['r2'].value
+
+        u0 = self.params['u0'].value
+        u1 = self.params['u1'].value
+        u2 = self.params['u2'].value
+
+        phi, theta, omega = self.angles(u0, u1, u2)
+
+        C1_0 = self.params['C1d_0'].value
+        C2_1 = self.params['C2d_01'].value
+        C2_2 = self.params['C2d_02'].value
+
+        B1 = self.params['B1d_0'].value
+        B2 = self.params['B2d_0'].value
+        B3 = self.params['B3d'].value
+
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    phi, theta, omega)
+
+        # det = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='3d'))
+
+        A3 = self.params['A3d'].value
+
+        # A3 = I/np.sqrt((2*np.pi)**3*det)
+
+        args = x0, x1, x2, 1, 0, c, inv_S
+
+        y3_gauss = self.gaussian(*args, '3d')
+
         y3_fit = A3*y3_gauss+B3
 
-        self.redchi2 = np.nanmean((y1_fit-y1)**2/e1**2),\
-                       np.nanmean((y2_fit-y2)**2/e2**2),\
-                       np.nanmean((y3_fit-y3)**2/e3**2)
+        self.redchi2.append(np.nanmean((y3_fit-y3)**2/e3**2))
+
+        # ---
 
         self.error_scale = np.sqrt(self.redchi2[2])
 
@@ -1627,42 +1772,19 @@ class PeakEllipsoid:
 
         return np.prod(self.voxels(x0, x1, x2))
 
-    def fit(self, x0, x1, x2, c, y_norm, e_norm, dx):
+    def fit(self, x0_prof, x1_proj, x2_proj, c, y_norm, e_norm, dx, xmod):
 
         counts = c.copy()
         y = y_norm.copy()
         e = e_norm.copy()
 
+        x0 = x0_prof-xmod
+        x1 = x1_proj.copy()
+        x2 = x2_proj.copy()
+
         self.update_constraints(x0, x1, x2, dx)
 
         mask = (counts >= 0) & (e >= 0) & np.isfinite(counts) & np.isfinite(e)
-
-        # w = 0*counts.copy()+1
-        # v = e**2
-
-        # dx0, dx1, dx2 = self.voxels(x0, x1, x2)
-
-        # scale = np.sqrt(scipy.stats.chi2.ppf(99.7/100, df=3))
-
-        # sigma = np.floor(dx/np.array([dx0, dx1, dx2])/scale).astype(int)+1
-
-        # counts[~mask] = 0
-        # counts = scipy.ndimage.gaussian_filter(counts, sigma=sigma)
-
-        # y[~mask] = 0
-        # y = scipy.ndimage.gaussian_filter(y, sigma=sigma)
-
-        # v[~mask] = 0
-        # v = scipy.ndimage.gaussian_filter(v, sigma=sigma)
-
-        # w[~mask] = 0
-        # w = scipy.ndimage.gaussian_filter(w, sigma=sigma)
-
-        # counts /= w
-        # y /= w
-        # v /= w
-
-        # e = np.sqrt(v)
 
         counts[~mask] = np.nan
         y[~mask] = np.nan
@@ -1682,9 +1804,6 @@ class PeakEllipsoid:
         e = e[i0:j0,i1:j1,i2:j2].copy()
         counts = counts[i0:j0,i1:j1,i2:j2].copy()
 
-        # y_bin = y_bin[i0:j0,i1:j1,i2:j2].copy()
-        # e_bin = e_bin[i0:j0,i1:j1,i2:j2].copy()
-
         if (np.array(y.shape) <= 3).any():
             return None
 
@@ -1692,20 +1811,13 @@ class PeakEllipsoid:
         x1 = x1[i0:j0,i1:j1,i2:j2].copy()
         x2 = x2[i0:j0,i1:j1,i2:j2].copy()
 
-        # self.counts = self.counts[i0:j0,i1:j1,i2:j2].copy()
-
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         if not np.nansum(y) > 0:
             print('Invalid data')
             return None
 
-        # size = np.floor(dx/np.array([dx0, dx1, dx2])).astype(int)+1
-
-        # d_val = scipy.ndimage.median_filter(d_val, size=size, mode='nearest')
-        # n_val = scipy.ndimage.median_filter(n_val, size=size, mode='nearest')
-
-        weights = self.estimate_weights(x0, x1, x2, counts, y, e)
+        weights = self.estimate_envelope(x0, x1, x2, counts, y, e)
 
         if weights is None:
             print('Invalid weight estimate')
@@ -1740,18 +1852,20 @@ class PeakEllipsoid:
         V, W = np.linalg.eigh(S)
 
         c0, c1, c2 = c
+        c0 += xmod
+        c = c0, c1, c2
 
         r0, r1, r2 = np.sqrt(V)
 
         v0, v1, v2 = W.T
 
-        binning = (x0, x1, x2), y, e
+        binning = (x0+xmod, x1, x2), y, e
 
         fitting = binning, y_fit
 
         self.best_fit = c, S, *fitting
 
-        self.best_prof = (x0[:,0,0], y_prof, e_prof), y_prof_fit
+        self.best_prof = (x0[:,0,0]+xmod, y_prof, e_prof), y_prof_fit
 
         self.best_proj = (x1[0,:,:], x2[0,:,:], y_proj, e_proj), y_proj_fit
 
@@ -1759,7 +1873,7 @@ class PeakEllipsoid:
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
-    def integrate_norm(self, x0, x1, x2, y, e, counts, c, S):
+    def integrate(self, x0, x1, x2, y, e, counts, c, S):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
