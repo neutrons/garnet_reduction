@@ -1486,7 +1486,7 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=(args_1d, args_2d, args_3d),
-                        reduce_fcn=self.loss,
+                        # reduce_fcn=self.loss,
                         nan_policy='omit')
 
         result = out.minimize(method='leastsq')
