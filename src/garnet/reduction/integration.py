@@ -16,12 +16,12 @@ from mantid.simpleapi import mtd
 from mantid import config
 config['Q.convention'] = 'Crystallography'
 
-# config['MultiThreaded.MaxCores'] == '1'
-# os.environ['OPENBLAS_NUM_THREADS'] = '1'
-# os.environ['MKL_NUM_THREADS'] = '1'
-# os.environ['NUMEXPR_NUM_THREADS'] = '1'
-# os.environ['OMP_NUM_THREADS'] = '1'
-# os.environ['TBB_THREAD_ENABLED'] = '0'
+config['MultiThreaded.MaxCores'] == '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['TBB_THREAD_ENABLED'] = '0'
 
 from garnet.plots.peaks import PeakPlot
 from garnet.config.instruments import beamlines
@@ -1061,7 +1061,6 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-
     def normalize(self, x0, x1, x2, counts, y, e, mode='3d'):
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)        
@@ -1369,6 +1368,12 @@ class PeakEllipsoid:
 
         return diff[mask]
 
+    def soft_l1(self, r):
+
+        z = r*r
+
+        return 2*(np.sqrt(1+z)-1)
+
     def estimate_envelope(self, x0, x1, x2, counts, y, e):
 
         y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode='1d_0')
@@ -1492,9 +1497,9 @@ class PeakEllipsoid:
         self.params['B1d_1'].set(vary=True)
         self.params['B1d_2'].set(vary=True)
 
-        self.params['C1d_0'].set(vary=False)
-        self.params['C1d_1'].set(vary=False)
-        self.params['C1d_2'].set(vary=False)
+        self.params['C1d_0'].set(vary=True)
+        self.params['C1d_1'].set(vary=True)
+        self.params['C1d_2'].set(vary=True)
 
         self.params['B2d_0'].set(vary=False)
         self.params['B2d_1'].set(vary=False)
@@ -1528,6 +1533,7 @@ class PeakEllipsoid:
         out = Minimizer(self.residual_1d,
                         self.params,
                         fcn_args=args_1d,
+                        reduce_fcn=self.soft_l1,
                         nan_policy='omit')
 
         result = out.minimize(method='leastsq')
@@ -1551,12 +1557,8 @@ class PeakEllipsoid:
         phi, theta, omega = self.angles(u0, u1, u2)
 
         C1_0 = self.params['C1d_0'].value
-        C2_1 = self.params['C2d_01'].value
-        C2_2 = self.params['C2d_02'].value
 
         B1 = self.params['B1d_0'].value
-        B2 = self.params['B2d_0'].value
-        B3 = self.params['B3d'].value
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1590,22 +1592,22 @@ class PeakEllipsoid:
         self.params['B2d_1'].set(vary=True)
         self.params['B2d_2'].set(vary=True)
 
-        self.params['C2d_01'].set(vary=False)
-        self.params['C2d_02'].set(vary=False)
+        self.params['C2d_01'].set(vary=True)
+        self.params['C2d_02'].set(vary=True)
 
-        self.params['C2d_10'].set(vary=False)
-        self.params['C2d_12'].set(vary=False)
+        self.params['C2d_10'].set(vary=True)
+        self.params['C2d_12'].set(vary=True)
 
-        self.params['C2d_20'].set(vary=False)
-        self.params['C2d_21'].set(vary=False)
+        self.params['C2d_20'].set(vary=True)
+        self.params['C2d_21'].set(vary=True)
 
         self.params['B3d'].set(vary=False)
 
         # ---
 
-        self.params['c0'].set(vary=False)
-        self.params['c1'].set(vary=False)
-        self.params['c2'].set(vary=False)
+        self.params['c0'].set(vary=True)
+        self.params['c1'].set(vary=True)
+        self.params['c2'].set(vary=True)
 
         self.params['r0'].set(vary=True)
         self.params['r1'].set(vary=True)
@@ -1618,6 +1620,7 @@ class PeakEllipsoid:
         out = Minimizer(self.residual_2d,
                         self.params,
                         fcn_args=args_2d,
+                        reduce_fcn=self.soft_l1,
                         nan_policy='omit')
 
         result = out.minimize(method='leastsq')
@@ -1640,13 +1643,10 @@ class PeakEllipsoid:
 
         phi, theta, omega = self.angles(u0, u1, u2)
 
-        C1_0 = self.params['C1d_0'].value
         C2_1 = self.params['C2d_01'].value
         C2_2 = self.params['C2d_02'].value
 
-        B1 = self.params['B1d_0'].value
         B2 = self.params['B2d_0'].value
-        B3 = self.params['B3d'].value
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
@@ -1654,7 +1654,7 @@ class PeakEllipsoid:
 
         # det_12 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_0'))
 
-        A2 = self.params['A1d_0'].value
+        A2 = self.params['A2d_0'].value
 
         # A2 = I/np.sqrt((2*np.pi)**2*det_12)
 
@@ -1693,13 +1693,13 @@ class PeakEllipsoid:
 
         # ---
 
-        self.params['c0'].set(vary=False)
-        self.params['c1'].set(vary=False)
-        self.params['c2'].set(vary=False)
+        self.params['c0'].set(vary=True)
+        self.params['c1'].set(vary=True)
+        self.params['c2'].set(vary=True)
 
-        self.params['r0'].set(vary=False)
-        self.params['r1'].set(vary=False)
-        self.params['r2'].set(vary=False)
+        self.params['r0'].set(vary=True)
+        self.params['r1'].set(vary=True)
+        self.params['r2'].set(vary=True)
 
         self.params['u0'].set(vary=True)
         self.params['u1'].set(vary=True)
@@ -1708,6 +1708,7 @@ class PeakEllipsoid:
         out = Minimizer(self.residual_3d,
                         self.params,
                         fcn_args=args_3d,
+                        reduce_fcn=self.soft_l1,
                         nan_policy='omit')
 
         result = out.minimize(method='leastsq')
@@ -1730,12 +1731,6 @@ class PeakEllipsoid:
 
         phi, theta, omega = self.angles(u0, u1, u2)
 
-        C1_0 = self.params['C1d_0'].value
-        C2_1 = self.params['C2d_01'].value
-        C2_2 = self.params['C2d_02'].value
-
-        B1 = self.params['B1d_0'].value
-        B2 = self.params['B2d_0'].value
         B3 = self.params['B3d'].value
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
