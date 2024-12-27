@@ -164,7 +164,7 @@ class Integration(SubPlan):
 
             peaks.integrate_peaks('md', 'peaks', r_cut)
 
-            peaks.remove_weak_peaks('peaks', 10)
+            # peaks.remove_weak_peaks('peaks', 10)
 
             self.peaks, self.data = peaks, data
 
@@ -201,7 +201,7 @@ class Integration(SubPlan):
 
             self.update_peak_info('peaks', results)
 
-            peaks.remove_weak_peaks('peaks')
+            # peaks.remove_weak_peaks('peaks')
 
             peaks.combine_peaks('peaks', 'combine')
 
@@ -219,46 +219,46 @@ class Integration(SubPlan):
 
         # ---
 
-        # if mtd.doesExist('combine'):
+        if mtd.doesExist('combine'):
 
-        #     opt = Optimization('combine')
-        #     opt.optimize_lattice(self.params['Cell'])
+            opt = Optimization('combine')
+            opt.optimize_lattice(self.params['Cell'])
 
-        #     ub_file = os.path.splitext(output_file)[0]+'.mat'
+            ub_file = os.path.splitext(output_file)[0]+'.mat'
 
-        #     ub = UBModel('combine')
-        #     ub.save_UB(ub_file)
+            ub = UBModel('combine')
+            ub.save_UB(ub_file)
 
         mtd.clear()
 
         return output_file
 
-    def laue_combine(self, files):
+    # def laue_combine(self, files):
 
-        output_file = self.get_output_file()
-        result_file = self.get_file(output_file, '')
+    #     output_file = self.get_output_file()
+    #     result_file = self.get_file(output_file, '')
 
-        peaks = PeaksModel()
+    #     peaks = PeaksModel()
 
-        for file in files:
+    #     for file in files:
 
-            peaks.load_peaks(file, 'tmp')
-            peaks.combine_peaks('tmp', 'combine')
+    #         peaks.load_peaks(file, 'tmp')
+    #         peaks.combine_peaks('tmp', 'combine')
 
-        for file in files:
-            os.remove(file)
+    #     for file in files:
+    #         os.remove(file)
 
-        if mtd.doesExist('combine'):
+    #     if mtd.doesExist('combine'):
 
-            peaks.save_peaks(result_file, 'combine')
+    #         peaks.save_peaks(result_file, 'combine')
 
-            opt = Optimization('combine')
-            opt.optimize_lattice(self.params['Cell'])
+    #         opt = Optimization('combine')
+    #         opt.optimize_lattice(self.params['Cell'])
 
-            ub_file = os.path.splitext(result_file)[0]+'.mat'
+    #         ub_file = os.path.splitext(result_file)[0]+'.mat'
 
-            ub = UBModel('combine')
-            ub.save_UB(ub_file)
+    #         ub = UBModel('combine')
+    #         ub.save_UB(ub_file)
 
     def monochromatic_integrate(self):
 
@@ -996,32 +996,13 @@ class PeakEllipsoid:
         self.params.add('r1', value=r1, min=dx, max=r1_max)
         self.params.add('r2', value=r2, min=dx, max=r2_max)
 
-        self.params.add('u0', value=0.0, min=0, max=1)
-        self.params.add('u1', value=0.0, min=0, max=1)
-        self.params.add('u2', value=0.0, min=0, max=1)
+        self.params.add('u0', value=0.0, min=-np.pi, max=np.pi)
+        self.params.add('u1', value=0.0, min=-np.pi, max=np.pi)
+        self.params.add('u2', value=0.0, min=-np.pi, max=np.pi)
 
-    def angles(self, u0, u1, u2):
+    def S_matrix(self, sigma0, sigma1, sigma2, u0, u1, u2):
 
-        theta = np.arccos(1-2*u0)
-        phi = 2*np.pi*u1
-
-        omega = self._angle(u2)
-
-        return phi, theta, omega
-
-    def eigenvectors(self, W):
-
-        w = scipy.spatial.transform.Rotation.from_matrix(W).as_rotvec()
-
-        omega = np.linalg.norm(w)
-
-        u0, u1, u2 = (0, 0, 1) if np.isclose(omega, 0) else w/omega
-
-        return u0, u1, u2, omega
-
-    def S_matrix(self, sigma0, sigma1, sigma2, phi=0, theta=0, omega=0):
-
-        U = self.U_matrix(phi, theta, omega)
+        U = self.U_matrix(u0, u1, u2)
 
         V = np.diag([sigma0**2, sigma1**2, sigma2**2])
 
@@ -1029,9 +1010,9 @@ class PeakEllipsoid:
 
         return S
 
-    def inv_S_matrix(self, sigma0, sigma1, sigma2, phi=0, theta=0, omega=0):
+    def inv_S_matrix(self, sigma0, sigma1, sigma2, u0, u1, u2):
 
-        U = self.U_matrix(phi, theta, omega)
+        U = self.U_matrix(u0, u1, u2)
 
         V = np.diag([1/sigma0**2, 1/sigma1**2, 1/sigma2**2])
 
@@ -1039,25 +1020,19 @@ class PeakEllipsoid:
 
         return inv_S
 
-    def U_matrix(self, phi, theta, omega):
+    def U_matrix(self, u0, u1, u2):
 
-        v0 = np.cos(phi)*np.sin(theta)
-        v1 = np.sin(phi)*np.sin(theta)
-        v2 = np.cos(theta)
+        u = np.array([u0, u1, u2])
 
-        w = omega*np.array([v0, v1, v2])
-
-        U = scipy.spatial.transform.Rotation.from_rotvec(w).as_matrix()
+        U = scipy.spatial.transform.Rotation.from_rotvec(u).as_matrix()
 
         return U
 
-    def centroid_inverse_covariance(self, c0, c1, c2,
-                                          r0, r1, r2,
-                                          phi, theta, omega):
+    def centroid_inverse_covariance(self, c0, c1, c2, r0, r1, r2, u0, u1, u2):
 
         c = np.array([c0, c1, c2])
 
-        inv_S = self.inv_S_matrix(r0, r1, r2, phi, theta, omega)
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
         return c, inv_S
 
@@ -1177,8 +1152,6 @@ class PeakEllipsoid:
         u1 = params['u1']
         u2 = params['u2']
 
-        phi, theta, omega = self.angles(u0, u1, u2)
-
         A0 = params['A1d_0']
         A1 = params['A1d_1']
         A2 = params['A1d_2']
@@ -1193,7 +1166,7 @@ class PeakEllipsoid:
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
-                                                    phi, theta, omega)
+                                                    u0, u1, u2)
 
         args = x0, x1, x2, 1, 0, c, inv_S
 
@@ -1215,15 +1188,15 @@ class PeakEllipsoid:
         y1_fit = A1*y1_gauss+B1+C1*(x1[0,:,0]-c1)
         y2_fit = A2*y2_gauss+B2+C2*(x2[0,0,:]-c2)
 
-        res = (np.arcsinh(y0_fit)-y0)/e0
+        res = (y0_fit-y0)/e0
 
         diff += res.flatten().tolist()
 
-        res = (np.arcsinh(y1_fit)-y1)/e1
+        res = (y1_fit-y1)/e1
 
         diff += res.flatten().tolist()
 
-        res = (np.arcsinh(y2_fit)-y2)/e2
+        res = (y2_fit-y2)/e2
 
         diff += res.flatten().tolist()
 
@@ -1254,8 +1227,6 @@ class PeakEllipsoid:
         u1 = params['u1']
         u2 = params['u2']
 
-        phi, theta, omega = self.angles(u0, u1, u2)
-
         A0 = params['A2d_0']
         A1 = params['A2d_1']
         A2 = params['A2d_2']
@@ -1275,7 +1246,7 @@ class PeakEllipsoid:
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
-                                                    phi, theta, omega)
+                                                    u0, u1, u2)
 
         args = x0, x1, x2, 1, 0, c, inv_S
 
@@ -1297,15 +1268,15 @@ class PeakEllipsoid:
         y1_fit = A1*y1_gauss+B1+C10*(x0[:,0,:]-c0)+C12*(x2[:,0,:]-c2)
         y2_fit = A2*y2_gauss+B2+C20*(x0[:,:,0]-c0)+C21*(x1[:,:,0]-c1)
 
-        res = (np.arcsinh(y0_fit)-y0)/e0
+        res = (y0_fit-y0)/e0
 
         diff += res.flatten().tolist()
 
-        res = (np.arcsinh(y1_fit)-y1)/e1
+        res = (y1_fit-y1)/e1
 
         diff += res.flatten().tolist()
 
-        res = (np.arcsinh(y2_fit)-y2)/e2
+        res = (y2_fit-y2)/e2
 
         diff += res.flatten().tolist()
 
@@ -1313,7 +1284,7 @@ class PeakEllipsoid:
 
         diff += [A0, A1, A2, B0, B1, B2,
                  C01, C02, C10, C12, C20, C21,
-                 r0, r1, r2, c0, c1, c2]
+                 r0, r1, r2, u0, u1, u2, c0, c1, c2]
 
         diff = np.array(diff)
 
@@ -1335,14 +1306,12 @@ class PeakEllipsoid:
         u1 = params['u1']
         u2 = params['u2']
 
-        phi, theta, omega = self.angles(u0, u1, u2)
-
         A = params['A3d']
         B = params['B3d']
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
-                                                    phi, theta, omega)
+                                                    u0, u1, u2)
 
         args = x0, x1, x2, 1, 0, c, inv_S
 
@@ -1356,13 +1325,13 @@ class PeakEllipsoid:
 
         y_fit = A*y_gauss+B
 
-        res = (np.arcsinh(y_fit)-y)/e
+        res = (y_fit-y)/e
 
         diff += res.flatten().tolist()
 
         # ---
 
-        diff += [A, B, r0, r1, r2, c0, c1, c2]
+        diff += [A, B, c0, c1, c2, r0, r1, r2, u0, u1, u2]
 
         diff = np.array(diff)
 
@@ -1370,11 +1339,19 @@ class PeakEllipsoid:
 
         return diff[mask]
 
-    # def loss(self, r):
+    def residual(self, params, args_1d, args_2d, args_3d):
 
-    #     z = r*r
+        cost_1d = self.residual_1d(params, *args_1d).tolist()
+        cost_2d = self.residual_2d(params, *args_2d).tolist()
+        cost_3d = self.residual_3d(params, *args_3d).tolist()
 
-    #     return np.sqrt(1+z)-1
+        return cost_1d+cost_2d+cost_3d
+
+    def loss(self, r):
+
+        z = r*r
+
+        return np.sqrt(1+z)-1
 
     def estimate_envelope(self, x0, x1, x2, counts, y, e):
 
@@ -1421,8 +1398,8 @@ class PeakEllipsoid:
         y1d = [y1d_0, y1d_1, y1d_2]
         e1d = [e1d_0, e1d_1, e1d_2]
 
-        y1d = [np.arcsinh(y) for y in y1d]
-        e1d = [e/np.sqrt(y**2+1) for y, e in zip(y1d, e1d)]
+        # y1d = [np.arcsinh(y) for y in y1d]
+        # e1d = [e/np.sqrt(y**2+1) for y, e in zip(y1d, e1d)]
 
         args_1d = [x0, x1, x2, y1d, e1d]
 
@@ -1479,8 +1456,8 @@ class PeakEllipsoid:
         y2d = [y2d_0, y2d_1, y2d_2]
         e2d = [e2d_0, e2d_1, e2d_2]
 
-        y2d = [np.arcsinh(y) for y in y2d]
-        e2d = [e/np.sqrt(y**2+1) for y, e in zip(y2d, e2d)]
+        # y2d = [np.arcsinh(y) for y in y2d]
+        # e2d = [e/np.sqrt(y**2+1) for y, e in zip(y2d, e2d)]
 
         args_2d = [x0, x1, x2, y2d, e2d]
 
@@ -1498,61 +1475,72 @@ class PeakEllipsoid:
 
         self.params.add('B3d', value=y_min, min=-2*y_max, max=2*y_max)
 
-        args_3d = [x0, x1, x2, np.arcsinh(y3d), e3d/np.sqrt(y3d**2+1)]
+        # args_3d = [x0, x1, x2, np.arcsinh(y3d), e3d/np.sqrt(y3d**2+1)]
+        args_3d = [x0, x1, x2, y3d, e3d]
 
         self.redchi2 = []
 
         y1, y2, y3 = y1d_0, y2d_0, y3d
         e1, e2, e3 = e1d_0, e2d_0, e3d
 
-        # ---
-
-        self.params['B1d_0'].set(vary=True)
-        self.params['B1d_1'].set(vary=True)
-        self.params['B1d_2'].set(vary=True)
-
-        self.params['C1d_0'].set(vary=True)
-        self.params['C1d_1'].set(vary=True)
-        self.params['C1d_2'].set(vary=True)
-
-        self.params['B2d_0'].set(vary=False)
-        self.params['B2d_1'].set(vary=False)
-        self.params['B2d_2'].set(vary=False)
-
-        self.params['C2d_01'].set(vary=False)
-        self.params['C2d_02'].set(vary=False)
-
-        self.params['C2d_10'].set(vary=False)
-        self.params['C2d_12'].set(vary=False)
-
-        self.params['C2d_20'].set(vary=False)
-        self.params['C2d_21'].set(vary=False)
-
-        self.params['B3d'].set(vary=False)
-
-        # ---
-
-        self.params['c0'].set(vary=True)
-        self.params['c1'].set(vary=True)
-        self.params['c2'].set(vary=True)
-
-        self.params['r0'].set(vary=True)
-        self.params['r1'].set(vary=True)
-        self.params['r2'].set(vary=True)
-
-        self.params['u0'].set(vary=False)
-        self.params['u1'].set(vary=False)
-        self.params['u2'].set(vary=False)
-
-        out = Minimizer(self.residual_1d,
+        out = Minimizer(self.residual,
                         self.params,
-                        fcn_args=args_1d,
-                        # reduce_fcn=self.loss,
+                        fcn_args=(args_1d, args_2d, args_3d),
+                        reduce_fcn=self.loss,
                         nan_policy='omit')
 
         result = out.minimize(method='leastsq')
 
         self.params = result.params
+
+        # ---
+
+        # self.params['B1d_0'].set(vary=True)
+        # self.params['B1d_1'].set(vary=True)
+        # self.params['B1d_2'].set(vary=True)
+
+        # self.params['C1d_0'].set(vary=True)
+        # self.params['C1d_1'].set(vary=True)
+        # self.params['C1d_2'].set(vary=True)
+
+        # self.params['B2d_0'].set(vary=False)
+        # self.params['B2d_1'].set(vary=False)
+        # self.params['B2d_2'].set(vary=False)
+
+        # self.params['C2d_01'].set(vary=False)
+        # self.params['C2d_02'].set(vary=False)
+
+        # self.params['C2d_10'].set(vary=False)
+        # self.params['C2d_12'].set(vary=False)
+
+        # self.params['C2d_20'].set(vary=False)
+        # self.params['C2d_21'].set(vary=False)
+
+        # self.params['B3d'].set(vary=False)
+
+        # ---
+
+        # self.params['c0'].set(vary=True)
+        # self.params['c1'].set(vary=True)
+        # self.params['c2'].set(vary=True)
+
+        # self.params['r0'].set(vary=True)
+        # self.params['r1'].set(vary=True)
+        # self.params['r2'].set(vary=True)
+
+        # self.params['u0'].set(vary=False)
+        # self.params['u1'].set(vary=False)
+        # self.params['u2'].set(vary=False)
+
+        # out = Minimizer(self.residual_1d,
+        #                 self.params,
+        #                 fcn_args=args_1d,
+        #                 reduce_fcn=self.loss,
+        #                 nan_policy='omit')
+
+        # result = out.minimize(method='leastsq')
+
+        # self.params = result.params
 
         # ---
 
@@ -1568,15 +1556,13 @@ class PeakEllipsoid:
         u1 = self.params['u1'].value
         u2 = self.params['u2'].value
 
-        phi, theta, omega = self.angles(u0, u1, u2)
-
         C1_0 = self.params['C1d_0'].value
 
         B1 = self.params['B1d_0'].value
 
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
-                                                    phi, theta, omega)
+                                                    u0, u1, u2)
 
         # det_0 = 1/self.ellipsoid_covariance(inv_S, mode='1d_0')
 
@@ -1594,77 +1580,75 @@ class PeakEllipsoid:
 
         # ---
 
-        self.params['B1d_0'].set(vary=False)
-        self.params['B1d_1'].set(vary=False)
-        self.params['B1d_2'].set(vary=False)
+        # self.params['B1d_0'].set(vary=False)
+        # self.params['B1d_1'].set(vary=False)
+        # self.params['B1d_2'].set(vary=False)
 
-        self.params['C1d_0'].set(vary=False)
-        self.params['C1d_1'].set(vary=False)
-        self.params['C1d_2'].set(vary=False)
+        # self.params['C1d_0'].set(vary=False)
+        # self.params['C1d_1'].set(vary=False)
+        # self.params['C1d_2'].set(vary=False)
 
-        self.params['B2d_0'].set(vary=True)
-        self.params['B2d_1'].set(vary=True)
-        self.params['B2d_2'].set(vary=True)
+        # self.params['B2d_0'].set(vary=True)
+        # self.params['B2d_1'].set(vary=True)
+        # self.params['B2d_2'].set(vary=True)
 
-        self.params['C2d_01'].set(vary=True)
-        self.params['C2d_02'].set(vary=True)
+        # self.params['C2d_01'].set(vary=True)
+        # self.params['C2d_02'].set(vary=True)
 
-        self.params['C2d_10'].set(vary=True)
-        self.params['C2d_12'].set(vary=True)
+        # self.params['C2d_10'].set(vary=True)
+        # self.params['C2d_12'].set(vary=True)
 
-        self.params['C2d_20'].set(vary=True)
-        self.params['C2d_21'].set(vary=True)
+        # self.params['C2d_20'].set(vary=True)
+        # self.params['C2d_21'].set(vary=True)
 
-        self.params['B3d'].set(vary=False)
-
-        # ---
-
-        self.params['c0'].set(vary=True)
-        self.params['c1'].set(vary=True)
-        self.params['c2'].set(vary=True)
-
-        self.params['r0'].set(vary=True)
-        self.params['r1'].set(vary=True)
-        self.params['r2'].set(vary=True)
-
-        self.params['u0'].set(vary=True)
-        self.params['u1'].set(vary=True)
-        self.params['u2'].set(vary=True)
-
-        out = Minimizer(self.residual_2d,
-                        self.params,
-                        fcn_args=args_2d,
-                        # reduce_fcn=self.loss,
-                        nan_policy='omit')
-
-        result = out.minimize(method='leastsq')
-
-        self.params = result.params
+        # self.params['B3d'].set(vary=False)
 
         # ---
 
-        c0 = self.params['c0'].value
-        c1 = self.params['c1'].value
-        c2 = self.params['c2'].value
+        # self.params['c0'].set(vary=True)
+        # self.params['c1'].set(vary=True)
+        # self.params['c2'].set(vary=True)
 
-        r0 = self.params['r0'].value
-        r1 = self.params['r1'].value
-        r2 = self.params['r2'].value
+        # self.params['r0'].set(vary=True)
+        # self.params['r1'].set(vary=True)
+        # self.params['r2'].set(vary=True)
 
-        u0 = self.params['u0'].value
-        u1 = self.params['u1'].value
-        u2 = self.params['u2'].value
+        # self.params['u0'].set(vary=True)
+        # self.params['u1'].set(vary=True)
+        # self.params['u2'].set(vary=True)
 
-        phi, theta, omega = self.angles(u0, u1, u2)
+        # out = Minimizer(self.residual_2d,
+        #                 self.params,
+        #                 fcn_args=args_2d,
+        #                 reduce_fcn=self.loss,
+        #                 nan_policy='omit')
+
+        # result = out.minimize(method='leastsq')
+
+        # self.params = result.params
+
+        # ---
+
+        # c0 = self.params['c0'].value
+        # c1 = self.params['c1'].value
+        # c2 = self.params['c2'].value
+
+        # r0 = self.params['r0'].value
+        # r1 = self.params['r1'].value
+        # r2 = self.params['r2'].value
+
+        # u0 = self.params['u0'].value
+        # u1 = self.params['u1'].value
+        # u2 = self.params['u2'].value
 
         C2_1 = self.params['C2d_01'].value
         C2_2 = self.params['C2d_02'].value
 
         B2 = self.params['B2d_0'].value
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
-                                                    r0, r1, r2,
-                                                    phi, theta, omega)
+        # c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+        #                                             r0, r1, r2,
+        #                                             u0, u1, u2)
 
         # det_12 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_0'))
 
@@ -1682,74 +1666,72 @@ class PeakEllipsoid:
 
         # ---
 
-        self.params['B1d_0'].set(vary=False)
-        self.params['B1d_1'].set(vary=False)
-        self.params['B1d_2'].set(vary=False)
+        # self.params['B1d_0'].set(vary=False)
+        # self.params['B1d_1'].set(vary=False)
+        # self.params['B1d_2'].set(vary=False)
 
-        self.params['C1d_0'].set(vary=False)
-        self.params['C1d_1'].set(vary=False)
-        self.params['C1d_2'].set(vary=False)
+        # self.params['C1d_0'].set(vary=False)
+        # self.params['C1d_1'].set(vary=False)
+        # self.params['C1d_2'].set(vary=False)
 
-        self.params['B2d_0'].set(vary=False)
-        self.params['B2d_1'].set(vary=False)
-        self.params['B2d_2'].set(vary=False)
+        # self.params['B2d_0'].set(vary=False)
+        # self.params['B2d_1'].set(vary=False)
+        # self.params['B2d_2'].set(vary=False)
 
-        self.params['C2d_01'].set(vary=False)
-        self.params['C2d_02'].set(vary=False)
+        # self.params['C2d_01'].set(vary=False)
+        # self.params['C2d_02'].set(vary=False)
 
-        self.params['C2d_10'].set(vary=False)
-        self.params['C2d_12'].set(vary=False)
+        # self.params['C2d_10'].set(vary=False)
+        # self.params['C2d_12'].set(vary=False)
 
-        self.params['C2d_20'].set(vary=False)
-        self.params['C2d_21'].set(vary=False)
+        # self.params['C2d_20'].set(vary=False)
+        # self.params['C2d_21'].set(vary=False)
 
-        self.params['B3d'].set(vary=True)
-
-        # ---
-
-        self.params['c0'].set(vary=True)
-        self.params['c1'].set(vary=True)
-        self.params['c2'].set(vary=True)
-
-        self.params['r0'].set(vary=True)
-        self.params['r1'].set(vary=True)
-        self.params['r2'].set(vary=True)
-
-        self.params['u0'].set(vary=True)
-        self.params['u1'].set(vary=True)
-        self.params['u2'].set(vary=True)
-
-        out = Minimizer(self.residual_3d,
-                        self.params,
-                        fcn_args=args_3d,
-                        # reduce_fcn=self.loss,
-                        nan_policy='omit')
-
-        result = out.minimize(method='leastsq')
-
-        self.params = result.params
+        # self.params['B3d'].set(vary=True)
 
         # ---
 
-        c0 = self.params['c0'].value
-        c1 = self.params['c1'].value
-        c2 = self.params['c2'].value
+        # self.params['c0'].set(vary=True)
+        # self.params['c1'].set(vary=True)
+        # self.params['c2'].set(vary=True)
 
-        r0 = self.params['r0'].value
-        r1 = self.params['r1'].value
-        r2 = self.params['r2'].value
+        # self.params['r0'].set(vary=True)
+        # self.params['r1'].set(vary=True)
+        # self.params['r2'].set(vary=True)
 
-        u0 = self.params['u0'].value
-        u1 = self.params['u1'].value
-        u2 = self.params['u2'].value
+        # self.params['u0'].set(vary=True)
+        # self.params['u1'].set(vary=True)
+        # self.params['u2'].set(vary=True)
 
-        phi, theta, omega = self.angles(u0, u1, u2)
+        # out = Minimizer(self.residual_3d,
+        #                 self.params,
+        #                 fcn_args=args_3d,
+        #                 reduce_fcn=self.loss,
+        #                 nan_policy='omit')
+
+        # result = out.minimize(method='leastsq')
+
+        # self.params = result.params
+
+        # ---
+
+        # c0 = self.params['c0'].value
+        # c1 = self.params['c1'].value
+        # c2 = self.params['c2'].value
+
+        # r0 = self.params['r0'].value
+        # r1 = self.params['r1'].value
+        # r2 = self.params['r2'].value
+
+        # u0 = self.params['u0'].value
+        # u1 = self.params['u1'].value
+        # u2 = self.params['u2'].value
 
         B3 = self.params['B3d'].value
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
-                                                    r0, r1, r2,
-                                                    phi, theta, omega)
+        # c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+        #                                             r0, r1, r2,
+        #                                             u0, u1, u2)
 
         # det = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='3d'))
 
@@ -1769,7 +1751,7 @@ class PeakEllipsoid:
 
         self.error_scale = np.sqrt(self.redchi2[2])
 
-        inv_S = self.inv_S_matrix(r0, r1, r2, phi, theta, omega)
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
         return c, inv_S, (y1_fit, y1, e1), (y2_fit, y2, e2), (y3_fit, y3, e3)
 
@@ -1877,8 +1859,6 @@ class PeakEllipsoid:
         self.best_prof = (x0[:,0,0]+xmod, y_prof, e_prof), y_prof_fit
 
         self.best_proj = (x1[0,:,:], x2[0,:,:], y_proj, e_proj), y_proj_fit
-
-        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
