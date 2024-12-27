@@ -1215,21 +1215,21 @@ class PeakEllipsoid:
         y1_fit = A1*y1_gauss+B1+C1*(x1[0,:,0]-c1)
         y2_fit = A2*y2_gauss+B2+C2*(x2[0,0,:]-c2)
 
-        res = (y0-y0_fit)/e0
+        res = (np.arcsinh(y0_fit)-y0)/e0
 
         diff += res.flatten().tolist()
 
-        res = (y1-y1_fit)/e1
+        res = (np.arcsinh(y1_fit)-y1)/e1
 
         diff += res.flatten().tolist()
 
-        res = (y2-y2_fit)/e2
+        res = (np.arcsinh(y2_fit)-y2)/e2
 
         diff += res.flatten().tolist()
 
         # ---
 
-        diff += [A0, A1, A2, B0, B1, B2, r0, r1, r2, c0, c1, c2]
+        diff += [A0, A1, A2, B0, B1, B2, C0, C1, C2, r0, r1, r2, c0, c1, c2]
 
         diff = np.array(diff)
 
@@ -1297,21 +1297,23 @@ class PeakEllipsoid:
         y1_fit = A1*y1_gauss+B1+C10*(x0[:,0,:]-c0)+C12*(x2[:,0,:]-c2)
         y2_fit = A2*y2_gauss+B2+C20*(x0[:,:,0]-c0)+C21*(x1[:,:,0]-c1)
 
-        res = (y0-y0_fit)/e0
+        res = (np.arcsinh(y0_fit)-y0)/e0
 
         diff += res.flatten().tolist()
 
-        res = (y1-y1_fit)/e1
+        res = (np.arcsinh(y1_fit)-y1)/e1
 
         diff += res.flatten().tolist()
 
-        res = (y2-y2_fit)/e2
+        res = (np.arcsinh(y2_fit)-y2)/e2
 
         diff += res.flatten().tolist()
 
         # ---
 
-        diff += [A0, A1, A2, B0, B1, B2, r0, r1, r2, c0, c1, c2]
+        diff += [A0, A1, A2, B0, B1, B2,
+                 C01, C02, C10, C12, C20, C21,
+                 r0, r1, r2, c0, c1, c2]
 
         diff = np.array(diff)
 
@@ -1354,7 +1356,7 @@ class PeakEllipsoid:
 
         y_fit = A*y_gauss+B
 
-        res = (y-y_fit)/e
+        res = (np.arcsinh(y_fit)-y)/e
 
         diff += res.flatten().tolist()
 
@@ -1368,11 +1370,11 @@ class PeakEllipsoid:
 
         return diff[mask]
 
-    def soft_l1(self, r):
+    # def loss(self, r):
 
-        z = r*r
+    #     z = r*r
 
-        return 2*(np.sqrt(1+z)-1)
+    #     return np.sqrt(1+z)-1
 
     def estimate_envelope(self, x0, x1, x2, counts, y, e):
 
@@ -1416,7 +1418,13 @@ class PeakEllipsoid:
         self.params.add('C1d_1', value=0, min=-2*C1_max, max=2*C1_max)
         self.params.add('C1d_2', value=0, min=-2*C2_max, max=2*C2_max)
 
-        args_1d = [x0, x1, x2, (y1d_0, y1d_1, y1d_2), (e1d_0, e1d_1, e1d_2)]
+        y1d = [y1d_0, y1d_1, y1d_2]
+        e1d = [e1d_0, e1d_1, e1d_2]
+
+        y1d = [np.arcsinh(y) for y in y1d]
+        e1d = [e/np.sqrt(y**2+1) for y, e in zip(y1d, e1d)]
+
+        args_1d = [x0, x1, x2, y1d, e1d]
 
         y2d_0, e2d_0 = self.normalize(x0, x1, x2, counts, y, e, mode='2d_0')
         y2d_1, e2d_1 = self.normalize(x0, x1, x2, counts, y, e, mode='2d_1')
@@ -1468,7 +1476,13 @@ class PeakEllipsoid:
         self.params.add('C2d_20', value=0, min=-2*C20_max, max=2*C20_max)
         self.params.add('C2d_21', value=0, min=-2*C21_max, max=2*C21_max)
 
-        args_2d = [x0, x1, x2, (y2d_0, y2d_1, y2d_2), (e2d_0, e2d_1, e2d_2)]
+        y2d = [y2d_0, y2d_1, y2d_2]
+        e2d = [e2d_0, e2d_1, e2d_2]
+
+        y2d = [np.arcsinh(y) for y in y2d]
+        e2d = [e/np.sqrt(y**2+1) for y, e in zip(y2d, e2d)]
+
+        args_2d = [x0, x1, x2, y2d, e2d]
 
         y3d, e3d = self.normalize(x0, x1, x2, counts, y, e, mode='3d')
 
@@ -1484,7 +1498,7 @@ class PeakEllipsoid:
 
         self.params.add('B3d', value=y_min, min=-2*y_max, max=2*y_max)
 
-        args_3d = [x0, x1, x2, y3d, e3d]
+        args_3d = [x0, x1, x2, np.arcsinh(y3d), e3d/np.sqrt(y3d**2+1)]
 
         self.redchi2 = []
 
@@ -1533,7 +1547,7 @@ class PeakEllipsoid:
         out = Minimizer(self.residual_1d,
                         self.params,
                         fcn_args=args_1d,
-                        reduce_fcn=self.soft_l1,
+                        # reduce_fcn=self.loss,
                         nan_policy='omit')
 
         result = out.minimize(method='leastsq')
@@ -1620,7 +1634,7 @@ class PeakEllipsoid:
         out = Minimizer(self.residual_2d,
                         self.params,
                         fcn_args=args_2d,
-                        reduce_fcn=self.soft_l1,
+                        # reduce_fcn=self.loss,
                         nan_policy='omit')
 
         result = out.minimize(method='leastsq')
@@ -1708,7 +1722,7 @@ class PeakEllipsoid:
         out = Minimizer(self.residual_3d,
                         self.params,
                         fcn_args=args_3d,
-                        reduce_fcn=self.soft_l1,
+                        # reduce_fcn=self.loss,
                         nan_policy='omit')
 
         result = out.minimize(method='leastsq')
