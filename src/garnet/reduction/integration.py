@@ -162,7 +162,7 @@ class Integration(SubPlan):
 
             r_cut = self.params['Radius']
 
-            peaks.integrate_peaks('md', 'peaks', r_cut)
+            # peaks.integrate_peaks('md', 'peaks', r_cut)
 
             # peaks.remove_weak_peaks('peaks', 10)
 
@@ -565,11 +565,11 @@ class Integration(SubPlan):
         params = self.peaks.intensity_vs_radius(data_ws, peaks_ws, r_cut)
 
         r, sig_noise, x, y, e, lamda = params
-        
+
         sphere = PeakSphere(r_cut)
-        
+
         r_cut = sphere.fit(r, sig_noise)
-        
+
         sig_noise_fit, *vals = sphere.best_fit(r)
 
         # values = self.peaks.extract_peaks_roi(data_ws, peaks_ws, r_cut)
@@ -646,7 +646,7 @@ class Integration(SubPlan):
             self.peak_plot = PeakPlot()
 
         self.make_plot = make_plot
-    
+
         data = self.data
 
         peak = PeakModel(peaks_ws)
@@ -966,11 +966,6 @@ class PeakEllipsoid:
 
         self.params = Parameters()
 
-        t = np.linspace(0, np.pi, 1024)
-        cdf = (t-np.sin(t))/np.pi
-
-        self._angle = scipy.interpolate.interp1d(cdf, t, kind='linear')
-
     def update_constraints(self, x0, x1, x2, dx):
 
         r0 = (x0[:,0,0][-1]-x0[:,0,0][0])/8
@@ -996,25 +991,25 @@ class PeakEllipsoid:
         self.params.add('r1', value=r1, min=dx, max=r1_max)
         self.params.add('r2', value=r2, min=dx, max=r2_max)
 
-        self.params.add('u0', value=0.0, min=-np.pi, max=np.pi)
-        self.params.add('u1', value=0.0, min=-np.pi, max=np.pi)
-        self.params.add('u2', value=0.0, min=-np.pi, max=np.pi)
+        self.params.add('u0', value=0.0, min=-np.pi/6, max=np.pi/6)
+        self.params.add('u1', value=0.0, min=-np.pi/6, max=np.pi/6)
+        self.params.add('u2', value=0.0, min=-np.pi/6, max=np.pi/6)
 
-    def S_matrix(self, sigma0, sigma1, sigma2, u0, u1, u2):
+    def S_matrix(self, r0, r1, r2, u0, u1, u2):
 
         U = self.U_matrix(u0, u1, u2)
 
-        V = np.diag([sigma0**2, sigma1**2, sigma2**2])
+        V = np.diag([r0**2, r1**2, r2**2])
 
         S = np.dot(np.dot(U, V), U.T)
 
         return S
 
-    def inv_S_matrix(self, sigma0, sigma1, sigma2, u0, u1, u2):
+    def inv_S_matrix(self, r0, r1, r2, u0, u1, u2):
 
         U = self.U_matrix(u0, u1, u2)
 
-        V = np.diag([1/sigma0**2, 1/sigma1**2, 1/sigma2**2])
+        V = np.diag([1/r0**2, 1/r1**2, 1/r2**2])
 
         inv_S = np.dot(np.dot(U, V), U.T)
 
@@ -1038,7 +1033,7 @@ class PeakEllipsoid:
 
     def normalize(self, x0, x1, x2, counts, y, e, mode='3d'):
 
-        dx0, dx1, dx2 = self.voxels(x0, x1, x2)        
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         if mode == '1d_0':
             c_int = dx0*np.mean(counts > 0, axis=(1,2))
@@ -1081,7 +1076,7 @@ class PeakEllipsoid:
 
         if mode == '3d':
             scale = scipy.stats.chi2.ppf(perc/100, df=3)
-            inv_var = scale*inv_S
+            inv_var = inv_S*scale
         elif mode == '2d_0':
             scale = scipy.stats.chi2.ppf(perc/100, df=2)
             inv_var = inv_S[1:,1:]*scale
@@ -1103,7 +1098,7 @@ class PeakEllipsoid:
 
         return inv_var
 
-    def gaussian(self, x0, x1, x2, A, B, c, inv_S, mode='3d'):
+    def gaussian(self, x0, x1, x2, c, inv_S, mode='3d'):
 
         c0, c1, c2 = c
 
@@ -1133,7 +1128,138 @@ class PeakEllipsoid:
             dx = dx2[0,0,:]
             d2 = inv_var*dx**2
 
-        return A*np.exp(-0.5*d2)+B
+        return np.exp(-0.5*d2)
+
+    def inv_S_deriv_r(self, r0, r1, r2, u0, u1, u2):
+
+        U = self.U_matrix(u0, u1, u2)
+
+        dinv_S0 = U @ np.diag([-2/r0**3,0,0]) @ U.T
+        dinv_S1 = U @ np.diag([0,-2/r1**3,0]) @ U.T
+        dinv_S2 = U @ np.diag([0,0,-2/r2**3]) @ U.T
+
+        return dinv_S0, dinv_S1, dinv_S2
+
+    def inv_S_deriv_u(self, r0, r1, r2, u0, u1, u2):
+
+        V = np.diag([1/r0**2, 1/r1**2, 1/r2**2])
+
+        U = self.U_matrix(u0, u1, u2)
+        dU0, dU1, dU2 = self.U_deriv_u(u0, u1, u2)
+
+        dinv_S0 = dU0 @ V @ U.T + U @ V @ dU0.T
+        dinv_S1 = dU1 @ V @ U.T + U @ V @ dU1.T
+        dinv_S2 = dU2 @ V @ U.T + U @ V @ dU2.T
+
+        return dinv_S0, dinv_S1, dinv_S2
+    
+    def U_deriv_u(self, u0, u1, u2, delta=1e-4):
+
+        dU0 = self.U_matrix(u0+delta, u1, u2)-self.U_matrix(u0-delta, u1, u2)
+        dU1 = self.U_matrix(u0, u1+delta, u2)-self.U_matrix(u0, u1-delta, u2)
+        dU2 = self.U_matrix(u0, u1, u2+delta)-self.U_matrix(u0, u1, u2-delta)
+
+        return 0.5*dU0/delta, 0.5*dU1/delta, 0.5*dU2/delta
+
+    def gaussian_jac_c(self, x0, x1, x2, c, inv_S, mode='3d'):
+
+        c0, c1, c2 = c
+
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
+
+        inv_var = self.ellipsoid_covariance(inv_S, mode)
+
+        if mode == '3d':
+            dx = [dx0, dx1, dx2]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
+            g0, g1, g2 = np.einsum('ij,j...->i...', inv_var, dx)
+        elif mode == '2d_0':
+            dx = [dx1[0,:,:], dx2[0,:,:]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
+            g1, g2 = np.einsum('ij,j...->i...', inv_var, dx)
+            g0 = g1*0
+        elif mode == '2d_1':
+            dx = [dx0[:,0,:], dx2[:,0,:]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
+            g0, g2 = np.einsum('ij,j...->i...', inv_var, dx)
+            g1 = g2*0
+        elif mode == '2d_2':
+            dx = [dx0[:,:,0], dx1[:,:,0]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
+            g0, g1 = np.einsum('ij,j...->i...', inv_var, dx)
+            g2 = g0*0
+        elif mode == '1d_0':
+            dx = dx0[:,0,0]
+            d2 = inv_var*dx**2
+            g0 = inv_var*dx
+            g1 = g2 = g0*0
+        elif mode == '1d_1':
+            dx = dx1[0,:,0]
+            d2 = inv_var*dx**2
+            g1 = inv_var*dx
+            g2 = g0 = g1*0
+        elif mode == '1d_2':
+            dx = dx2[0,0,:]
+            d2 = inv_var*dx**2
+            g2 = inv_var*dx
+            g0 = g1 = g2*0
+
+        g = np.exp(-0.5*d2)
+
+        return g*np.array([g0, g1, g2])
+
+    def gaussian_jac_S(self, x0, x1, x2, c, inv_S, d_inv_S, mode='3d'):
+
+        c0, c1, c2 = c
+
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
+
+        inv_var = self.ellipsoid_covariance(inv_S, mode)
+        d_inv_var = [self.ellipsoid_covariance(val, mode) for val in d_inv_S]
+
+        if mode == '3d':
+            dx = [dx0, dx1, dx2]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
+            g0 = np.einsum('i...,ij,j...->...', dx, d_inv_var[0], dx)
+            g1 = np.einsum('i...,ij,j...->...', dx, d_inv_var[1], dx)
+            g2 = np.einsum('i...,ij,j...->...', dx, d_inv_var[2], dx)
+        elif mode == '2d_0':
+            dx = [dx1[0,:,:], dx2[0,:,:]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
+            g1 = np.einsum('i...,ij,j...->...', dx, d_inv_var[1], dx)
+            g2 = np.einsum('i...,ij,j...->...', dx, d_inv_var[2], dx)
+            g0 = g1*0
+        elif mode == '2d_1':
+            dx = [dx0[:,0,:], dx2[:,0,:]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
+            g0 = np.einsum('i...,ij,j...->...', dx, d_inv_var[0], dx)
+            g2 = np.einsum('i...,ij,j...->...', dx, d_inv_var[2], dx)
+            g1 = g2*0
+        elif mode == '2d_2':
+            dx = [dx0[:,:,0], dx1[:,:,0]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_var, dx)
+            g0 = np.einsum('i...,ij,j...->...', dx, d_inv_var[0], dx)
+            g1 = np.einsum('i...,ij,j...->...', dx, d_inv_var[1], dx)
+            g2 = g0*0
+        elif mode == '1d_0':
+            dx = dx0[:,0,0]
+            d2 = inv_var*dx**2
+            g0 = d_inv_var[0]*dx**2
+            g1 = g2 = g0*0
+        elif mode == '1d_1':
+            dx = dx1[0,:,0]
+            d2 = inv_var*dx**2
+            g1 = d_inv_var[1]*dx**2
+            g2 = g0 = g1*0
+        elif mode == '1d_2':
+            dx = dx2[0,0,:]
+            d2 = inv_var*dx**2
+            g2 = d_inv_var[2]*dx**2
+            g0 = g1 = g2*0
+
+        g = np.exp(-0.5*d2)
+
+        return -0.5*g*np.array([g0, g1, g2])
 
     def residual_1d(self, params, x0, x1, x2, ys, es):
 
@@ -1168,19 +1294,11 @@ class PeakEllipsoid:
                                                     r0, r1, r2,
                                                     u0, u1, u2)
 
-        args = x0, x1, x2, 1, 0, c, inv_S
+        args = x0, x1, x2, c, inv_S
 
         y0_gauss = self.gaussian(*args, '1d_0')
         y1_gauss = self.gaussian(*args, '1d_1')
         y2_gauss = self.gaussian(*args, '1d_2')
-
-        # det_0 = 1/self.ellipsoid_covariance(inv_S, mode='1d_0')
-        # det_1 = 1/self.ellipsoid_covariance(inv_S, mode='1d_1')
-        # det_2 = 1/self.ellipsoid_covariance(inv_S, mode='1d_2')
-
-        # A0 = I/np.sqrt((2*np.pi)**1*det_0)
-        # A1 = I/np.sqrt((2*np.pi)**1*det_1)
-        # A2 = I/np.sqrt((2*np.pi)**1*det_2)
 
         diff = []
 
@@ -1202,13 +1320,145 @@ class PeakEllipsoid:
 
         # ---
 
-        diff += [A0, A1, A2, B0, B1, B2, C0, C1, C2, r0, r1, r2, c0, c1, c2]
-
         diff = np.array(diff)
 
         mask = np.isfinite(diff)
 
         return diff[mask]
+
+    def jacobian_1d(self, params, x0, x1, x2, ys, es):
+
+        params_list = list(params.keys())
+
+        y0, y1, y2 = ys
+        e0, e1, e2 = es
+
+        c0 = params['c0']
+        c1 = params['c1']
+        c2 = params['c2']
+
+        r0 = params['r0']
+        r1 = params['r1']
+        r2 = params['r2']
+
+        u0 = params['u0']
+        u1 = params['u1']
+        u2 = params['u2']
+
+        A0 = params['A1d_0']
+        A1 = params['A1d_1']
+        A2 = params['A1d_2']
+
+        # B0 = params['B1d_0']
+        # B1 = params['B1d_1']
+        # B2 = params['B1d_2']
+
+        C0 = params['C1d_0']
+        C1 = params['C1d_1']
+        C2 = params['C1d_2']
+
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    u0, u1, u2)
+
+        args = x0, x1, x2, c, inv_S
+
+        y0_gauss = self.gaussian(*args, '1d_0')
+        y1_gauss = self.gaussian(*args, '1d_1')
+        y2_gauss = self.gaussian(*args, '1d_2')
+
+        dA0 = y0_gauss/e0
+        dA1 = y1_gauss/e1
+        dA2 = y2_gauss/e2
+
+        dB0 = 1/e0
+        dB1 = 1/e1
+        dB2 = 1/e2
+
+        dC0 = (x0[:,0,0]-c0)/e0
+        dC1 = (x1[0,:,0]-c1)/e1
+        dC2 = (x2[0,0,:]-c2)/e2
+
+        yc0_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode='1d_0')
+        yc1_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode='1d_1')
+        yc2_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode='1d_2')
+
+        dc0_0, dc1_0, dc2_0 = A0*yc0_gauss/e0
+        dc0_1, dc1_1, dc2_1 = A1*yc1_gauss/e1
+        dc0_2, dc1_2, dc2_2 = A2*yc2_gauss/e2
+
+        dc0_0 -= C0/e0
+        dc1_1 -= C1/e1
+        dc2_2 -= C2/e2
+
+        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
+        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
+
+        yr0_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode='1d_0')
+        yr1_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode='1d_1')
+        yr2_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode='1d_2')
+
+        yu0_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode='1d_0')
+        yu1_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode='1d_1')
+        yu2_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode='1d_2')
+
+        dr0_0, dr1_0, dr2_0 = A0*yr0_gauss/e0
+        dr0_1, dr1_1, dr2_1 = A1*yr1_gauss/e1
+        dr0_2, dr1_2, dr2_2 = A2*yr2_gauss/e2
+
+        du0_0, du1_0, du2_0 = A0*yu0_gauss/e0
+        du0_1, du1_1, du2_1 = A1*yu1_gauss/e1
+        du0_2, du1_2, du2_2 = A2*yu2_gauss/e2
+
+        n0, n1, n2, n_params = y0.size, y1.size, y2.size, len(params)
+        jac = np.zeros((n_params,n0+n1+n2))
+
+        jac[params_list.index('A1d_0'),:n0] = dA0.flatten()
+        jac[params_list.index('B1d_0'),:n0] = dB0.flatten()
+        jac[params_list.index('C1d_0'),:n0] = dC0.flatten()
+        jac[params_list.index('c0'),:n0] = dc0_0.flatten()
+        jac[params_list.index('c1'),:n0] = dc1_0.flatten()
+        jac[params_list.index('c2'),:n0] = dc2_0.flatten()
+        jac[params_list.index('r0'),:n0] = dr0_0.flatten()
+        jac[params_list.index('r1'),:n0] = dr1_0.flatten()
+        jac[params_list.index('r2'),:n0] = dr2_0.flatten()
+        jac[params_list.index('u0'),:n0] = du0_0.flatten()
+        jac[params_list.index('u1'),:n0] = du1_0.flatten()
+        jac[params_list.index('u2'),:n0] = du2_0.flatten()
+
+        jac[params_list.index('A1d_1'),n0:n0+n1] = dA1.flatten()
+        jac[params_list.index('B1d_1'),n0:n0+n1] = dB1.flatten()
+        jac[params_list.index('C1d_1'),n0:n0+n1] = dC1.flatten()
+        jac[params_list.index('c0'),n0:n0+n1] = dc0_1.flatten()
+        jac[params_list.index('c1'),n0:n0+n1] = dc1_1.flatten()
+        jac[params_list.index('c2'),n0:n0+n1] = dc2_1.flatten()
+        jac[params_list.index('r0'),n0:n0+n1] = dr0_1.flatten()
+        jac[params_list.index('r1'),n0:n0+n1] = dr1_1.flatten()
+        jac[params_list.index('r2'),n0:n0+n1] = dr2_1.flatten()
+        jac[params_list.index('u0'),n0:n0+n1] = du0_1.flatten()
+        jac[params_list.index('u1'),n0:n0+n1] = du1_1.flatten()
+        jac[params_list.index('u2'),n0:n0+n1] = du2_1.flatten()
+
+        jac[params_list.index('A1d_2'),n0+n1:n0+n1+n2] = dA2.flatten()
+        jac[params_list.index('B1d_2'),n0+n1:n0+n1+n2] = dB2.flatten()
+        jac[params_list.index('C1d_2'),n0+n1:n0+n1+n2] = dC2.flatten()
+        jac[params_list.index('c0'),n0+n1:n0+n1+n2] = dc0_2.flatten()
+        jac[params_list.index('c1'),n0+n1:n0+n1+n2] = dc1_2.flatten()
+        jac[params_list.index('c2'),n0+n1:n0+n1+n2] = dc2_2.flatten()
+        jac[params_list.index('r0'),n0+n1:n0+n1+n2] = dr0_2.flatten()
+        jac[params_list.index('r1'),n0+n1:n0+n1+n2] = dr1_2.flatten()
+        jac[params_list.index('r2'),n0+n1:n0+n1+n2] = dr2_2.flatten()
+        jac[params_list.index('u0'),n0+n1:n0+n1+n2] = du0_2.flatten()
+        jac[params_list.index('u1'),n0+n1:n0+n1+n2] = du1_2.flatten()
+        jac[params_list.index('u2'),n0+n1:n0+n1+n2] = du2_2.flatten()
+
+        # ---
+
+        diff = np.concatenate([e.flatten() for e in es])
+
+        mask = np.isfinite(diff)
+
+        return jac[:,mask]
 
     def residual_2d(self, params, x0, x1, x2, ys, es):
 
@@ -1248,19 +1498,11 @@ class PeakEllipsoid:
                                                     r0, r1, r2,
                                                     u0, u1, u2)
 
-        args = x0, x1, x2, 1, 0, c, inv_S
+        args = x0, x1, x2, c, inv_S
 
         y0_gauss = self.gaussian(*args, '2d_0')
         y1_gauss = self.gaussian(*args, '2d_1')
         y2_gauss = self.gaussian(*args, '2d_2')
-
-        # det_0 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_0'))
-        # det_1 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_1'))
-        # det_2 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_2'))
-
-        # A0 = I/np.sqrt((2*np.pi)**2*det_0)
-        # A1 = I/np.sqrt((2*np.pi)**2*det_1)
-        # A2 = I/np.sqrt((2*np.pi)**2*det_2)
 
         diff = []
 
@@ -1282,15 +1524,163 @@ class PeakEllipsoid:
 
         # ---
 
-        diff += [A0, A1, A2, B0, B1, B2,
-                 C01, C02, C10, C12, C20, C21,
-                 r0, r1, r2, u0, u1, u2, c0, c1, c2]
-
         diff = np.array(diff)
 
         mask = np.isfinite(diff)
 
         return diff[mask]
+
+    def jacobian_2d(self, params, x0, x1, x2, ys, es):
+
+        params_list = list(params.keys())
+
+        y0, y1, y2 = ys
+        e0, e1, e2 = es
+
+        c0 = params['c0']
+        c1 = params['c1']
+        c2 = params['c2']
+
+        r0 = params['r0']
+        r1 = params['r1']
+        r2 = params['r2']
+
+        u0 = params['u0']
+        u1 = params['u1']
+        u2 = params['u2']
+
+        A0 = params['A2d_0']
+        A1 = params['A2d_1']
+        A2 = params['A2d_2']
+
+        # B0 = params['B2d_0']
+        # B1 = params['B2d_1']
+        # B2 = params['B2d_2']
+
+        C01 = params['C2d_01']
+        C02 = params['C2d_02']
+
+        C10 = params['C2d_10']
+        C12 = params['C2d_12']
+
+        C20 = params['C2d_20']
+        C21 = params['C2d_21']
+
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    u0, u1, u2)
+
+        args = x0, x1, x2, c, inv_S
+
+        y0_gauss = self.gaussian(*args, '2d_0')
+        y1_gauss = self.gaussian(*args, '2d_1')
+        y2_gauss = self.gaussian(*args, '2d_2')
+
+        dA0 = y0_gauss/e0
+        dA1 = y1_gauss/e1
+        dA2 = y2_gauss/e2
+
+        dB0 = 1/e0
+        dB1 = 1/e1
+        dB2 = 1/e2
+
+        dC01 = (x1[0,:,:]-c1)/e0
+        dC02 = (x2[0,:,:]-c2)/e0
+
+        dC10 = (x0[:,0,:]-c0)/e1
+        dC12 = (x2[:,0,:]-c2)/e1
+
+        dC20 = (x0[:,:,0]-c0)/e2
+        dC21 = (x1[:,:,0]-c1)/e2
+
+        yc0_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode='2d_0')
+        yc1_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode='2d_1')
+        yc2_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode='2d_2')
+
+        dc0_0, dc1_0, dc2_0 = A0*yc0_gauss/e0
+        dc0_1, dc1_1, dc2_1 = A1*yc1_gauss/e1
+        dc0_2, dc1_2, dc2_2 = A2*yc2_gauss/e2
+
+        dc1_0 -= C01/e0
+        dc2_0 -= C02/e0
+
+        dc0_1 -= C10/e1
+        dc2_1 -= C12/e1
+
+        dc0_2 -= C20/e2
+        dc1_2 -= C21/e2
+
+        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
+        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
+
+        yr0_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode='2d_0')
+        yr1_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode='2d_1')
+        yr2_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode='2d_2')
+
+        yu0_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode='2d_0')
+        yu1_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode='2d_1')
+        yu2_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode='2d_2')
+
+        dr0_0, dr1_0, dr2_0 = A0*yr0_gauss/e0
+        dr0_1, dr1_1, dr2_1 = A1*yr1_gauss/e1
+        dr0_2, dr1_2, dr2_2 = A2*yr2_gauss/e2
+
+        du0_0, du1_0, du2_0 = A0*yu0_gauss/e0
+        du0_1, du1_1, du2_1 = A1*yu1_gauss/e1
+        du0_2, du1_2, du2_2 = A2*yu2_gauss/e2
+
+        n0, n1, n2, n_params = y0.size, y1.size, y2.size, len(params)
+        jac = np.zeros((n_params,n0+n1+n2))
+
+        jac[params_list.index('A2d_0'),:n0] = dA0.flatten()
+        jac[params_list.index('B2d_0'),:n0] = dB0.flatten()
+        jac[params_list.index('C2d_01'),:n0] = dC01.flatten()
+        jac[params_list.index('C2d_02'),:n0] = dC02.flatten()
+        jac[params_list.index('c0'),:n0] = dc0_0.flatten()
+        jac[params_list.index('c1'),:n0] = dc1_0.flatten()
+        jac[params_list.index('c2'),:n0] = dc2_0.flatten()
+        jac[params_list.index('r0'),:n0] = dr0_0.flatten()
+        jac[params_list.index('r1'),:n0] = dr1_0.flatten()
+        jac[params_list.index('r2'),:n0] = dr2_0.flatten()
+        jac[params_list.index('u0'),:n0] = du0_0.flatten()
+        jac[params_list.index('u1'),:n0] = du1_0.flatten()
+        jac[params_list.index('u2'),:n0] = du2_0.flatten()
+
+        jac[params_list.index('A2d_1'),n0:n0+n1] = dA1.flatten()
+        jac[params_list.index('B2d_1'),n0:n0+n1] = dB1.flatten()
+        jac[params_list.index('C2d_10'),n0:n0+n1] = dC10.flatten()
+        jac[params_list.index('C2d_12'),n0:n0+n1] = dC12.flatten()
+        jac[params_list.index('c0'),n0:n0+n1] = dc0_1.flatten()
+        jac[params_list.index('c1'),n0:n0+n1] = dc1_1.flatten()
+        jac[params_list.index('c2'),n0:n0+n1] = dc2_1.flatten()
+        jac[params_list.index('r0'),n0:n0+n1] = dr0_1.flatten()
+        jac[params_list.index('r1'),n0:n0+n1] = dr1_1.flatten()
+        jac[params_list.index('r2'),n0:n0+n1] = dr2_1.flatten()
+        jac[params_list.index('u0'),n0:n0+n1] = du0_1.flatten()
+        jac[params_list.index('u1'),n0:n0+n1] = du1_1.flatten()
+        jac[params_list.index('u2'),n0:n0+n1] = du2_1.flatten()
+
+        jac[params_list.index('A2d_2'),n0+n1:n0+n1+n2] = dA2.flatten()
+        jac[params_list.index('B2d_2'),n0+n1:n0+n1+n2] = dB2.flatten()
+        jac[params_list.index('C2d_20'),n0+n1:n0+n1+n2] = dC20.flatten()
+        jac[params_list.index('C2d_21'),n0+n1:n0+n1+n2] = dC21.flatten()
+        jac[params_list.index('c0'),n0+n1:n0+n1+n2] = dc0_2.flatten()
+        jac[params_list.index('c1'),n0+n1:n0+n1+n2] = dc1_2.flatten()
+        jac[params_list.index('c2'),n0+n1:n0+n1+n2] = dc2_2.flatten()
+        jac[params_list.index('r0'),n0+n1:n0+n1+n2] = dr0_2.flatten()
+        jac[params_list.index('r1'),n0+n1:n0+n1+n2] = dr1_2.flatten()
+        jac[params_list.index('r2'),n0+n1:n0+n1+n2] = dr2_2.flatten()
+        jac[params_list.index('u0'),n0+n1:n0+n1+n2] = du0_2.flatten()
+        jac[params_list.index('u1'),n0+n1:n0+n1+n2] = du1_2.flatten()
+        jac[params_list.index('u2'),n0+n1:n0+n1+n2] = du2_2.flatten()
+
+        # ---
+
+        diff = np.concatenate([e.flatten() for e in es])
+
+        mask = np.isfinite(diff)
+
+        return jac[:,mask]
 
     def residual_3d(self, params, x0, x1, x2, y, e):
 
@@ -1313,13 +1703,9 @@ class PeakEllipsoid:
                                                     r0, r1, r2,
                                                     u0, u1, u2)
 
-        args = x0, x1, x2, 1, 0, c, inv_S
+        args = x0, x1, x2, c, inv_S
 
         y_gauss = self.gaussian(*args, '3d')
-
-        # det = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='3d'))
-
-        # A = I/np.sqrt((2*np.pi)**3*det)
 
         diff = []
 
@@ -1331,27 +1717,104 @@ class PeakEllipsoid:
 
         # ---
 
-        diff += [A, B, c0, c1, c2, r0, r1, r2, u0, u1, u2]
-
         diff = np.array(diff)
 
         mask = np.isfinite(diff)
 
         return diff[mask]
 
+    def jacobian_3d(self, params, x0, x1, x2, y, e):
+
+        params_list = list(params.keys())
+
+        c0 = params['c0']
+        c1 = params['c1']
+        c2 = params['c2']
+
+        r0 = params['r0']
+        r1 = params['r1']
+        r2 = params['r2']
+
+        u0 = params['u0']
+        u1 = params['u1']
+        u2 = params['u2']
+
+        A = params['A3d']
+        # B = params['B3d']
+
+        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
+                                                    r0, r1, r2,
+                                                    u0, u1, u2)
+
+        args = x0, x1, x2, c, inv_S
+
+        y_gauss = self.gaussian(*args, '3d')
+
+        dA = y_gauss/e
+
+        dB = 1/e
+
+        yc_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode='3d')
+
+        dc0, dc1, dc2 = A*yc_gauss/e
+
+        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
+        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
+
+        yr_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode='3d')
+
+        yu_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode='3d')
+
+        dr0, dr1, dr2 = A*yr_gauss/e
+
+        du0, du1, du2 = A*yu_gauss/e
+
+        n, n_params = y.size, len(params)
+        jac = np.zeros((n_params,n))
+
+        jac[params_list.index('A3d'),:n] = dA.flatten()
+        jac[params_list.index('B3d'),:n] = dB.flatten()
+        jac[params_list.index('c0'),:n] = dc0.flatten()
+        jac[params_list.index('c1'),:n] = dc1.flatten()
+        jac[params_list.index('c2'),:n] = dc2.flatten()
+        jac[params_list.index('r0'),:n] = dr0.flatten()
+        jac[params_list.index('r1'),:n] = dr1.flatten()
+        jac[params_list.index('r2'),:n] = dr2.flatten()
+        jac[params_list.index('u0'),:n] = du0.flatten()
+        jac[params_list.index('u1'),:n] = du1.flatten()
+        jac[params_list.index('u2'),:n] = du2.flatten()
+
+        # ---
+
+        mask = np.isfinite(e.flatten())
+
+        return jac[:,mask]
+
     def residual(self, params, args_1d, args_2d, args_3d):
 
-        cost_1d = self.residual_1d(params, *args_1d).tolist()
-        cost_2d = self.residual_2d(params, *args_2d).tolist()
-        cost_3d = self.residual_3d(params, *args_3d).tolist()
+        cost_1d = self.residual_1d(params, *args_1d)
+        cost_2d = self.residual_2d(params, *args_2d)
+        cost_3d = self.residual_3d(params, *args_3d)
 
-        return cost_1d+cost_2d+cost_3d
+        reg = [params[key] for key in params.keys()]
 
-    def loss(self, r):
+        cost = np.concatenate([cost_1d, cost_2d, cost_3d, reg])
 
-        z = r*r
+        return cost
 
-        return np.sqrt(1+z)-1
+    def jacobian(self, params, args_1d, args_2d, args_3d):
+
+        params_list = list(params.keys())        
+
+        jac_1d = self.jacobian_1d(params, *args_1d)
+        jac_2d = self.jacobian_2d(params, *args_2d)
+        jac_3d = self.jacobian_3d(params, *args_3d)
+
+        reg = np.eye(len(params_list))
+
+        jac = np.column_stack([jac_1d, jac_2d, jac_3d, reg])
+
+        return jac
 
     def estimate_envelope(self, x0, x1, x2, counts, y, e):
 
@@ -1397,9 +1860,6 @@ class PeakEllipsoid:
 
         y1d = [y1d_0, y1d_1, y1d_2]
         e1d = [e1d_0, e1d_1, e1d_2]
-
-        # y1d = [np.arcsinh(y) for y in y1d]
-        # e1d = [e/np.sqrt(y**2+1) for y, e in zip(y1d, e1d)]
 
         args_1d = [x0, x1, x2, y1d, e1d]
 
@@ -1456,9 +1916,6 @@ class PeakEllipsoid:
         y2d = [y2d_0, y2d_1, y2d_2]
         e2d = [e2d_0, e2d_1, e2d_2]
 
-        # y2d = [np.arcsinh(y) for y in y2d]
-        # e2d = [e/np.sqrt(y**2+1) for y, e in zip(y2d, e2d)]
-
         args_2d = [x0, x1, x2, y2d, e2d]
 
         y3d, e3d = self.normalize(x0, x1, x2, counts, y, e, mode='3d')
@@ -1469,13 +1926,10 @@ class PeakEllipsoid:
         if np.isclose(y_max, y_min) or (y > 0).sum() <= 13:
             return None
 
-        # y_sum = np.nansum(y3d)
-
         self.params.add('A3d', value=y_max, min=0, max=2*y_max)
 
         self.params.add('B3d', value=y_min, min=-2*y_max, max=2*y_max)
 
-        # args_3d = [x0, x1, x2, np.arcsinh(y3d), e3d/np.sqrt(y3d**2+1)]
         args_3d = [x0, x1, x2, y3d, e3d]
 
         self.redchi2 = []
@@ -1486,63 +1940,13 @@ class PeakEllipsoid:
         out = Minimizer(self.residual,
                         self.params,
                         fcn_args=(args_1d, args_2d, args_3d),
-                        # reduce_fcn=self.loss,
                         nan_policy='omit')
 
-        result = out.minimize(method='leastsq')
+        result = out.minimize(method='leastsq',
+                              Dfun=self.jacobian,
+                              col_deriv=True)
 
         self.params = result.params
-
-        # ---
-
-        # self.params['B1d_0'].set(vary=True)
-        # self.params['B1d_1'].set(vary=True)
-        # self.params['B1d_2'].set(vary=True)
-
-        # self.params['C1d_0'].set(vary=True)
-        # self.params['C1d_1'].set(vary=True)
-        # self.params['C1d_2'].set(vary=True)
-
-        # self.params['B2d_0'].set(vary=False)
-        # self.params['B2d_1'].set(vary=False)
-        # self.params['B2d_2'].set(vary=False)
-
-        # self.params['C2d_01'].set(vary=False)
-        # self.params['C2d_02'].set(vary=False)
-
-        # self.params['C2d_10'].set(vary=False)
-        # self.params['C2d_12'].set(vary=False)
-
-        # self.params['C2d_20'].set(vary=False)
-        # self.params['C2d_21'].set(vary=False)
-
-        # self.params['B3d'].set(vary=False)
-
-        # ---
-
-        # self.params['c0'].set(vary=True)
-        # self.params['c1'].set(vary=True)
-        # self.params['c2'].set(vary=True)
-
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=True)
-        # self.params['r2'].set(vary=True)
-
-        # self.params['u0'].set(vary=False)
-        # self.params['u1'].set(vary=False)
-        # self.params['u2'].set(vary=False)
-
-        # out = Minimizer(self.residual_1d,
-        #                 self.params,
-        #                 fcn_args=args_1d,
-        #                 reduce_fcn=self.loss,
-        #                 nan_policy='omit')
-
-        # result = out.minimize(method='leastsq')
-
-        # self.params = result.params
-
-        # ---
 
         c0 = self.params['c0'].value
         c1 = self.params['c1'].value
@@ -1556,21 +1960,17 @@ class PeakEllipsoid:
         u1 = self.params['u1'].value
         u2 = self.params['u2'].value
 
-        C1_0 = self.params['C1d_0'].value
-
-        B1 = self.params['B1d_0'].value
-
         c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
                                                     r0, r1, r2,
                                                     u0, u1, u2)
 
-        # det_0 = 1/self.ellipsoid_covariance(inv_S, mode='1d_0')
+        args = x0, x1, x2, c, inv_S
+
+        C1_0 = self.params['C1d_0'].value
+
+        B1 = self.params['B1d_0'].value
 
         A1 = self.params['A1d_0'].value
-
-        # A1 = I/np.sqrt((2*np.pi)*det_0)
-
-        args = x0, x1, x2, 1, 0, c, inv_S
 
         y1_gauss = self.gaussian(*args, '1d_0')
 
@@ -1580,83 +1980,12 @@ class PeakEllipsoid:
 
         # ---
 
-        # self.params['B1d_0'].set(vary=False)
-        # self.params['B1d_1'].set(vary=False)
-        # self.params['B1d_2'].set(vary=False)
-
-        # self.params['C1d_0'].set(vary=False)
-        # self.params['C1d_1'].set(vary=False)
-        # self.params['C1d_2'].set(vary=False)
-
-        # self.params['B2d_0'].set(vary=True)
-        # self.params['B2d_1'].set(vary=True)
-        # self.params['B2d_2'].set(vary=True)
-
-        # self.params['C2d_01'].set(vary=True)
-        # self.params['C2d_02'].set(vary=True)
-
-        # self.params['C2d_10'].set(vary=True)
-        # self.params['C2d_12'].set(vary=True)
-
-        # self.params['C2d_20'].set(vary=True)
-        # self.params['C2d_21'].set(vary=True)
-
-        # self.params['B3d'].set(vary=False)
-
-        # ---
-
-        # self.params['c0'].set(vary=True)
-        # self.params['c1'].set(vary=True)
-        # self.params['c2'].set(vary=True)
-
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=True)
-        # self.params['r2'].set(vary=True)
-
-        # self.params['u0'].set(vary=True)
-        # self.params['u1'].set(vary=True)
-        # self.params['u2'].set(vary=True)
-
-        # out = Minimizer(self.residual_2d,
-        #                 self.params,
-        #                 fcn_args=args_2d,
-        #                 reduce_fcn=self.loss,
-        #                 nan_policy='omit')
-
-        # result = out.minimize(method='leastsq')
-
-        # self.params = result.params
-
-        # ---
-
-        # c0 = self.params['c0'].value
-        # c1 = self.params['c1'].value
-        # c2 = self.params['c2'].value
-
-        # r0 = self.params['r0'].value
-        # r1 = self.params['r1'].value
-        # r2 = self.params['r2'].value
-
-        # u0 = self.params['u0'].value
-        # u1 = self.params['u1'].value
-        # u2 = self.params['u2'].value
-
         C2_1 = self.params['C2d_01'].value
         C2_2 = self.params['C2d_02'].value
 
         B2 = self.params['B2d_0'].value
 
-        # c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
-        #                                             r0, r1, r2,
-        #                                             u0, u1, u2)
-
-        # det_12 = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='2d_0'))
-
         A2 = self.params['A2d_0'].value
-
-        # A2 = I/np.sqrt((2*np.pi)**2*det_12)
-
-        args = x0, x1, x2, 1, 0, c, inv_S
 
         y2_gauss = self.gaussian(*args, '2d_0')
 
@@ -1666,80 +1995,9 @@ class PeakEllipsoid:
 
         # ---
 
-        # self.params['B1d_0'].set(vary=False)
-        # self.params['B1d_1'].set(vary=False)
-        # self.params['B1d_2'].set(vary=False)
-
-        # self.params['C1d_0'].set(vary=False)
-        # self.params['C1d_1'].set(vary=False)
-        # self.params['C1d_2'].set(vary=False)
-
-        # self.params['B2d_0'].set(vary=False)
-        # self.params['B2d_1'].set(vary=False)
-        # self.params['B2d_2'].set(vary=False)
-
-        # self.params['C2d_01'].set(vary=False)
-        # self.params['C2d_02'].set(vary=False)
-
-        # self.params['C2d_10'].set(vary=False)
-        # self.params['C2d_12'].set(vary=False)
-
-        # self.params['C2d_20'].set(vary=False)
-        # self.params['C2d_21'].set(vary=False)
-
-        # self.params['B3d'].set(vary=True)
-
-        # ---
-
-        # self.params['c0'].set(vary=True)
-        # self.params['c1'].set(vary=True)
-        # self.params['c2'].set(vary=True)
-
-        # self.params['r0'].set(vary=True)
-        # self.params['r1'].set(vary=True)
-        # self.params['r2'].set(vary=True)
-
-        # self.params['u0'].set(vary=True)
-        # self.params['u1'].set(vary=True)
-        # self.params['u2'].set(vary=True)
-
-        # out = Minimizer(self.residual_3d,
-        #                 self.params,
-        #                 fcn_args=args_3d,
-        #                 reduce_fcn=self.loss,
-        #                 nan_policy='omit')
-
-        # result = out.minimize(method='leastsq')
-
-        # self.params = result.params
-
-        # ---
-
-        # c0 = self.params['c0'].value
-        # c1 = self.params['c1'].value
-        # c2 = self.params['c2'].value
-
-        # r0 = self.params['r0'].value
-        # r1 = self.params['r1'].value
-        # r2 = self.params['r2'].value
-
-        # u0 = self.params['u0'].value
-        # u1 = self.params['u1'].value
-        # u2 = self.params['u2'].value
-
         B3 = self.params['B3d'].value
 
-        # c, inv_S = self.centroid_inverse_covariance(c0, c1, c2,
-        #                                             r0, r1, r2,
-        #                                             u0, u1, u2)
-
-        # det = 1/np.linalg.det(self.ellipsoid_covariance(inv_S, mode='3d'))
-
         A3 = self.params['A3d'].value
-
-        # A3 = I/np.sqrt((2*np.pi)**3*det)
-
-        args = x0, x1, x2, 1, 0, c, inv_S
 
         y3_gauss = self.gaussian(*args, '3d')
 

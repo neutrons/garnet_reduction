@@ -5,45 +5,45 @@ import shutil
 # import subprocess
 import cProfile
 
-# import numpy as np
+import numpy as np
 
 from garnet.config.instruments import beamlines
 from garnet.reduction.plan import ReductionPlan
 from garnet.reduction.peaks import PeaksModel
 from garnet.reduction.data import DataModel
-from garnet.reduction.integration import Integration
+from garnet.reduction.integration import Integration, PeakEllipsoid
 
 # benchmark = 'shared/benchmark'
 
 config_file = '/SNS/CORELLI/shared/benchmark/test/CORELLI_plan.yaml'
 
-rp = ReductionPlan()
-rp.load_plan(config_file)
+# rp = ReductionPlan()
+# rp.load_plan(config_file)
 
-data_ws = '/SNS/CORELLI/shared/benchmark/test/CORELLI_data.nxs'
-peaks_ws = '/SNS/CORELLI/shared/benchmark/test/CORELLI_peaks.nxs'
+# data_ws = '/SNS/CORELLI/shared/benchmark/test/CORELLI_data.nxs'
+# peaks_ws = '/SNS/CORELLI/shared/benchmark/test/CORELLI_peaks.nxs'
 
-plots = '/SNS/CORELLI/shared/benchmark/test/CORELLI_plan_integration/CORELLI_plan_Hexagonal_P_d(min)=0.70_r(max)=0.20_plots/'
+# plots = '/SNS/CORELLI/shared/benchmark/test/CORELLI_plan_integration/CORELLI_plan_Hexagonal_P_d(min)=0.70_r(max)=0.20_plots/'
 
-if os.path.exists(plots):
-    shutil.rmtree(plots)
-os.mkdir(plots)
+# if os.path.exists(plots):
+#     shutil.rmtree(plots)
+# os.mkdir(plots)
 
-data = DataModel(beamlines['CORELLI'])
-data.load_histograms(data_ws, 'md')
+# data = DataModel(beamlines['CORELLI'])
+# data.load_histograms(data_ws, 'md')
 
-peaks = PeaksModel()
-peaks.load_peaks(peaks_ws, 'peaks')
+# peaks = PeaksModel()
+# peaks.load_peaks(peaks_ws, 'peaks')
 
-params = [0.1, 0]
+# params = [0.1, 0]
 
-integrate = Integration(rp.plan)
-integrate.data = data
-integrate.peaks = peaks
-integrate.run = 0
-integrate.runs = 1
-peak_dict = integrate.extract_peak_info('peaks', params)
-cProfile.run("integrate.integrate_peaks(peak_dict)", 'profile.stats')
+# integrate = Integration(rp.plan)
+# integrate.data = data
+# integrate.peaks = peaks
+# integrate.run = 0
+# integrate.runs = 1
+# peak_dict = integrate.extract_peak_info('peaks', params)
+# cProfile.run("integrate.integrate_peaks(peak_dict)", 'profile.stats')
 
 
 # @pytest.mark.skipif(not os.path.exists('/SNS/CORELLI/'), reason='file mount')
@@ -217,79 +217,39 @@ cProfile.run("integrate.integrate_peaks(peak_dict)", 'profile.stats')
 #     sigma = np.sqrt(np.linalg.det(cov))
 
 #     assert np.isclose(mu, Q0, atol=0.01).all()
-#     assert np.isclose(s, sigma, atol=0.001).all()
+#     assert np.isclose(s, sigma, atol=0.001).all() assert np.allclose
 
-# def test_ellipsoid_methods():
+def test_ellipsoid_methods():
 
-#     params = 1.05, 0.05, -1.15, 0.5, 0.5, 0.5, [1,0,0], [0,1,0], [0,0,1]
+    ellipsoid = PeakEllipsoid()
 
-#     ellipsoid = PeakEllipsoid(*params, 1, 1)
+    r0, r1, r2, u0, u1, u2 = 0.2, 0.3, 0.4, 0.2, 0.1, 0.4
 
-#     vals = 1., 2., 3., 0.2, 1.1, -0.4
+    inv_S0 = ellipsoid.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
-#     S = ellipsoid.S_matrix(*vals)
-#     inv_S = ellipsoid.inv_S_matrix(*vals)
+    delta = 1e-8
 
-#     assert np.allclose(np.linalg.inv(S), inv_S)
+    d_inv_S = ellipsoid.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
 
-#     P = np.eye(3)-np.outer(ellipsoid.n, ellipsoid.n)
+    inv_S1 = ellipsoid.inv_S_matrix(r0+delta, r1, r2, u0, u1, u2)
+    print (np.allclose(d_inv_S[0], (inv_S1-inv_S0)/delta))
 
-#     assert np.allclose(ellipsoid.u, P @ ellipsoid.u)
-#     assert np.allclose(ellipsoid.v, P @ ellipsoid.v)
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1+delta, r2, u0, u1, u2)
+    print (np.allclose(d_inv_S[1], (inv_S1-inv_S0)/delta))
 
-#     W = np.column_stack([ellipsoid.n, ellipsoid.u, ellipsoid.v])
-
-#     assert np.isclose(np.abs(np.linalg.det(W)), 1)
-
-#     x = np.linspace(1, 3, 1000)
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2+delta, u0, u1, u2)
+    print (np.allclose(d_inv_S[2], (inv_S1-inv_S0)/delta))
     
-#     dx = x[1]-x[0]
+    d_inv_S = ellipsoid.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
 
-#     A, B, mu, sigma = 1.2, 0.2, 2, 0.2
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0+delta, u1, u2)
+    print (np.allclose(d_inv_S[0], (inv_S1-inv_S0)/delta))
 
-#     y = ellipsoid.profile(x, A, B, mu, sigma)
-#     yp = ellipsoid.profile_grad(x, A, B, mu, sigma)
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0, u1+delta, u2)
+    print (np.allclose(d_inv_S[1], (inv_S1-inv_S0)/delta))
 
-#     grad_y = np.gradient(y, dx)
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0, u1, u2+delta)
+    print (np.allclose(d_inv_S[2], (inv_S1-inv_S0)/delta))
 
-#     assert np.allclose(yp, grad_y, rtol=1e-2, atol=1e-4)
 
-#     xu = np.linspace(1, 3, 500)
-#     xv = np.linspace(2, 4, 501)
-
-#     dxu, dxv = xu[1]-xu[0], xv[1]-xv[0]
-
-#     xu, xv = np.meshgrid(xu, xv, indexing='ij')
-
-#     mu_u, mu_v, sigma_u, sigma_v, rho = 2, 3, 0.4, 0.5, 0.1
-
-#     y = ellipsoid.projection(xu, xv, A, B, mu_u, mu_v, sigma_u, sigma_v, rho)
-#     ypu, ypv = ellipsoid.projection_grad(xu, xv, A, B,
-#                                          mu_u, mu_v, sigma_u, sigma_v, rho)
-
-#     grad_yu, grad_yv = np.gradient(y, dxu, dxv)
-
-#     assert np.allclose(ypu, grad_yu, rtol=1e-2, atol=1e-3)
-#     assert np.allclose(ypv, grad_yv, rtol=1e-2, atol=1e-3)
-
-#     x0 = np.linspace(1, 3, 250)
-#     x1 = np.linspace(2, 4, 251)
-#     x2 = np.linspace(3, 5, 252)
-
-#     dx0, dx1, dx2 = x0[1]-x0[0], x1[1]-x1[0], x2[1]-x2[0]
-
-#     x0, x1, x2 = np.meshgrid(x0, x1, x2, indexing='ij')
-
-#     c = [2, 3, 4]
-#     S = np.array([[0.04, 0.005, 0.003],
-#                   [0.005, 0.041, 0.02],
-#                   [0.003, 0.02, 0.042]])
-
-#     y = ellipsoid.func(x0, x1, x2, A, B, c, S)
-#     yp0, yp1, yp2 = ellipsoid.func_grad(x0, x1, x2, A, B, c, S)
-
-#     grad_y0, grad_y1, grad_y2 = np.gradient(y, dx0, dx1, dx2)
-
-#     assert np.allclose(yp0, grad_y0, rtol=1e-2, atol=1e-3)
-#     assert np.allclose(yp1, grad_y1, rtol=1e-2, atol=1e-3)
-#     assert np.allclose(yp2, grad_y2, rtol=1e-2, atol=1e-3)
+test_ellipsoid_methods()
