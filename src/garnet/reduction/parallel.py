@@ -12,7 +12,7 @@ np.seterr(all='ignore', invalid='ignore')
 
 from mantid import config
 config['Q.convention'] = 'Crystallography'
-config.setLogLevel(0, quiet=True)
+# config.setLogLevel(0, quiet=True)
 
 class ParallelTasks:
 

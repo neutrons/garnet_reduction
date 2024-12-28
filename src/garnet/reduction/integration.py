@@ -109,7 +109,10 @@ class Integration(SubPlan):
         data = DataModel(beamlines[self.plan['Instrument']])
         data.update_raw_path(self.plan)
 
-        peaks = PeaksModel()
+        peaks = PeaksModel()            
+
+        self.make_plot = True
+        self.peak_plot = PeakPlot()
 
         runs = self.plan['Runs']
 
@@ -169,13 +172,6 @@ class Integration(SubPlan):
             self.peaks, self.data = peaks, data
 
             params = self.estimate_peak_size('peaks', 'md', r_cut)
-
-            peaks.predict_peaks('data',
-                                'peaks',
-                                self.params['Centering'],
-                                self.params['MinD'],
-                                lamda_min,
-                                lamda_max)
 
             if self.params['MaxOrder'] > 0:
 
@@ -589,6 +585,7 @@ class Integration(SubPlan):
         Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = data_info
 
         peak_name, wavelength, angles, goniometer = peak_info
+        print(key, peak_name)
 
         ellipsoid = PeakEllipsoid()
 
@@ -628,7 +625,7 @@ class Integration(SubPlan):
 
         return key, value
 
-    def extract_peak_info(self, peaks_ws, r, make_plot=True):
+    def extract_peak_info(self, peaks_ws, r):
         """
         Obtain peak information for envelope determination.
 
@@ -641,12 +638,6 @@ class Integration(SubPlan):
 
         """
 
-        if make_plot:
-
-            self.peak_plot = PeakPlot()
-
-        self.make_plot = make_plot
-
         data = self.data
 
         peak = PeakModel(peaks_ws)
@@ -658,6 +649,7 @@ class Integration(SubPlan):
         peak_dict = {}
 
         for i in range(n_peak):
+            print(i)
 
             Qmod = 2*np.pi/peak.get_d_spacing(i)
 
@@ -710,6 +702,7 @@ class Integration(SubPlan):
             if value is not None:
 
                 I, sigma, shape, info = value
+                print(i, I, sigma)
 
                 peak.set_peak_intensity(i, I, sigma)
 
@@ -1944,6 +1937,10 @@ class PeakEllipsoid:
 
         result = out.minimize(method='leastsq',
                               Dfun=self.jacobian,
+                              ftol=1e-6,
+                              gtol=1e-6,
+                              xtol=1e-6,
+                              max_nfev=100,
                               col_deriv=True)
 
         self.params = result.params
