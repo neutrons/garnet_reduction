@@ -1091,6 +1091,50 @@ class PeakEllipsoid:
 
         return inv_var
 
+    def chi_2_fit(self, x0, x1, x2, c, inv_S, y_fit, y, e, mode='3d'):
+
+        c0, c1, c2 = c
+
+        dx0, dx1, dx2 = x0-c0, x1-c1, x2-c2
+
+        if mode == '3d':
+            dx = [dx0, dx1, dx2]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_S, dx)
+            m = 11
+        elif mode == '2d_0':
+            dx = [dx1[0,:,:], dx2[0,:,:]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_S[1:,1:], dx)
+            m = 7
+        elif mode == '2d_1':
+            dx = [dx0[:,0,:], dx2[:,0,:]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_S[0::2,0::2], dx)
+            m = 9
+        elif mode == '2d_2':
+            dx = [dx0[:,:,0], dx1[:,:,0]]
+            d2 = np.einsum('i...,ij,j...->...', dx, inv_S[:2,:2], dx)
+            m = 9
+        elif mode == '1d_0':
+            dx = dx0[:,0,0]
+            d2 = inv_S[0,0]*dx**2
+            m = 5
+        elif mode == '1d_1':
+            dx = dx1[0,:,0]
+            d2 = inv_S[1,1]*dx**2
+            m = 5
+        elif mode == '1d_2':
+            dx = dx2[0,0,:]
+            d2 = inv_S[2,2]*dx**2
+            m = 5
+
+        mask = (d2 < 2**2) & np.isfinite(y) & (e > 0)
+
+        n = np.sum(mask)
+
+        if n <= m:
+            return np.inf
+        else:
+            return np.nansum(((y_fit[mask]-y[mask])/e[mask])**2)/(n-m)
+
     def gaussian(self, x0, x1, x2, c, inv_S, mode='3d'):
 
         c0, c1, c2 = c
@@ -1973,7 +2017,11 @@ class PeakEllipsoid:
 
         y1_fit = A1*y1_gauss+B1+C1_0*(x0[:,0,0]-c0)
 
-        self.redchi2.append(np.nanmean((y1_fit-y1)**2/e1**2))
+        self.ellipsoid_covariance(inv_S, mode='1d_0')
+
+        chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, y1_fit, y1, e1, '1d_0')
+
+        self.redchi2.append(chi2)
 
         # ---
 
@@ -1988,8 +2036,10 @@ class PeakEllipsoid:
 
         y2_fit = A2*y2_gauss+B2+C2_1*(x1[0,:,:]-c1)+C2_2*(x2[0,:,:]-c2)
 
-        self.redchi2.append(np.nanmean((y2_fit-y2)**2/e2**2))
+        chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, y2_fit, y2, e2, '2d_0')
 
+        self.redchi2.append(chi2)
+    
         # ---
 
         B3 = self.params['B3d'].value
@@ -2000,7 +2050,9 @@ class PeakEllipsoid:
 
         y3_fit = A3*y3_gauss+B3
 
-        self.redchi2.append(np.nanmean((y3_fit-y3)**2/e3**2))
+        chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, y3_fit, y3, e3, '3d')
+
+        self.redchi2.append(chi2)
 
         # ---
 
@@ -2150,7 +2202,7 @@ class PeakEllipsoid:
         intens = np.nansum(y_pk-b)
         sig = np.sqrt(np.nansum(e_pk**2+b_err**2))
 
-        # *(1+self.error_scale**2)
+        sig *= np.sqrt(1+self.error_scale**2)
 
         self.weights = (x0[pk], x1[pk], x2[pk]), counts[pk].copy()
 
