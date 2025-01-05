@@ -219,7 +219,7 @@ class PeaksModel:
         peaks : str
             Name of peaks table.
         peak_radius : float
-            Integrat region radius cut off.
+            Integration region radius cut off.
         background_inner_fact : float, optional
             Factor of peak radius for background shell. The default is 1
         background_outer_fact : float, optional

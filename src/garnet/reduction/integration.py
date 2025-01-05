@@ -865,8 +865,8 @@ class PeakRegionOfInterest:
         y_hat = scipy.special.erf(z/np.sqrt(2))\
               - np.sqrt(2/np.pi)*z*np.exp(-0.5*z**2)
 
-        num = np.nansum(1/e**2*y_hat*y, axis=1)
-        den = np.nansum(1/e**2*y_hat**2, axis=1)
+        num = np.nansum(y_hat*y, axis=1)
+        den = np.nansum(y_hat**2, axis=1)
         # wgt = np.nanmax(y, axis=1)
 
         A = num/den
@@ -2056,6 +2056,14 @@ class PeakEllipsoid:
 
         # ---
 
+        self.bkg = B3
+
+        B3_err = self.params['B3d'].stderr
+        if B3_err is None:
+            B3_err = B3
+
+        self.bkg_err = B3_err
+
         self.error_scale = np.sqrt(self.redchi2[2])
 
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
@@ -2173,6 +2181,11 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
+        d3x = dx0*dx1*dx2
+
+        y /= d3x
+        e /= d3x
+
         c0, c1, c2 = c
 
         x = np.array([x0-c0, x1-c1, x2-c2])
@@ -2188,19 +2201,19 @@ class PeakEllipsoid:
         pk = (ellipsoid <= 1.1**2) & (e > 0)
         bkg = (ellipsoid > 1.1**2) & (ellipsoid < 2**2) & (e > 0)
 
-        d3x = dx0*dx1*dx2
-
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
 
-        y_bkg = y[bkg].copy()
-        e_bkg = e[bkg].copy()
+        # y_bkg = y[bkg].copy()
+        # e_bkg = e[bkg].copy()
 
-        b = np.nanmean(y_bkg)
-        b_err = np.sqrt(np.nanmean(e_bkg**2))
+        #b = np.nanmean(y_bkg)
+        #b_err = np.sqrt(np.nanmean(e_bkg**2))
+        b = self.bkg
+        b_err = self.bkg_err
 
-        intens = np.nansum(y_pk-b)
-        sig = np.sqrt(np.nansum(e_pk**2+b_err**2))
+        intens = np.nansum(y_pk-b)*d3x
+        sig = np.sqrt(np.nansum(e_pk**2+b_err**2))*d3x
 
         sig *= np.sqrt(1+self.error_scale**2)
 

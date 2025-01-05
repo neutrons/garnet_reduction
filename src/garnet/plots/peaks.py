@@ -698,6 +698,8 @@ class PeakPlot(BasePlot):
         self.ellip_im[0].set_extent((x0_min, x0_max, x1_min, x1_max))
         self.ellip_im[0].set_clim(vmin, vmax)
 
+        vmin, vmax = self._color_limits(p2)
+
         self.ellip_im[1].set_data(p2.T)
         self.ellip_im[1].set_extent((x0_min, x0_max, x1_min, x1_max))
         self.ellip_im[1].set_clim(vmin, vmax)
@@ -708,6 +710,8 @@ class PeakPlot(BasePlot):
         self.ellip_im[2].set_extent((x0_min, x0_max, x2_min, x2_max))
         self.ellip_im[2].set_clim(vmin, vmax)
 
+        vmin, vmax = self._color_limits(p1)
+
         self.ellip_im[3].set_data(p1.T)
         self.ellip_im[3].set_extent((x0_min, x0_max, x2_min, x2_max))
         self.ellip_im[3].set_clim(vmin, vmax)
@@ -717,6 +721,8 @@ class PeakPlot(BasePlot):
         self.ellip_im[4].set_data(y0.T)
         self.ellip_im[4].set_extent((x1_min, x1_max, x2_min, x2_max))
         self.ellip_im[4].set_clim(vmin, vmax)
+
+        vmin, vmax = self._color_limits(p0)
 
         self.ellip_im[5].set_data(p0.T)
         self.ellip_im[5].set_extent((x1_min, x1_max, x2_min, x2_max))
