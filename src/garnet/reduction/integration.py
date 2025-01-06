@@ -585,7 +585,7 @@ class Integration(SubPlan):
         Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = data_info
 
         peak_name, wavelength, angles, goniometer = peak_info
-        print(key, peak_name)
+        # print(key, peak_name)
 
         ellipsoid = PeakEllipsoid()
 
@@ -649,7 +649,7 @@ class Integration(SubPlan):
         peak_dict = {}
 
         for i in range(n_peak):
-            print(i)
+            # print(i)
 
             Qmod = 2*np.pi/peak.get_d_spacing(i)
 
@@ -702,7 +702,7 @@ class Integration(SubPlan):
             if value is not None:
 
                 I, sigma, shape, info = value
-                print(i, I, sigma)
+                # print(i, I, sigma)
 
                 peak.set_peak_intensity(i, I, sigma)
 
