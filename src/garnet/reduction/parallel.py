@@ -5,7 +5,7 @@ import traceback
 import multiprocess as multiprocessing
 multiprocessing.set_start_method('spawn', force=True)
 
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 np.seterr(all='ignore', invalid='ignore')
@@ -94,11 +94,17 @@ class ParallelProcessor:
         self.n_proc = n_proc
 
     def process_dict(self, data, func):
-
         if self.n_proc > 1:
             with ProcessPoolExecutor(max_workers=self.n_proc) as executor:
-                results = executor.map(func, data.items())
+                futures = [executor.submit(func, kv) for kv in data.items()]
+                results = {}
+                for future in as_completed(futures):
+                    try:
+                        key, value = future.result()
+                        results[key] = value
+                    except Exception as e:
+                        print('Exception in pool: {}'.format(e))
+                        traceback.print_exc()
         else:
-            results = [func(kv) for kv in data.items()]
-
-        return dict(results)
+            results = {k: func((k, v)) for k, v in data.items()}
+        return results

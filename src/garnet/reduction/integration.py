@@ -1190,7 +1190,7 @@ class PeakEllipsoid:
 
         return dinv_S0, dinv_S1, dinv_S2
     
-    def U_deriv_u(self, u0, u1, u2, delta=1e-4):
+    def U_deriv_u(self, u0, u1, u2, delta=1e-6):
 
         dU0 = self.U_matrix(u0+delta, u1, u2)-self.U_matrix(u0-delta, u1, u2)
         dU1 = self.U_matrix(u0, u1+delta, u2)-self.U_matrix(u0, u1-delta, u2)
