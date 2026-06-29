@@ -2,6 +2,7 @@ import os
 import subprocess
 
 import pytest
+
 from garnet.reduction.normalization import Normalization
 from garnet.reduction.plan import ReductionPlan
 
